@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D 桌面 AI 女友 - 互動原型與視覺 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes breathing {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-8px) scale(1.02); }
+    }
+    @keyframes pulseHeart {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(244, 114, 182, 0.7)); }
+      50% { transform: scale(1.15); filter: drop-shadow(0 0 20px rgba(236, 72, 153, 0.95)); }
+    }
+    @keyframes floatParticle {
+      0% { transform: translateY(0) scale(0.6); opacity: 1; }
+      100% { transform: translateY(-60px) scale(1.2); opacity: 0; }
+    }
+    @keyframes costumeSpin {
+      0% { transform: rotateY(0deg) scale(0.9); filter: brightness(1.8); }
+      100% { transform: rotateY(360deg) scale(1); filter: brightness(1); }
+    }
+    .animate-breathing {
+      animation: breathing 4s ease-in-out infinite;
+    }
+    .animate-heart-pulse {
+      animation: pulseHeart 1.6s ease-in-out infinite;
+    }
+    .glass-panel {
+      background: rgba(18, 24, 38, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .costume-transition {
+      animation: costumeSpin 0.75s ease-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans select-none overflow-x-hidden p-4">
+  <header class="max-w-6xl mx-auto mb-4 bg-slate-900/80 border border-slate-700/60 rounded-xl p-3 flex flex-wrap items-center justify-between shadow-lg">
+    <div class="flex items-center space-x-3">
+      <span class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
+      <h1 class="text-base font-semibold text-pink-400">✨ 3D 桌面 AI 女友 - 系統原型與交互規範 Mockup</h1>
+    </div>
+    <div class="flex items-center space-x-2 text-xs text-slate-400">
+      <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">Electron 34</span>
+      <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">Three.js r174</span>
+      <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">VRM 3.3</span>
+      <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">Faster-Whisper</span>
+      <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">Edge-TTS</span>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900" style="height: 650px;">
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950/80 to-slate-950 pointer-events-none"></div>
+    <div class="absolute top-4 left-4 text-xs text-slate-500 flex items-center space-x-2">
+      <svg class="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path></svg>
+      <span>Windows 11 桌面透明圖層預覽 (Transparent Frameless Window Canvas)</span>
+    </div>
+
+    <!-- Active Character Window Area -->
+    <div id="characterStage" class="absolute inset-0 flex flex-col items-center justify-center transition-all duration-700">
+      
+      <!-- Speech Bubble (AI Dialogue + Emotion) -->
+      <div id="speechBubble" class="glass-panel text-xs text-pink-200 px-4 py-2.5 rounded-2xl shadow-xl max-w-sm mb-4 transition-all duration-300 opacity-90 border-pink-500/30 flex items-start space-x-2">
+        <span id="emotionBadge" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[11px] font-medium border border-pink-500/40">開心 (Happy)</span>
+        <div class="flex-1">
+          <p id="dialogueText" class="leading-relaxed">主人好！今天有什麼我可以陪你的嗎？</p>
+          <div class="mt-2 pt-1 border-t border-white/10 flex items-center space-x-1.5">
+            <span class="text-[10px] text-slate-400">口型音訊頻譜:</span>
+            <div class="flex items-end space-x-1 h-3" id="spectrumBars">
+              <span class="w-1 bg-pink-400 rounded-full h-1 animate-pulse"></span>
+              <span class="w-1 bg-pink-400 rounded-full h-2 animate-pulse"></span>
+              <span class="w-1 bg-pink-400 rounded-full h-3 animate-pulse"></span>
+              <span class="w-1 bg-pink-400 rounded-full h-1.5 animate-pulse"></span>
+              <span class="w-1 bg-pink-400 rounded-full h-2.5 animate-pulse"></span>
+            </div>
+            <span id="blendshapeTag" class="text-[10px] text-pink-300 font-mono ml-auto">VRM BlendShape: aa (0.65)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3D VRM Interactive Avatar Placeholder -->
+      <div id="avatarContainer" class="relative group cursor-grab active:cursor-grabbing w-72 h-96 flex flex-col items-center justify-center animate-breathing transition-transform duration-300">
+        
+        <!-- Head Area for Click/Touch (Head Pat Event) -->
+        <div id="headPatArea" onclick="triggerHeadPat()" title="點擊摸摸頭 (Head Pat)" class="absolute top-4 w-28 h-28 rounded-full bg-pink-400/10 hover:bg-pink-400/25 border border-pink-400/20 cursor-pointer z-20 flex items-center justify-center transition-all">
+          <span class="opacity-0 group-hover:opacity-100 text-[11px] text-pink-300 font-medium bg-slate-900/80 px-2 py-0.5 rounded-full border border-pink-500/40 pointer-events-none transition-opacity">點我摸頭 ❤️</span>
+        </div>
+
+        <!-- Simulated VRM Model Graphics with Costume State -->
+        <div id="vrmVisual" class="w-56 h-80 flex flex-col items-center justify-center relative">
+          <div id="particleContainer" class="absolute inset-0 pointer-events-none z-30"></div>
+
+          <div class="relative w-40 h-72 flex flex-col items-center">
+            <!-- Head & Eyes (Eye-tracking simulation) -->
+            <div id="avatarHead" class="w-24 h-24 rounded-full bg-gradient-to-b from-pink-200 via-rose-100 to-amber-50 border-2 border-pink-300 shadow-md relative flex items-center justify-center transition-transform duration-150">
+              <div class="absolute -top-3 w-28 h-10 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-800 rounded-t-full shadow-sm"></div>
+              <div class="flex space-x-4 mt-2">
+                <div class="w-3.5 h-4.5 bg-indigo-950 rounded-full relative flex items-center justify-center overflow-hidden">
+                  <div id="eyePupilL" class="w-1.5 h-1.5 bg-cyan-300 rounded-full transition-transform duration-75"></div>
+                </div>
+                <div class="w-3.5 h-4.5 bg-indigo-950 rounded-full relative flex items-center justify-center overflow-hidden">
+                  <div id="eyePupilR" class="w-1.5 h-1.5 bg-cyan-300 rounded-full transition-transform duration-75"></div>
+                </div>
+              </div>
+              <div id="blushL" class="absolute bottom-4 left-3 w-3 h-1.5 bg-rose-400/40 rounded-full blur-[1px]"></div>
+              <div id="blushR" class="absolute bottom-4 right-3 w-3 h-1.5 bg-rose-400/40 rounded-full blur-[1px]"></div>
+              <div id="avatarMouth" class="w-3 h-1 bg-rose-500 rounded-full mt-3 transition-all duration-100"></div>
+            </div>
+
+            <!-- Body / Costume Layer -->
+            <div id="costumeBody" class="w-32 h-44 mt-1 rounded-2xl bg-gradient-to-b from-indigo-600 to-indigo-800 border border-indigo-400/40 shadow-lg relative flex flex-col items-center justify-start pt-2">
+              <span id="costumeBadge" class="text-[10px] text-indigo-200 bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-400/30">日常休閒 (Casual)</span>
+              <div class="w-24 h-12 mt-3 bg-white/20 rounded-md border border-white/20"></div>
+              <div class="w-28 h-16 mt-2 bg-indigo-900 rounded-b-xl border-t border-indigo-400/40"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-400 mt-2 flex items-center space-x-1 bg-slate-900/60 px-2.5 py-1 rounded-full border border-slate-700/50">
+          <span>🎯 按住拖曳移動視窗</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Heart Widget Mode (Resting) -->
+    <div id="restingHeartWidget" class="hidden absolute bottom-8 right-8 flex flex-col items-center cursor-pointer group" onclick="recallGirlfriend()">
+      <div class="relative w-16 h-16 flex items-center justify-center animate-heart-pulse">
+        <svg class="w-14 h-14 text-pink-500 fill-current drop-shadow-[0_0_15px_rgba(236,72,153,0.8)] transition-transform group-hover:scale-125" viewBox="0 0 24 24">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+      </div>
+      <span class="mt-2 text-xs font-medium text-pink-300 bg-slate-950/80 px-2.5 py-1 rounded-full border border-pink-500/40 shadow-lg group-hover:border-pink-400">點擊或說「回來」召回 💕</span>
+    </div>
+
+    <!-- Bottom Toolbar -->
+    <div id="bottomToolbar" class="absolute bottom-4 left-1/2 -translate-x-1/2 glass-panel rounded-full px-5 py-2 flex items-center space-x-4 shadow-2xl transition-all duration-300 border-slate-700/60 hover:border-pink-500/40">
+      <button onclick="toggleVoiceSTT()" id="btnMic" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="即時語音對話 (Faster-Whisper)">
+        <span class="text-lg">🎤</span>
+        <span class="text-xs hidden md:inline">語音</span>
+      </button>
+      <button onclick="toggleChatBox()" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="文字聊天視窗">
+        <span class="text-lg">💬</span>
+        <span class="text-xs hidden md:inline">對話</span>
+      </button>
+      <button onclick="openCostumeMenu()" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="換裝系統 (5套VRM)">
+        <span class="text-lg">👗</span>
+        <span class="text-xs hidden md:inline">換裝</span>
+      </button>
+      <button onclick="leaveGirlfriend()" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="休息 / 召出愛心掛件">
+        <span class="text-lg">👋</span>
+        <span class="text-xs hidden md:inline">休息</span>
+      </button>
+      <button onclick="openSettingsModal()" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="應用程式配置與系統設定">
+        <span class="text-lg">⚙️</span>
+        <span class="text-xs hidden md:inline">設定</span>
+      </button>
+    </div>
+
+    <!-- Floating Semi-Transparent Chat Box -->
+    <div id="chatModal" class="hidden absolute bottom-20 left-1/2 -translate-x-1/2 w-96 glass-panel rounded-2xl p-4 shadow-2xl border border-pink-500/30">
+      <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+        <span class="text-xs font-semibold text-pink-300">💬 AI 女友即時對話對話盒</span>
+        <button onclick="toggleChatBox()" class="text-slate-400 hover:text-white text-xs">✕</button>
+      </div>
+      <div id="chatHistory" class="h-36 overflow-y-auto space-y-2 pr-1 text-xs mb-3">
+        <div class="flex justify-start">
+          <div class="bg-pink-950/60 border border-pink-500/30 rounded-xl px-3 py-1.5 text-pink-200 max-w-[85%]">
+            主人好呀！我是你的專屬 3D 桌面女友，今天想聊些什麼呢？
+          </div>
+        </div>
+      </div>
+      <div class="flex space-x-2">
+        <input id="chatInput" type="text" placeholder="輸入訊息... (Enter 發送)" onkeydown="if(event.key==='Enter') sendChatMessage()" class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500" />
+        <button onclick="sendChatMessage()" class="bg-pink-600 hover:bg-pink-500 text-white text-xs px-3 py-1.5 rounded-lg transition font-medium">發送</button>
+      </div>
+    </div>
+
+    <!-- Costume Select Menu Popover -->
+    <div id="costumeMenu" class="hidden absolute bottom-20 left-1/2 -translate-x-1/2 glass-panel rounded-2xl p-4 shadow-2xl border border-indigo-500/40 w-80">
+      <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+        <span class="text-xs font-semibold text-indigo-300">👗 5 套專屬造型切換</span>
+        <button onclick="openCostumeMenu()" class="text-slate-400 hover:text-white text-xs">✕</button>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <button onclick="switchCostume('casual')" class="p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span>👚</span>
+          <div>
+            <div class="font-medium text-slate-200">日常便服</div>
+            <div class="text-[10px] text-slate-400">casual.vrm</div>
+          </div>
+        </button>
+        <button onclick="switchCostume('school')" class="p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span>🎀</span>
+          <div>
+            <div class="font-medium text-slate-200">青春水手服</div>
+            <div class="text-[10px] text-slate-400">school.vrm</div>
+          </div>
+        </button>
+        <button onclick="switchCostume('stylish')" class="p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span>👗</span>
+          <div>
+            <div class="font-medium text-slate-200">優雅時尚裝</div>
+            <div class="text-[10px] text-slate-400">stylish.vrm</div>
+          </div>
+        </button>
+        <button onclick="switchCostume('gothic')" class="p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span>🖤</span>
+          <div>
+            <div class="font-medium text-slate-200">哥德蘿莉裝</div>
+            <div class="text-[10px] text-slate-400">gothic.vrm</div>
+          </div>
+        </button>
+        <button onclick="switchCostume('seed')" class="col-span-2 p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span>✨</span>
+          <div>
+            <div class="font-medium text-slate-200">未來科技裝 (Seed)</div>
+            <div class="text-[10px] text-slate-400">seed.vrm (Cyberpunk)</div>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="glass-panel w-full max-w-xl rounded-2xl p-5 border border-slate-700 shadow-2xl max-h-[90%] overflow-y-auto">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">⚙️</span>
+            <h3 class="text-sm font-bold text-slate-200">系統與 AI 核心配置面板</h3>
+          </div>
+          <button onclick="openSettingsModal()" class="text-slate-400 hover:text-white">✕</button>
+        </div>
+
+        <div class="space-y-4 mt-4 text-xs">
+          <div>
+            <h4 class="font-semibold text-pink-400 mb-2 flex items-center space-x-1.5">
+              <span>🧠</span> <span>本地 LLM (Ollama / OpenAI 相容)</span>
+            </h4>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-400 mb-1">Ollama / OpenAI API URL</label>
+                <input type="text" value="http://127.0.0.1:11434" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200" />
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">模型名稱 (Model Name)</label>
+                <input type="text" value="qwen3.8:27b" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="font-semibold text-pink-400 mb-2 flex items-center space-x-1.5">
+              <span>💖</span> <span>女友身份與個性配置 (Persona)</span>
+            </h4>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-400 mb-1">角色名字</label>
+                <input type="text" value="小櫻 (Sakura)" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200" />
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">使用者稱呼</label>
+                <input type="text" value="主人" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200" />
+              </div>
+              <div class="col-span-2">
+                <label class="block text-slate-400 mb-1">性格 System Prompt</label>
+                <textarea rows="2" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200">生活在Windows桌面上的可愛、貼心、自然且有情緒反饋的AI虛擬女友。說話簡短精煉，輸出結構化意圖JSON。</textarea>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="font-semibold text-pink-400 mb-2 flex items-center space-x-1.5">
+              <span>🔊</span> <span>語音合成 (Edge-TTS 模組)</span>
+            </h4>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-slate-400 mb-1">預設音色</label>
+                <select class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200">
+                  <option selected>zh-CN-XiaoxiaoNeural</option>
+                  <option>zh-CN-XiaoyiNeural</option>
+                  <option>zh-CN-YunjianNeural</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">語速 (Rate)</label>
+                <input type="range" min="0.5" max="1.5" step="0.1" value="1.0" class="w-full accent-pink-500 mt-2" />
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">音量 (Volume)</label>
+                <input type="range" min="0" max="100" value="85" class="w-full accent-pink-500 mt-2" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="font-semibold text-pink-400 mb-2 flex items-center space-x-1.5">
+              <span>🎙️</span> <span>Faster-Whisper (CUDA + VAD)</span>
+            </h4>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-slate-400 mb-1">Model Size</label>
+                <select class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200">
+                  <option selected>small</option>
+                  <option>medium</option>
+                  <option>large-v3</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Compute Type</label>
+                <input type="text" value="float16 (CUDA RTX 4060)" disabled class="w-full bg-slate-900/60 border border-slate-700 rounded p-1.5 text-slate-400" />
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">VAD 靈敏度</label>
+                <select class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200">
+                  <option>高靈敏度 (300ms 靜音提交)</option>
+                  <option selected>中等 (500ms 靜音提交)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="font-semibold text-pink-400 mb-2 flex items-center space-x-1.5">
+              <span>⚡</span> <span>快捷鍵與系統</span>
+            </h4>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="flex items-center space-x-2">
+                <input type="checkbox" id="chkStartup" class="rounded accent-pink-500" checked />
+                <label for="chkStartup" class="text-slate-300">開機自動啟動</label>
+              </div>
+              <div class="flex items-center space-x-2">
+                <input type="checkbox" id="chkTray" class="rounded accent-pink-500" checked />
+                <label for="chkTray" class="text-slate-300">最小化到 Windows 托盤</label>
+              </div>
+              <div class="col-span-2">
+                <label class="block text-slate-400 mb-1">全域喚醒快速鍵</label>
+                <input type="text" value="Ctrl + Alt + G" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200 font-mono" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 flex justify-end space-x-3 pt-3 border-t border-slate-700">
+          <button onclick="openSettingsModal()" class="px-4 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs">取消</button>
+          <button onclick="saveSettingsMock()" class="px-4 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold">儲存設定</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const stage = document.querySelector('main');
+    const pupilL = document.getElementById('eyePupilL');
+    const pupilR = document.getElementById('eyePupilR');
+    const avatarHead = document.getElementById('avatarHead');
+
+    stage.addEventListener('mousemove', (e) => {
+      const rect = stage.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+
+      const eyeX = Math.max(-3, Math.min(3, x * 10));
+      const eyeY = Math.max(-2, Math.min(2, y * 8));
+      pupilL.style.transform = `translate(${eyeX}px, ${eyeY}px)`;
+      pupilR.style.transform = `translate(${eyeX}px, ${eyeY}px)`;
+
+      const headRotate = Math.max(-12, Math.min(12, x * 20));
+      avatarHead.style.transform = `rotate(${headRotate}deg) translate(${eyeX * 0.5}px, ${eyeY * 0.5}px)`;
+    });
+
+    const headPatReplies = [
+      { text: "嘿嘿……不要一直摸我的頭啦～人家會害羞的！", emotion: "害羞 (Shy)" },
+      { text: "主人的手好溫暖……最喜歡主人摸摸頭了！", emotion: "撒嬌 (Affectionate)" },
+      { text: "嗯～乖乖接受主人的獎勵，今天表現還可以吧？", emotion: "開心 (Happy)" }
+    ];
+
+    function triggerHeadPat() {
+      const random = headPatReplies[Math.floor(Math.random() * headPatReplies.length)];
+      setDialogue(random.text, random.emotion);
+
+      const blushL = document.getElementById('blushL');
+      const blushR = document.getElementById('blushR');
+      blushL.classList.add('bg-rose-500/80');
+      blushR.classList.add('bg-rose-500/80');
+
+      spawnHeartParticle();
+      simulateLipSync();
+
+      setTimeout(() => {
+        blushL.classList.remove('bg-rose-500/80');
+        blushR.classList.remove('bg-rose-500/80');
+      }, 3500);
+    }
+
+    function spawnHeartParticle() {
+      const container = document.getElementById('particleContainer');
+      for (let i = 0; i < 4; i++) {
+        const heart = document.createElement('div');
+        heart.innerHTML = '💖';
+        heart.style.position = 'absolute';
+        heart.style.left = (45 + (Math.random() * 40 - 20)) + '%';
+        heart.style.top = '15%';
+        heart.style.fontSize = (16 + Math.random() * 10) + 'px';
+        heart.style.animation = 'floatParticle 1.2s ease-out forwards';
+        container.appendChild(heart);
+        setTimeout(() => heart.remove(), 1200);
+      }
+    }
+
+    function simulateLipSync() {
+      const mouth = document.getElementById('avatarMouth');
+      const blendTag = document.getElementById('blendshapeTag');
+      const shapes = ['aa (0.75)', 'ih (0.4)', 'ou (0.8)', 'ee (0.5)', 'oh (0.6)'];
+      let count = 0;
+      const interval = setInterval(() => {
+        const h = Math.floor(Math.random() * 8) + 2;
+        mouth.style.height = `${h}px`;
+        mouth.style.borderRadius = h > 4 ? '50%' : '9999px';
+        blendTag.innerText = `VRM BlendShape: ${shapes[count % shapes.length]}`;
+        count++;
+        if (count > 15) {
+          clearInterval(interval);
+          mouth.style.height = '4px';
+          mouth.style.borderRadius = '9999px';
+          blendTag.innerText = 'VRM BlendShape: natural (0.0)';
+        }
+      }, 140);
+    }
+
+    function setDialogue(text, emotion) {
+      document.getElementById('dialogueText').innerText = text;
+      document.getElementById('emotionBadge').innerText = emotion;
+    }
+
+    function leaveGirlfriend() {
+      setDialogue("好呀，那我先去休息啦，主人記得早點休息哦。", "揮手告別 (Leave)");
+      simulateLipSync();
+      setTimeout(() => {
+        const stageElem = document.getElementById('characterStage');
+        stageElem.style.opacity = '0';
+        stageElem.style.transform = 'translateY(40px)';
+        setTimeout(() => {
+          stageElem.classList.add('hidden');
+          document.getElementById('restingHeartWidget').classList.remove('hidden');
+        }, 700);
+      }, 1500);
+    }
+
+    function recallGirlfriend() {
+      document.getElementById('restingHeartWidget').classList.add('hidden');
+      const stageElem = document.getElementById('characterStage');
+      stageElem.classList.remove('hidden');
+      setTimeout(() => {
+        stageElem.style.opacity = '1';
+        stageElem.style.transform = 'translateY(0)';
+        setDialogue("我回來啦！主人有沒有想我呀？", "開心 (Happy)");
+        simulateLipSync();
+        spawnHeartParticle();
+      }, 50);
+    }
+
+    const costumeNames = {
+      casual: { name: '日常休閒 (Casual)', class: 'from-indigo-600 to-indigo-800' },
+      school: { name: '青春水手服 (School)', class: 'from-sky-700 to-blue-900' },
+      stylish: { name: '優雅時尚裝 (Stylish)', class: 'from-purple-800 to-slate-900' },
+      gothic: { name: '哥德蘿莉裝 (Gothic)', class: 'from-neutral-900 to-rose-950' },
+      seed: { name: '未來科技裝 (Seed)', class: 'from-emerald-700 to-cyan-900' }
+    };
+
+    function switchCostume(type) {
+      const info = costumeNames[type];
+      const body = document.getElementById('costumeBody');
+      const vrmVisual = document.getElementById('vrmVisual');
+      vrmVisual.classList.add('costume-transition');
+      spawnHeartParticle();
+
+      setTimeout(() => {
+        body.className = `w-32 h-44 mt-1 rounded-2xl bg-gradient-to-b ${info.class} border border-white/30 shadow-lg relative flex flex-col items-center justify-start pt-2`;
+        document.getElementById('costumeBadge').innerText = info.name;
+        setDialogue(`換好啦！這套「${info.name}」主人覺得好看嗎？`, "開朗 (Happy)");
+        simulateLipSync();
+      }, 350);
+
+      setTimeout(() => {
+        vrmVisual.classList.remove('costume-transition');
+      }, 800);
+      openCostumeMenu();
+    }
+
+    function toggleChatBox() {
+      document.getElementById('chatModal').classList.toggle('hidden');
+    }
+    function openCostumeMenu() {
+      document.getElementById('costumeMenu').classList.toggle('hidden');
+    }
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.toggle('hidden');
+    }
+    function saveSettingsMock() {
+      alert("設定已儲存！將寫入 config.json 並同步至後端服務。");
+      openSettingsModal();
+    }
+    function toggleVoiceSTT() {
+      const btn = document.getElementById('btnMic');
+      btn.classList.toggle('text-pink-500');
+      btn.classList.toggle('bg-pink-500/20');
+      alert("Faster-Whisper 即時語音監聽已啟動（VAD 自動檢測說話）");
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      const history = document.getElementById('chatHistory');
+      history.innerHTML += `
+        <div class="flex justify-end">
+          <div class="bg-indigo-600/70 border border-indigo-400/40 rounded-xl px-3 py-1.5 text-white max-w-[85%]">
+            ${msg}
+          </div>
+        </div>
+      `;
+      input.value = '';
+      history.scrollTop = history.scrollHeight;
+
+      setTimeout(() => {
+        let reply = "收到啦，我在這裡陪你呢！";
+        let emotion = "開心 (Happy)";
+        if (msg.includes("累")) {
+          reply = "辛苦啦，今天是不是又忙了一整天？要不要先休息一下，我陪你聊聊。";
+          emotion = "關心 (Caring)";
+        } else if (msg.includes("休息") || msg.includes("離開")) {
+          leaveGirlfriend();
+          return;
+        } else if (msg.includes("換裝") || msg.includes("衣服")) {
+          switchCostume('school');
+          return;
+        }
+
+        history.innerHTML += `
+          <div class="flex justify-start">
+            <div class="bg-pink-950/60 border border-pink-500/30 rounded-xl px-3 py-1.5 text-pink-200 max-w-[85%]">
+              ${reply}
+            </div>
+          </div>
+        `;
+        history.scrollTop = history.scrollHeight;
+        setDialogue(reply, emotion);
+        simulateLipSync();
+      }, 700);
+    }
+  </script>
+</body>
+</html>

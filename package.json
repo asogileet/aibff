@@ -1,0 +1,29 @@
+{
+  "name": "desktop-ai-girlfriend",
+  "version": "1.0.0",
+  "description": "3D Desktop AI Girlfriend with Three.js, VRM 3.3, Faster-Whisper, and Edge-TTS",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "backend": "python backend/app.py"
+  },
+  "keywords": [
+    "electron",
+    "threejs",
+    "vrm",
+    "desktop-pet",
+    "ai-girlfriend",
+    "ollama",
+    "faster-whisper",
+    "edge-tts"
+  ],
+  "author": "AI Desktop Team",
+  "license": "MIT",
+  "dependencies": {
+    "@pixiv/three-vrm": "^3.3.0",
+    "three": "^0.174.0"
+  },
+  "devDependencies": {
+    "electron": "^34.0.0"
+  }
+}

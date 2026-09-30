@@ -1,0 +1,32 @@
+# Node modules & dependencies
+node_modules/
+package-lock.json.bak
+.npm/
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build & packaging artifacts
+dist/
+build/
+*.log

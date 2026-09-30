@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D 桌面 AI 女友</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ES Module Import Map for Three.js and VRM -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../../node_modules/three/build/three.module.js",
+        "three/addons/": "../../node_modules/three/examples/jsm/",
+        "@pixiv/three-vrm": "../../node_modules/@pixiv/three-vrm/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+</head>
+<body class="bg-transparent text-slate-100 select-none overflow-hidden relative w-screen h-screen">
+
+  <!-- Three.js 3D WebGL Canvas Layer -->
+  <div id="canvas-container"></div>
+
+  <!-- Realtime Dialogue Bubble -->
+  <div id="dialogueBubble" class="hidden absolute top-8 left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-4 py-2.5 rounded-2xl shadow-xl max-w-xs transition-all duration-300 border-pink-500/30 flex items-start space-x-2 z-30 pointer-events-none">
+    <span id="dialogueEmotionTag" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40">開心</span>
+    <p id="dialogueMessage" class="leading-relaxed flex-1">主人好！今天有什麼我可以陪你的嗎？</p>
+  </div>
+
+  <!-- UI Components Layer -->
+  <div id="ui-container" class="absolute inset-0 pointer-events-none">
+    <!-- Interactive elements will enable pointer-events internally -->
+  </div>
+
+  <!-- Main Renderer Script -->
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
