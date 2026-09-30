@@ -96,6 +96,20 @@ export class ConversationManager {
       }
 
       const data = await response.json();
+
+      // Defensive check: if reply contains raw JSON string, extract dialogue content
+      if (typeof data.reply === 'string' && data.reply.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(data.reply.trim());
+          data.reply = parsed.response || parsed.reply || parsed.message || parsed.content || parsed.text || data.reply;
+        } catch (_) {
+          const match = data.reply.match(/"(?:response|reply|message|content|text)"\s*:\s*"((?:\\.|[^"\\])*)"/i);
+          if (match && match[1]) {
+            data.reply = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+          }
+        }
+      }
+
       // Remove temporary thinking bubble and add assistant message to chat window
       if (this.chatBox && data.reply) {
         this.chatBox.removeLastMessage();

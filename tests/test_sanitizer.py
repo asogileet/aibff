@@ -20,5 +20,17 @@ class TestSanitizer(unittest.TestCase):
         print("DISPLAY:\n" + result["reply"])
         print("SPEECH:\n" + result["speech_text"])
 
+    def test_structured_response_field(self):
+        client = OllamaLLMClient()
+        raw1 = '{ "intention": "greeting", "sentiment": "happy", "response": "主人好呀～✨ 人家一直在這裡等你呢～💕"}'
+        result1 = client._extract_intent(raw1)
+        self.assertEqual(result1["reply"], "主人好呀～✨ 人家一直在這裡等你呢～💕")
+        self.assertEqual(result1["emotion"], "happy")
+        self.assertEqual(result1["action"], "wave")
+
+        raw2 = '{ "intention": "confirm_language", "sentiment": "happy", "response": "Yes, I do! I can chat with you in English~ What would you like to talk about? 💕"}'
+        result2 = client._extract_intent(raw2)
+        self.assertEqual(result2["reply"], "Yes, I do! I can chat with you in English~ What would you like to talk about? 💕")
+
 if __name__ == "__main__":
     unittest.main()

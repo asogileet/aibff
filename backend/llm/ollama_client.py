@@ -23,38 +23,53 @@ class OllamaLLMClient:
         """Strip markdown codeblocks, JSON wrappers, and literal escape slashes for clean UI reading."""
         text = raw_text.strip()
 
-        # 1. Strip think tags
+        # 1. Strip think and model control tags
         text = re.sub(r"<think>[\s\S]*?</think>", "", text).strip()
         text = re.sub(r"<think>[\s\S]*", "", text).strip()
         text = re.sub(r"</think>", "", text).strip()
         text = re.sub(r"<\|im_start\|>[\s\S]*?<\|im_end\|>", "", text).strip()
         text = re.sub(r"<\|im_end\|>", "", text).strip()
 
-        # 2. Extract reply from JSON if model output JSON format
-        # Case A: Complete or partial {"reply": "..."}
-        json_match = re.search(r'"reply"\s*:\s*"((?:\\.|[^"\\])*)"', text)
-        if json_match:
+        # 2. Try parsing complete or enclosed JSON block
+        cleaned_json = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+        cleaned_json = re.sub(r"\s*```$", "", cleaned_json, flags=re.MULTILINE).strip()
+        json_cand = None
+        first_brace = cleaned_json.find('{')
+        last_brace = cleaned_json.rfind('}')
+        if first_brace != -1 and last_brace > first_brace:
+            try:
+                json_cand = json.loads(cleaned_json[first_brace:last_brace + 1])
+            except Exception:
+                json_cand = None
+
+        if isinstance(json_cand, dict):
+            for key in ["response", "reply", "message", "content", "text", "dialogue", "say", "answer"]:
+                if key in json_cand and isinstance(json_cand[key], str) and json_cand[key].strip():
+                    return json_cand[key].strip()
+
+        # 3. Regex extraction for 'response', 'reply', etc. if full JSON decode fails
+        regex_match = re.search(r'"(?:response|reply|message|content|text|dialogue)"\s*:\s*"((?:\\.|[^"\\])*)"', text, re.IGNORECASE)
+        if regex_match:
             try:
                 # Decode JSON string escapes like \n, \", etc.
-                text = json.loads(f'"{json_match.group(1)}"')
+                return json.loads(f'"{regex_match.group(1)}"').strip()
             except Exception:
-                text = json_match.group(1)
-        else:
-            # Case B: Markdown codeblock wrapper
-            text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
-            text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE)
+                return regex_match.group(1).replace("\\n", "\n").replace('\\"', '"').strip()
 
-        # 3. Clean literal backslash sequences
+        # 4. Fallback markdown codeblock stripping
+        text = cleaned_json
+
+        # 5. Clean literal backslash sequences
         text = text.replace("\\n", "\n").replace("\\r", "").replace("\\t", " ")
         text = text.replace('\\"', '"').replace("\\'", "'")
 
-        # 4. Strip stray JSON syntax
-        text = re.sub(r'^\s*\{\s*"reply"\s*:\s*"?', "", text)
-        text = re.sub(r'"?\s*,\s*"emotion"[\s\S]*$', "", text)
-        text = re.sub(r'"?\s*,\s*"action"[\s\S]*$', "", text)
+        # 6. Strip stray JSON syntax
+        text = re.sub(r'^\s*\{\s*"(?:intention|sentiment|intent|mood|type)"\s*:\s*"[^"]*",?\s*', "", text)
+        text = re.sub(r'^\s*\{\s*"(?:response|reply|message|content|text)"\s*:\s*"?', "", text)
+        text = re.sub(r'"?\s*,\s*"(?:emotion|sentiment|action|costume|intention)"[\s\S]*$', "", text)
         text = re.sub(r'"?\s*\}\s*$', "", text)
 
-        # 5. Clean markdown headers and bullet stars
+        # 7. Clean markdown headers and bullet stars
         text = re.sub(r"^[#*>\-]+\s+", "", text, flags=re.MULTILINE)
 
         return text.strip()
@@ -95,71 +110,97 @@ class OllamaLLMClient:
         action = "idle"
         costume = None
 
-        raw_lower = raw_content.lower()
-        if any(w in raw_lower for w in ["愛心", "比心", "比個心", "愛你", "喜歡你"]):
-            emotion = "shy"
-            action = "heart_pose"
-        elif any(w in raw_lower for w in ["鞠躬", "謝謝", "感謝", "辛苦了", "拜託"]):
-            emotion = "happy"
-            action = "bow"
-        elif any(w in raw_lower for w in ["拍手", "鼓掌", "好棒", "太棒", "厲害", "讚"]):
-            emotion = "happy"
-            action = "clap"
-        elif any(w in raw_lower for w in ["歪頭", "賣萌", "裝可愛"]):
-            emotion = "happy"
-            action = "tilt_head"
-        elif any(w in raw_lower for w in ["伸懶腰", "好累", "放鬆一下", "伸展"]):
-            emotion = "caring"
-            action = "stretch"
-        elif any(w in raw_lower for w in ["歡呼", "慶祝", "萬歲", "太好了", "成功了"]):
-            emotion = "happy"
-            action = "cheer"
-        elif any(w in raw_lower for w in ["點頭", "贊成", "好的", "沒問題", "可以的"]):
-            emotion = "happy"
-            action = "nod"
-        elif any(w in raw_lower for w in ["不要", "搖頭", "不行", "不可以", "才沒有"]):
-            emotion = "shy"
-            action = "shake_head"
-        elif any(w in raw_lower for w in ["生氣", "哼", "叉腰", "氣噗噗", "不理你了"]):
-            emotion = "angry"
-            action = "pout"
-        elif any(w in raw_lower for w in ["害羞", "臉紅", "不要看", "討厭啦"]):
-            emotion = "shy"
-        elif any(w in raw_lower for w in ["坐下", "坐著", "坐這裡", "坐坐"]):
-            emotion = "happy"
-            action = "sit"
-        elif any(w in raw_lower for w in ["跑步", "跑起來", "慢跑", "去跑步", "運動一下"]):
-            emotion = "happy"
-            action = "run"
-        elif any(w in raw_lower for w in ["跳起來", "跳一下", "跳躍", "跳高", "原地跳"]):
-            emotion = "happy"
-            action = "jump"
-        elif any(w in raw_lower for w in ["蹲下", "蹲著", "蹲在地上"]):
-            emotion = "happy"
-            action = "squat"
-        elif any(w in raw_lower for w in ["跪下", "跪坐", "跪著", "正座", "道歉跪"]):
-            emotion = "caring"
-            action = "kneel"
-        elif any(w in raw_lower for w in ["站起來", "起來", "站好", "站著", "停下來", "不要坐了", "不要跪了", "不要蹲了", "停止跑步"]):
-            emotion = "happy"
-            action = "stand"
-        elif any(w in raw_lower for w in ["早安", "你好", "回來", "嗨", "揮手"]):
-            emotion = "happy"
-            action = "wave"
-        elif any(w in raw_lower for w in ["水手服", "學生裝"]):
-            action = "change_costume"
-            costume = "school"
-        elif any(w in raw_lower for w in ["科技裝", "未來裝"]):
-            action = "change_costume"
-            costume = "seed"
-        elif any(w in raw_lower for w in ["百鬼", "綾目", "ayame"]):
-            action = "change_costume"
-            costume = "ayame"
-        elif any(w in raw_lower for w in ["薄荷", "泳裝", "mint"]):
-            action = "change_costume"
-            costume = "mint"
-        elif any(w in raw_lower for w in ["去休息", "先休息", "晚安"]):
-            action = "leave"
+        # Try extracting structured emotion and action if JSON is present
+        try:
+            first_brace = raw_content.find('{')
+            last_brace = raw_content.rfind('}')
+            if first_brace != -1 and last_brace > first_brace:
+                parsed = json.loads(raw_content[first_brace:last_brace + 1])
+                if isinstance(parsed, dict):
+                    raw_emotion = str(parsed.get("emotion") or parsed.get("sentiment") or parsed.get("mood") or "").lower()
+                    if raw_emotion in ["happy", "shy", "caring", "angry", "surprised", "neutral"]:
+                        emotion = raw_emotion
+
+                    raw_action = str(parsed.get("action") or parsed.get("intention") or parsed.get("intent") or "").lower()
+                    if raw_action in ["greeting", "hello", "hi"]:
+                        action = "wave"
+                    elif raw_action in ["heart", "love"]:
+                        action = "heart_pose"
+                    elif raw_action in ["idle", "wave", "bow", "clap", "tilt_head", "stretch", "cheer", "nod", "shake_head", "pout", "sit", "run", "jump", "squat", "kneel", "stand", "leave", "heart_pose", "change_costume"]:
+                        action = raw_action
+
+                    if parsed.get("costume") in ["casual", "school", "stylish", "gothic", "seed", "ayame", "mint"]:
+                        costume = parsed["costume"]
+        except Exception:
+            pass
+
+        # Fallback to keyword matching if action or emotion not definitively extracted
+        if action == "idle":
+            raw_lower = raw_content.lower()
+            if any(w in raw_lower for w in ["愛心", "比心", "比個心", "愛你", "喜歡你"]):
+                emotion = "shy"
+                action = "heart_pose"
+            elif any(w in raw_lower for w in ["鞠躬", "謝謝", "感謝", "辛苦了", "拜託"]):
+                emotion = "happy"
+                action = "bow"
+            elif any(w in raw_lower for w in ["拍手", "鼓掌", "好棒", "太棒", "厲害", "讚"]):
+                emotion = "happy"
+                action = "clap"
+            elif any(w in raw_lower for w in ["歪頭", "賣萌", "裝可愛"]):
+                emotion = "happy"
+                action = "tilt_head"
+            elif any(w in raw_lower for w in ["伸懶腰", "好累", "放鬆一下", "伸展"]):
+                emotion = "caring"
+                action = "stretch"
+            elif any(w in raw_lower for w in ["歡呼", "慶祝", "萬歲", "太好了", "成功了"]):
+                emotion = "happy"
+                action = "cheer"
+            elif any(w in raw_lower for w in ["點頭", "贊成", "好的", "沒問題", "可以的"]):
+                emotion = "happy"
+                action = "nod"
+            elif any(w in raw_lower for w in ["不要", "搖頭", "不行", "不可以", "才沒有"]):
+                emotion = "shy"
+                action = "shake_head"
+            elif any(w in raw_lower for w in ["生氣", "哼", "叉腰", "氣噗噗", "不理你了"]):
+                emotion = "angry"
+                action = "pout"
+            elif any(w in raw_lower for w in ["害羞", "臉紅", "不要看", "討厭啦"]):
+                emotion = "shy"
+            elif any(w in raw_lower for w in ["坐下", "坐著", "坐這裡", "坐坐"]):
+                emotion = "happy"
+                action = "sit"
+            elif any(w in raw_lower for w in ["跑步", "跑起來", "慢跑", "去跑步", "運動一下"]):
+                emotion = "happy"
+                action = "run"
+            elif any(w in raw_lower for w in ["跳起來", "跳一下", "跳躍", "跳高", "原地跳"]):
+                emotion = "happy"
+                action = "jump"
+            elif any(w in raw_lower for w in ["蹲下", "蹲著", "蹲在地上"]):
+                emotion = "happy"
+                action = "squat"
+            elif any(w in raw_lower for w in ["跪下", "跪坐", "跪著", "正座", "道歉跪"]):
+                emotion = "caring"
+                action = "kneel"
+            elif any(w in raw_lower for w in ["站起來", "起來", "站好", "站著", "停下來", "不要坐了", "不要跪了", "不要蹲了", "停止跑步"]):
+                emotion = "happy"
+                action = "stand"
+            elif any(w in raw_lower for w in ["早安", "你好", "回來", "嗨", "揮手"]):
+                emotion = "happy"
+                action = "wave"
+            elif any(w in raw_lower for w in ["水手服", "學生裝"]):
+                action = "change_costume"
+                costume = "school"
+            elif any(w in raw_lower for w in ["科技裝", "未來裝"]):
+                action = "change_costume"
+                costume = "seed"
+            elif any(w in raw_lower for w in ["百鬼", "綾目", "ayame"]):
+                action = "change_costume"
+                costume = "ayame"
+            elif any(w in raw_lower for w in ["薄荷", "泳裝", "mint"]):
+                action = "change_costume"
+                costume = "mint"
+            elif any(w in raw_lower for w in ["去休息", "先休息", "晚安"]):
+                action = "leave"
 
         return {
             "reply": display,
