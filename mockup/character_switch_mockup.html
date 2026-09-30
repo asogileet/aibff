@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>角色切換功能 (Ayame / 小櫻) - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    @keyframes breathing {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-6px) scale(1.015); }
+    }
+    @keyframes switchSpin {
+      0% { transform: rotateY(0deg) scale(0.92); filter: brightness(1.6) blur(2px); }
+      50% { transform: rotateY(180deg) scale(0.85); filter: brightness(2); }
+      100% { transform: rotateY(360deg) scale(1); filter: brightness(1) blur(0px); }
+    }
+    .anim-breathing {
+      animation: breathing 3.6s ease-in-out infinite;
+    }
+    .anim-switch {
+      animation: switchSpin 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl border-pink-500/30">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>😈</span> 3D 桌面虛擬伴侶 - 多角色模型切換系統 (Ayame & Sakura)
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          支援切換新匯入之 VRM 角色模型「百鬼綾目 (Ayame)」與經典伴侶「小櫻 (Alicia 5種外觀)」
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/30">Ayame.vrm 支援</span>
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">動態姿態與視線校正</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">專屬台詞與音效</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left: 3D Stage Preview -->
+      <div class="lg:col-span-7 glass-panel rounded-2xl p-6 relative overflow-hidden flex flex-col items-center justify-between min-h-[580px] border-slate-700/50 bg-gradient-to-b from-slate-900 via-indigo-950/20 to-slate-950">
+        
+        <!-- Top Status & Dialogue -->
+        <div class="w-full flex items-center justify-between z-10">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <span id="currentRoleBadge" class="text-xs px-2.5 py-0.5 rounded-md bg-red-950/60 border border-red-500/40 text-red-300 font-semibold">
+              目前角色：百鬼綾目 (Ayame)
+            </span>
+          </div>
+          <div class="text-[11px] text-slate-400">
+            模型檔案：<code id="currentModelFile" class="text-pink-300 font-mono">assets/models/ayame.vrm</code>
+          </div>
+        </div>
+
+        <!-- Dialogue Bubble -->
+        <div id="dialogueBox" class="z-20 w-4/5 max-w-md my-4 p-4 rounded-2xl bg-slate-900/90 border border-pink-500/40 shadow-2xl backdrop-blur-md transition-all duration-300">
+          <div class="flex items-center justify-between mb-1.5">
+            <span id="speakerName" class="text-xs font-bold text-pink-400">百鬼綾目 (Ayame)</span>
+            <span id="emotionBadge" class="text-[10px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-300">happy</span>
+          </div>
+          <p id="dialogueText" class="text-sm text-slate-200 leading-relaxed">
+            「Konnakiri～！余是百鬼綾目！主人今天也是元氣滿滿的一天呢～😈」
+          </p>
+        </div>
+
+        <!-- 3D Avatar Visual Representation -->
+        <div class="relative w-72 h-80 flex items-center justify-center my-auto">
+          <!-- Spotlight / Pedestal glow -->
+          <div id="glowCircle" class="absolute -bottom-4 w-56 h-14 rounded-full bg-red-600/30 blur-xl pointer-events-none transition-all duration-500"></div>
+
+          <!-- Character Silhouette / Card -->
+          <div id="avatarVisual" class="anim-breathing flex flex-col items-center justify-center text-center select-none cursor-pointer transition-transform">
+            <div id="avatarIcon" class="text-8xl filter drop-shadow-[0_10px_20px_rgba(244,63,94,0.4)] mb-2">
+              😈
+            </div>
+            <div id="avatarCardName" class="text-base font-bold text-white tracking-wider">
+              百鬼綾目 (Nakiri Ayame)
+            </div>
+            <div id="avatarSubDesc" class="text-xs text-red-300/80 mt-1">
+              鬼神巫女 · 雙鬼角 · 紅白雙色和服
+            </div>
+          </div>
+        </div>
+
+        <!-- Interaction Prompt -->
+        <div class="w-full text-center text-xs text-slate-500 z-10 pt-2 border-t border-slate-800">
+          💡 點擊右側角色切換按鈕，可立即預覽模型切換、語音反饋與台詞動畫
+        </div>
+      </div>
+
+      <!-- Right: Switcher Controls & Architecture -->
+      <div class="lg:col-span-5 space-y-6">
+
+        <!-- Selector Panel -->
+        <div class="glass-panel rounded-2xl p-6 border-pink-500/30">
+          <h2 class="text-sm font-semibold text-pink-300 mb-4 flex items-center gap-2">
+            <span>🎭</span> 角色與模型切換清單
+          </h2>
+
+          <div class="space-y-3">
+            <!-- Role 1: Ayame (New) -->
+            <div class="p-3.5 rounded-xl border border-red-500/50 bg-red-950/30 hover:bg-red-900/40 transition cursor-pointer flex items-center justify-between" onclick="selectRole('ayame')">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">😈</span>
+                <div>
+                  <div class="text-sm font-semibold text-red-200 flex items-center gap-1.5">
+                    百鬼綾目 (Ayame)
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-red-500/30 text-red-300 font-mono">NEW</span>
+                  </div>
+                  <div class="text-xs text-slate-400 mt-0.5">assets/models/ayame.vrm (15.5 MB)</div>
+                </div>
+              </div>
+              <button class="px-3 py-1.5 text-xs rounded-lg bg-red-600/80 hover:bg-red-500 text-white font-medium shadow-md shadow-red-900/50">
+                套用
+              </button>
+            </div>
+
+            <!-- Role 2: Sakura Casual -->
+            <div class="p-3.5 rounded-xl border border-slate-700/60 bg-slate-900/50 hover:bg-slate-800/60 transition cursor-pointer flex items-center justify-between" onclick="selectRole('casual')">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">👚</span>
+                <div>
+                  <div class="text-sm font-semibold text-slate-200">小櫻 - 日常便服 (Casual)</div>
+                  <div class="text-xs text-slate-400 mt-0.5">costume_casual.vrm</div>
+                </div>
+              </div>
+              <button class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">
+                切換
+              </button>
+            </div>
+
+            <!-- Role 3: Sakura School -->
+            <div class="p-3.5 rounded-xl border border-slate-700/60 bg-slate-900/50 hover:bg-slate-800/60 transition cursor-pointer flex items-center justify-between" onclick="selectRole('school')">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">🎀</span>
+                <div>
+                  <div class="text-sm font-semibold text-slate-200">小櫻 - 青春水手服 (School)</div>
+                  <div class="text-xs text-slate-400 mt-0.5">costume_school.vrm</div>
+                </div>
+              </div>
+              <button class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">
+                切換
+              </button>
+            </div>
+
+            <!-- Role 4: Sakura Gothic -->
+            <div class="p-3.5 rounded-xl border border-slate-700/60 bg-slate-900/50 hover:bg-slate-800/60 transition cursor-pointer flex items-center justify-between" onclick="selectRole('gothic')">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">🖤</span>
+                <div>
+                  <div class="text-sm font-semibold text-slate-200">小櫻 - 哥德蘿莉裝 (Gothic)</div>
+                  <div class="text-xs text-slate-400 mt-0.5">costume_gothic.vrm</div>
+                </div>
+              </div>
+              <button class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">
+                切換
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Technical Specification Card -->
+        <div class="glass-panel rounded-2xl p-6 border-slate-700/60">
+          <h2 class="text-sm font-semibold text-indigo-300 mb-3 flex items-center gap-2">
+            <span>⚙️</span> 技術規範與相容處理 (Technical Specs)
+          </h2>
+          <ul class="text-xs text-slate-300 space-y-2.5">
+            <li class="flex items-start gap-2">
+              <span class="text-pink-400 font-bold">1.</span>
+              <span><strong>模型載入路徑：</strong><code>assets/models/ayame.vrm</code>。透過 GLTFLoader + VRMLoaderPlugin 非同步載入。</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-pink-400 font-bold">2.</span>
+              <span><strong>朝向與骨骼校正：</strong>Ayame 為標準 VRM 規範，預設水平朝向 180° (Math.PI)，雙臂施加放鬆角度避免 T-pose 僵硬。</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-pink-400 font-bold">3.</span>
+              <span><strong>摸頭與碰撞檢測：</strong>動態抓取 Humanoid <code>head</code> 骨骼位置，無縫適配鬼角造型與頭部接觸面。</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-pink-400 font-bold">4.</span>
+              <span><strong>系統托盤與 UI 選單聯動：</strong>Tray 右鍵選單與前端面板同步新增百鬼綾目選項。</span>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const roleData = {
+      ayame: {
+        name: '百鬼綾目 (Ayame)',
+        title: '百鬼綾目 (Nakiri Ayame)',
+        subDesc: '鬼神巫女 · 雙鬼角 · 紅白雙色和服',
+        icon: '😈',
+        file: 'assets/models/ayame.vrm',
+        badgeClass: 'bg-red-950/60 border-red-500/40 text-red-300',
+        glowColor: 'bg-red-600/30',
+        dialogue: '「Konnakiri～！余是百鬼綾目！主人今天也是元氣滿滿的一天呢～😈」',
+        emotion: 'happy'
+      },
+      casual: {
+        name: '小櫻 (Sakura)',
+        title: '小櫻 - 日常便服',
+        subDesc: '溫柔伴侶 · 居家休閒風格',
+        icon: '👚',
+        file: 'assets/models/costume_casual.vrm',
+        badgeClass: 'bg-pink-950/60 border-pink-500/40 text-pink-300',
+        glowColor: 'bg-pink-600/30',
+        dialogue: '「主人好！今天有什麼我可以陪你的嗎？換上便服好輕鬆呢～」',
+        emotion: 'happy'
+      },
+      school: {
+        name: '小櫻 (Sakura)',
+        title: '小櫻 - 青春水手服',
+        subDesc: '青春校園 · 深藍水手制服',
+        icon: '🎀',
+        file: 'assets/models/costume_school.vrm',
+        badgeClass: 'bg-blue-950/60 border-blue-500/40 text-blue-300',
+        glowColor: 'bg-blue-600/30',
+        dialogue: '「前輩，今天要一起去學校圖書館溫習嗎？嘿嘿～」',
+        emotion: 'happy'
+      },
+      gothic: {
+        name: '小櫻 (Sakura)',
+        title: '小櫻 - 哥德蘿莉裝',
+        subDesc: '神秘暗黑 · 蕾絲與紅黑禮服',
+        icon: '🖤',
+        file: 'assets/models/costume_gothic.vrm',
+        badgeClass: 'bg-purple-950/60 border-purple-500/40 text-purple-300',
+        glowColor: 'bg-purple-600/30',
+        dialogue: '「這身衣服有種特別的神秘感呢，主人會喜歡嗎？」',
+        emotion: 'shy'
+      }
+    };
+
+    function selectRole(key) {
+      const data = roleData[key];
+      if (!data) return;
+
+      const avatarEl = document.getElementById('avatarVisual');
+      avatarEl.classList.remove('anim-breathing');
+      avatarEl.classList.add('anim-switch');
+
+      setTimeout(() => {
+        document.getElementById('currentRoleBadge').innerText = '目前角色：' + data.name;
+        document.getElementById('currentRoleBadge').className = 'text-xs px-2.5 py-0.5 rounded-md border font-semibold ' + data.badgeClass;
+        document.getElementById('currentModelFile').innerText = data.file;
+        document.getElementById('speakerName').innerText = data.name;
+        document.getElementById('dialogueText').innerText = data.dialogue;
+        document.getElementById('emotionBadge').innerText = data.emotion;
+        document.getElementById('avatarIcon').innerText = data.icon;
+        document.getElementById('avatarCardName').innerText = data.title;
+        document.getElementById('avatarSubDesc').innerText = data.subDesc;
+        document.getElementById('glowCircle').className = 'absolute -bottom-4 w-56 h-14 rounded-full blur-xl pointer-events-none transition-all duration-500 ' + data.glowColor;
+
+        avatarEl.classList.remove('anim-switch');
+        avatarEl.classList.add('anim-breathing');
+      }, 350);
+    }
+  </script>
+</body>
+</html>

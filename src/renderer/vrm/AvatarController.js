@@ -16,7 +16,8 @@ export class AvatarController {
       school: '../../assets/models/costume_school.vrm',
       stylish: '../../assets/models/costume_stylish.vrm',
       gothic: '../../assets/models/costume_gothic.vrm',
-      seed: '../../assets/models/costume_seed.vrm'
+      seed: '../../assets/models/costume_seed.vrm',
+      ayame: '../../assets/models/ayame.vrm'
     };
 
     // Forward face orientation for each model standard
@@ -26,7 +27,8 @@ export class AvatarController {
       school: Math.PI,
       stylish: Math.PI,
       gothic: Math.PI,
-      seed: Math.PI
+      seed: Math.PI,
+      ayame: Math.PI
     };
   }
 

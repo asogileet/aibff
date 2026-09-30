@@ -27,6 +27,14 @@ export class Toolbar {
         <span class="text-lg">👗</span>
         <span class="text-xs hidden md:inline">換裝</span>
       </button>
+      <button id="btnAction" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="動作庫選單 (10大標準動作)">
+        <span class="text-lg">💃</span>
+        <span class="text-xs hidden md:inline">動作</span>
+      </button>
+      <button id="btnView" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="切換視角 (半身特寫 / 全身視角)">
+        <span class="text-lg">🧍</span>
+        <span class="text-xs hidden md:inline">視角</span>
+      </button>
       <button id="btnLeave" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="休息 / 召出愛心掛件">
         <span class="text-lg">👋</span>
         <span class="text-xs hidden md:inline">休息</span>
@@ -43,6 +51,8 @@ export class Toolbar {
     this.element.querySelector('#btnMic').addEventListener('click', () => this.handlers.onMic?.());
     this.element.querySelector('#btnChat').addEventListener('click', () => this.handlers.onChat?.());
     this.element.querySelector('#btnCostume').addEventListener('click', () => this.handlers.onCostume?.());
+    this.element.querySelector('#btnAction').addEventListener('click', () => this.handlers.onAction?.());
+    this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
     this.element.querySelector('#btnLeave').addEventListener('click', () => this.handlers.onLeave?.());
     this.element.querySelector('#btnSettings').addEventListener('click', () => this.handlers.onSettings?.());
   }
@@ -71,6 +81,18 @@ export class Toolbar {
     } else {
       btn.classList.remove('text-pink-400', 'bg-pink-500/30', 'animate-pulse', 'ring-2', 'ring-pink-500/60');
       btn.title = '即時語音對話 (Faster-Whisper)';
+    }
+  }
+
+  setViewMode(mode) {
+    const btn = this.element.querySelector('#btnView');
+    if (!btn) return;
+    if (mode === 'full') {
+      btn.classList.add('text-pink-400', 'bg-pink-500/20');
+      btn.title = '目前為全身視角 (點擊切換為半身特寫)';
+    } else {
+      btn.classList.remove('text-pink-400', 'bg-pink-500/20');
+      btn.title = '目前為半身特寫 (點擊切換為全身視角)';
     }
   }
 }

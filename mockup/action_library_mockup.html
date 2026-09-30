@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>標準動作庫、工具列動作選單與指令控制 - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(244, 114, 182, 0.3); }
+      50% { box-shadow: 0 0 25px rgba(244, 114, 182, 0.6); }
+    }
+    .active-card {
+      animation: pulseGlow 2s infinite;
+      border-color: rgba(244, 114, 182, 0.8);
+      background: rgba(244, 114, 182, 0.15);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>💃</span> 3D 標準動作庫 (Standard Animation Library) 與指令控制原型
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          內建 10 大標準動作、工具列動作選單面板 (ActionSelector)、以及對話自然語言與斜線指令雙向驅動
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Three.js AnimationClip</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">ActionSelector Panel</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">NLP & Slash Commands</span>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left: Interactive Window Preview (480x720 frame) -->
+      <div class="lg:col-span-1 glass-panel rounded-2xl p-5 flex flex-col items-center relative">
+        <div class="w-full flex justify-between items-center mb-3">
+          <h2 class="text-xs font-semibold text-slate-300">桌面視窗 (480 × 720 模擬)</h2>
+          <span id="currentStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40">待機中 (Idle)</span>
+        </div>
+
+        <!-- 320x480 container representing the desktop pet window -->
+        <div class="relative w-[300px] h-[460px] bg-slate-900/90 rounded-2xl border-2 border-pink-500/30 overflow-hidden shadow-2xl flex flex-col justify-between items-center p-3">
+          
+          <!-- Dialogue Bubble -->
+          <div id="dialogueBubble" class="w-full glass-panel rounded-xl p-2.5 text-xs text-pink-200 border-pink-500/40 flex items-start gap-2 shadow-lg transition-all duration-300">
+            <span id="bubbleEmoji" class="text-base">✨</span>
+            <div>
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <span id="bubbleTag" class="text-[9px] px-1.5 py-0.2 rounded bg-pink-500/30 text-pink-200 font-medium">動作反應</span>
+                <span id="bubbleActionName" class="text-[10px] text-slate-400 font-mono">idle</span>
+              </div>
+              <p id="bubbleText" class="text-[11px] leading-relaxed">主人好！今天想看小櫻做什麼動作呢？</p>
+            </div>
+          </div>
+
+          <!-- Character Silhouette / Animated Visualizer -->
+          <div id="avatarVisual" class="my-auto flex flex-col items-center transition-all duration-500 transform">
+            <div id="avatarPoseIcon" class="text-6xl filter drop-shadow-[0_0_15px_rgba(244,114,182,0.6)] animate-bounce">
+              🧍‍♀️
+            </div>
+            <span id="avatarPoseName" class="text-xs font-semibold text-pink-300 mt-2">待機 (Idle)</span>
+            <div id="avatarPoseDesc" class="text-[10px] text-slate-400">自然呼吸與眨眼</div>
+          </div>
+
+          <!-- Floating Action Selector Panel (Opened above toolbar) -->
+          <div id="actionSelectorPanel" class="w-full glass-panel rounded-xl p-2.5 border-pink-500/40 shadow-2xl transition-all duration-300 space-y-2 mb-1">
+            <div class="flex justify-between items-center border-b border-slate-700/50 pb-1.5">
+              <span class="text-[11px] font-bold text-pink-300 flex items-center gap-1">💃 動作庫選擇</span>
+              <button id="btnCloseActionPanel" class="text-slate-400 hover:text-white text-xs">✕</button>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1 text-[11px]">
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="heart_pose">
+                <span>💖</span><span>比愛心</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="wave">
+                <span>👋</span><span>揮手問候</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="bow">
+                <span>🙇‍♀️</span><span>禮貌鞠躬</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="tilt_head">
+                <span>😽</span><span>歪頭賣萌</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="clap">
+                <span>👏</span><span>鼓掌拍手</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="stretch">
+                <span>🙆‍♀️</span><span>伸個懶腰</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="nod">
+                <span>🙆</span><span>點頭同意</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="shake_head">
+                <span>🙅</span><span>搖頭拒絕</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="cheer">
+                <span>🙌</span><span>歡呼雀躍</span>
+              </button>
+              <button class="act-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-pink-600/30 border border-slate-700 hover:border-pink-500 text-left transition flex items-center gap-1.5" data-act="pout">
+                <span>😤</span><span>生氣叉腰</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Bottom Toolbar with New Action Button -->
+          <div class="w-full bg-slate-950/90 backdrop-blur border border-slate-700/60 rounded-full px-2.5 py-1 flex items-center justify-between text-xs shadow-lg">
+            <span title="語音" class="cursor-pointer hover:text-pink-400 p-1">🎤</span>
+            <span title="對話" class="cursor-pointer hover:text-pink-400 p-1">💬</span>
+            <span title="換裝" class="cursor-pointer hover:text-pink-400 p-1">👗</span>
+            
+            <!-- NEW: Action Button -->
+            <button id="toolbarActionBtn" title="開啟動作庫選單" class="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40 hover:bg-pink-500/40 text-[10px] font-medium flex items-center gap-1">
+              <span>💃</span><span>動作</span>
+            </button>
+
+            <!-- View Toggle -->
+            <span title="切換全身/半身" class="cursor-pointer hover:text-pink-400 p-1">🧍</span>
+            <span title="設定" class="cursor-pointer hover:text-pink-400 p-1">⚙️</span>
+            <span title="休息" class="cursor-pointer hover:text-pink-400 p-1">👋</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right 2 Columns: Command Console & Action Library Detail -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Command Input & Testing Console -->
+        <div class="glass-panel rounded-2xl p-5 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <span>💬</span> 指令驅動與自然語言互動測試
+          </h2>
+          <p class="text-xs text-slate-400">
+            支援自然語言對話意圖（如「比個愛心」、「好棒喔拍拍手」）或標準斜線指令（如 <code class="text-pink-400">/heart</code>、<code class="text-pink-400">/bow</code>）。
+          </p>
+
+          <div class="flex gap-2">
+            <input id="commandInput" type="text" placeholder="試著輸入：比個愛心、/bow、拍手、伸懶腰、或 /cheer..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-pink-500 text-slate-100">
+            <button id="btnSendCommand" class="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-xl text-xs font-medium transition shadow">
+              發送指令
+            </button>
+          </div>
+
+          <!-- Quick Command Chips -->
+          <div class="flex flex-wrap gap-1.5 pt-1 text-[11px]">
+            <span class="text-slate-500 self-center mr-1">快捷測試：</span>
+            <button class="chip-btn px-2 py-1 bg-slate-800/80 hover:bg-pink-900/40 border border-slate-700 rounded-lg text-slate-300">比個愛心</button>
+            <button class="chip-btn px-2 py-1 bg-slate-800/80 hover:bg-pink-900/40 border border-slate-700 rounded-lg text-slate-300">謝謝你，辛苦了 (鞠躬)</button>
+            <button class="chip-btn px-2 py-1 bg-slate-800/80 hover:bg-pink-900/40 border border-slate-700 rounded-lg text-slate-300">太棒了慶祝一下 (歡呼)</button>
+            <button class="chip-btn px-2 py-1 bg-slate-800/80 hover:bg-pink-900/40 border border-slate-700 rounded-lg text-slate-300">好累喔 (伸懶腰)</button>
+            <button class="chip-btn px-2 py-1 bg-slate-800/80 hover:bg-pink-900/40 border border-slate-700 rounded-lg text-slate-300">哼！不要理你 (叉腰)</button>
+            <button class="chip-btn px-2 py-1 bg-slate-800/80 hover:bg-pink-900/40 border border-slate-700 rounded-lg text-slate-300">/clap</button>
+            <button class="chip-btn px-2 py-1 bg-slate-800/80 hover:bg-pink-900/40 border border-slate-700 rounded-lg text-slate-300">/nod</button>
+          </div>
+        </div>
+
+        <!-- 10 Standard Animations Table / Spec -->
+        <div class="glass-panel rounded-2xl p-5 space-y-4">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center justify-between">
+            <span class="flex items-center gap-2"><span>📚</span> 標準動作庫清單規格 (10 大動作)</span>
+            <span class="text-xs text-pink-400 font-normal">Three.js AnimationClip / Humanoid Bones</span>
+          </h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>1. 胸前比愛心 (heart_pose)</span>
+                <span class="text-slate-500 font-mono text-[10px]">💖 3.0s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">雙手抬至胸口拼成心形，伴隨 10 顆愛心粒子迸發與害羞語音。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：比愛心、比心、愛你、/heart</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>2. 禮貌鞠躬 (bow)</span>
+                <span class="text-slate-500 font-mono text-[10px]">🙇‍♀️ 2.5s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">腰部 (spine) 前傾 25 度，雙手自然收至大腿前側，展現禮貌與感謝。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：謝謝、感謝、辛苦了、鞠躬、/bow</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>3. 鼓掌拍手 (clap)</span>
+                <span class="text-slate-500 font-mono text-[10px]">👏 2.8s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">雙手在前胸快速合攏拍擊 3~4 次，開心表情，為主人喝采慶祝。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：太棒了、好厲害、拍手、鼓掌、/clap</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>4. 歪頭賣萌 (tilt_head)</span>
+                <span class="text-slate-500 font-mono text-[10px]">😽 2.0s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">頭部 (head) 側傾 18 度，單眼調皮微眨，甜美微笑。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：歪頭、賣萌、可愛、喵、/tilt</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>5. 伸個懶腰 (stretch)</span>
+                <span class="text-slate-500 font-mono text-[10px]">🙆‍♀️ 3.2s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">雙手臂高舉向天拉伸，脊椎輕微後仰，吐氣放鬆，提醒主人休息。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：好累、伸懶腰、放鬆、想睡、/stretch</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>6. 歡呼雀躍 (cheer)</span>
+                <span class="text-slate-500 font-mono text-[10px]">🙌 2.6s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">雙手高舉歡呼，身體微幅上下彈跳，笑容燦爛。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：萬歲、慶祝、太好了、成功了、/cheer</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>7. 點頭同意 (nod)</span>
+                <span class="text-slate-500 font-mono text-[10px]">🙆 1.8s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">頭部快速上下輕點兩次，表示肯定與贊同。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：好的、沒問題、對、可以、/nod</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>8. 搖頭否定 (shake_head)</span>
+                <span class="text-slate-500 font-mono text-[10px]">🙅 1.8s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">頭部左右擺動兩次，微蹙眉表示否定或不贊成。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：不行、不要、不可以、才沒有、/shake</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>9. 生氣叉腰 (pout)</span>
+                <span class="text-slate-500 font-mono text-[10px]">😤 2.8s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">雙手臂曲起插在腰側，臉頰微鼓，生氣傲嬌表情。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：生氣、哼、氣死我了、不理你、/pout</div>
+            </div>
+
+            <div class="p-3 bg-slate-900/70 rounded-xl border border-slate-800 space-y-1">
+              <div class="font-bold text-pink-300 flex justify-between">
+                <span>10. 揮手打招呼 (wave)</span>
+                <span class="text-slate-500 font-mono text-[10px]">👋 2.5s</span>
+              </div>
+              <p class="text-slate-400 text-[11px]">右手臂抬起，手掌左右擺動熱情問候。</p>
+              <div class="text-[10px] text-indigo-400">觸發詞：早安、你好、嗨、回來了、/wave</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const actionDatabase = {
+      heart_pose: { emoji: '💖', icon: '🫶', name: '胸前比愛心', tag: '甜蜜互動', desc: '手心對齊胸前比心', reply: '給主人一個大大的愛心！今天也要超級開心哦～' },
+      wave: { emoji: '👋', icon: '🙋‍♀️', name: '熱情揮手', tag: '問候動作', desc: '舉起右手熱情揮動', reply: '主人好呀！小櫻隨時都在這裡陪著你哦～' },
+      bow: { emoji: '🙇‍♀️', icon: '🙇‍♀️', name: '禮貌鞠躬', tag: '感謝致意', desc: '身體前傾雙手收攏', reply: '十分感謝主人的照顧！今後也請多多指教呢～' },
+      tilt_head: { emoji: '😽', icon: '😺', name: '歪頭賣萌', tag: '可愛萌態', desc: '頭部微傾18度', reply: '嗯？主人在看小櫻嗎？小櫻今天可愛嗎～？' },
+      clap: { emoji: '👏', icon: '👏', name: '鼓掌喝采', tag: '熱烈讚賞', desc: '胸前連續拍擊', reply: '哇！太棒太厲害了！主人真是太優秀啦！' },
+      stretch: { emoji: '🙆‍♀️', icon: '🙆‍♀️', name: '伸個懶腰', tag: '放鬆紓壓', desc: '雙手高舉脊椎後仰', reply: '哈啊～好舒服！主人也跟小櫻一起站起來動一動吧～' },
+      nod: { emoji: '🙆', icon: '👌', name: '點頭贊同', tag: '正面回應', desc: '快速上下點頭兩次', reply: '嗯嗯！小櫻完全贊成主人的想法哦！' },
+      shake_head: { emoji: '🙅', icon: '🙅‍♀️', name: '搖頭拒絕', tag: '傲嬌拒絕', desc: '左右輕輕搖動頭部', reply: '不可以這樣啦～主人偶爾也要聽小櫻的話嘛！' },
+      cheer: { emoji: '🙌', icon: '🎉', name: '歡呼雀躍', tag: '狂歡慶祝', desc: '高舉雙手彈跳歡呼', reply: '萬歲！太好了！今天真是最棒的一天呢！' },
+      pout: { emoji: '😤', icon: '😠', name: '生氣叉腰', tag: '傲嬌嬌嗔', desc: '雙手插腰臉頰微鼓', reply: '哼～！主人如果再不理小櫻，小櫻可真的要生氣囉！' }
+    };
+
+    const actionSelectorPanel = document.getElementById('actionSelectorPanel');
+    const toolbarActionBtn = document.getElementById('toolbarActionBtn');
+    const btnCloseActionPanel = document.getElementById('btnCloseActionPanel');
+    const currentStatusBadge = document.getElementById('currentStatusBadge');
+    const bubbleEmoji = document.getElementById('bubbleEmoji');
+    const bubbleTag = document.getElementById('bubbleTag');
+    const bubbleActionName = document.getElementById('bubbleActionName');
+    const bubbleText = document.getElementById('bubbleText');
+    const avatarPoseIcon = document.getElementById('avatarPoseIcon');
+    const avatarPoseName = document.getElementById('avatarPoseName');
+    const avatarPoseDesc = document.getElementById('avatarPoseDesc');
+    const commandInput = document.getElementById('commandInput');
+    const btnSendCommand = document.getElementById('btnSendCommand');
+
+    // Toggle Action Panel
+    toolbarActionBtn.addEventListener('click', () => {
+      actionSelectorPanel.classList.toggle('hidden');
+    });
+    btnCloseActionPanel.addEventListener('click', () => {
+      actionSelectorPanel.classList.add('hidden');
+    });
+
+    function playAction(actKey) {
+      const act = actionDatabase[actKey] || actionDatabase.wave;
+      
+      // Update UI
+      bubbleEmoji.textContent = act.emoji;
+      bubbleTag.textContent = act.tag;
+      bubbleActionName.textContent = actKey;
+      bubbleText.textContent = act.reply;
+      avatarPoseIcon.textContent = act.icon;
+      avatarPoseName.textContent = act.name;
+      avatarPoseDesc.textContent = act.desc;
+      currentStatusBadge.textContent = '動作播放中: ' + act.name;
+      currentStatusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-pink-500 text-white font-bold animate-pulse';
+
+      // Reset after 3s
+      setTimeout(() => {
+        currentStatusBadge.textContent = '待機中 (Idle)';
+        currentStatusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40';
+      }, 3000);
+    }
+
+    // Bind action buttons
+    document.querySelectorAll('.act-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const actKey = btn.getAttribute('data-act');
+        playAction(actKey);
+      });
+    });
+
+    // Command parser
+    function executeCommand(text) {
+      text = text.trim();
+      if (!text) return;
+
+      const lower = text.toLowerCase();
+      let matched = null;
+
+      if (lower.startsWith('/')) {
+        const cmd = lower.slice(1);
+        if (cmd === 'heart' || cmd === 'love') matched = 'heart_pose';
+        else if (cmd === 'bow' || cmd === 'thanks') matched = 'bow';
+        else if (cmd === 'clap') matched = 'clap';
+        else if (cmd === 'tilt') matched = 'tilt_head';
+        else if (cmd === 'stretch') matched = 'stretch';
+        else if (cmd === 'nod') matched = 'nod';
+        else if (cmd === 'shake') matched = 'shake_head';
+        else if (cmd === 'cheer') matched = 'cheer';
+        else if (cmd === 'pout' || cmd === 'angry') matched = 'pout';
+        else if (cmd === 'wave') matched = 'wave';
+      } else {
+        if (lower.includes('愛心') || lower.includes('比心') || lower.includes('愛你')) matched = 'heart_pose';
+        else if (lower.includes('鞠躬') || lower.includes('謝謝') || lower.includes('感謝') || lower.includes('辛苦')) matched = 'bow';
+        else if (lower.includes('拍手') || lower.includes('鼓掌') || lower.includes('好棒') || lower.includes('厲害')) matched = 'clap';
+        else if (lower.includes('歪頭') || lower.includes('賣萌') || lower.includes('喵')) matched = 'tilt_head';
+        else if (lower.includes('伸懶腰') || lower.includes('好累') || lower.includes('放鬆')) matched = 'stretch';
+        else if (lower.includes('點頭') || lower.includes('對') || lower.includes('贊成') || lower.includes('沒問題')) matched = 'nod';
+        else if (lower.includes('搖頭') || lower.includes('不要') || lower.includes('不行')) matched = 'shake_head';
+        else if (lower.includes('歡呼') || lower.includes('慶祝') || lower.includes('萬歲')) matched = 'cheer';
+        else if (lower.includes('生氣') || lower.includes('哼') || lower.includes('叉腰') || lower.includes('不理')) matched = 'pout';
+        else if (lower.includes('早安') || lower.includes('你好') || lower.includes('嗨') || lower.includes('揮手')) matched = 'wave';
+      }
+
+      if (matched) {
+        playAction(matched);
+      } else {
+        bubbleEmoji.textContent = '💭';
+        bubbleTag.textContent = '對話';
+        bubbleActionName.textContent = 'chat';
+        bubbleText.textContent = `小櫻聽到了：「${text}」，雖然還不太確定要跳什麼舞，但我會一直陪著主人哦！`;
+      }
+    }
+
+    btnSendCommand.addEventListener('click', () => {
+      executeCommand(commandInput.value);
+      commandInput.value = '';
+    });
+
+    commandInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        btnSendCommand.click();
+      }
+    });
+
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        executeCommand(btn.textContent);
+      });
+    });
+  </script>
+</body>
+</html>

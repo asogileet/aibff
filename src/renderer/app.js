@@ -10,6 +10,7 @@ import { ActionController } from './vrm/ActionController.js';
 import { Toolbar } from './ui/Toolbar.js';
 import { ChatBox } from './ui/ChatBox.js';
 import { CostumeSelector } from './ui/CostumeSelector.js';
+import { ActionSelector } from './ui/ActionSelector.js';
 import { HeartWidget } from './ui/HeartWidget.js';
 import { SettingsModal } from './ui/SettingsModal.js';
 
@@ -69,11 +70,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   const costumeSelector = new CostumeSelector(uiContainer, (costumeId) => {
+    const isAyame = costumeId === 'ayame';
     actionController.dispatch({
-      reply: '好呀，馬上換裝給你看！',
+      reply: isAyame ? 'Konnakiri～！余是百鬼綾目！主人今天也是元氣滿滿的一天呢～😈' : '好呀，馬上換裝給你看！',
       emotion: 'happy',
       action: 'change_costume',
       costume: costumeId
+    });
+  });
+
+  const actionSelector = new ActionSelector(uiContainer, (actionId) => {
+    actionController.dispatch({
+      action: actionId
     });
   });
 
@@ -102,6 +110,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     onCostume: () => {
       costumeSelector.toggle();
     },
+    onAction: () => {
+      actionSelector.toggle();
+    },
+    onViewToggle: () => {
+      sceneManager.setCameraPreset('toggle');
+      const isFull = sceneManager.targetCameraDist > 2.6;
+      toolbar.setViewMode(isFull ? 'full' : 'bust');
+    },
     onLeave: () => {
       actionController.dispatch({
         reply: '好呀，那我先去休息啦，主人記得早點休息哦。',
@@ -116,7 +132,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Enable pointer events for active UI children
-  [toolbar.element, chatBox.element, costumeSelector.element, heartWidget.element, settingsModal.element].forEach(el => {
+  [toolbar.element, chatBox.element, costumeSelector.element, actionSelector.element, heartWidget.element, settingsModal.element].forEach(el => {
     if (el) el.style.pointerEvents = 'auto';
   });
 
@@ -134,6 +150,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         toolbar.element.style.display = 'none';
         chatBox.toggle(false);
         costumeSelector.toggle(false);
+        actionSelector.toggle(false);
         heartWidget.show();
         if (window.electronAPI?.setRestingMode) {
           window.electronAPI.setRestingMode(true);
@@ -196,8 +213,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
 
     window.electronAPI.onCostumeChange((costume) => {
+      const isAyame = costume === 'ayame';
       actionController.dispatch({
-        reply: '換好啦！主人覺得好看嗎？',
+        reply: isAyame ? 'Konnakiri～！余是百鬼綾目！主人覺得余可愛嗎～😈' : '換好啦！主人覺得好看嗎？',
         emotion: 'happy',
         action: 'change_costume',
         costume: costume
@@ -206,6 +224,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     window.electronAPI.onOpenSettings(() => {
       settingsModal.toggle(true);
+    });
+
+    window.electronAPI.onToggleView?.(() => {
+      sceneManager.setCameraPreset('toggle');
+      const isFull = sceneManager.targetCameraDist > 2.6;
+      toolbar.setViewMode(isFull ? 'full' : 'bust');
     });
   }
 });

@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Event Listeners from Main Process (Tray / Shortcuts)
   onReturn: (callback) => ipcRenderer.on('action:return', () => callback()),
   onLeave: (callback) => ipcRenderer.on('action:leave', () => callback()),
+  onToggleView: (callback) => ipcRenderer.on('action:toggle-view', () => callback()),
   onCostumeChange: (callback) => ipcRenderer.on('action:costume', (event, costume) => callback(costume)),
   onOpenSettings: (callback) => ipcRenderer.on('ui:open-settings', () => callback())
 });

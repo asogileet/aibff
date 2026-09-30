@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鏡頭全身視角與動態重心控制 - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.2);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>🎥</span> 鏡頭全身視角 (Full-Body View) 與動態重心控制原型
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          解決拉遠鏡頭時腳部被裁切之問題，提供平滑動態重心 Lerp 插值與工具列一鍵切換視角
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Three.js Camera</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Dynamic Target Y</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Window 480×720</span>
+      </div>
+    </header>
+
+    <!-- Main Comparison Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Left: Interactive Preview Window -->
+      <div class="lg:col-span-2 glass-panel rounded-2xl p-6 flex flex-col items-center">
+        <div class="w-full flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-slate-200">桌面浮動視窗預覽 (480 × 720 比例模擬)</h2>
+          <div class="flex gap-2">
+            <button id="btnPresetBust" class="px-3 py-1 text-xs rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-medium transition shadow">
+              半身特寫 (Bust: 1.8m)
+            </button>
+            <button id="btnPresetFull" class="px-3 py-1 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition shadow">
+              全身視角 (Full: 3.6m)
+            </button>
+          </div>
+        </div>
+
+        <!-- 480x720 aspect ratio frame -->
+        <div class="relative w-[320px] h-[480px] bg-slate-900/90 rounded-2xl border-2 border-dashed border-pink-500/40 overflow-hidden shadow-2xl flex flex-col justify-end items-center">
+          
+          <!-- Virtual Background Grid -->
+          <div class="absolute inset-0 bg-[radial-gradient(#ec489915_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
+
+          <!-- Top Status Info inside Canvas -->
+          <div class="absolute top-3 left-3 right-3 flex justify-between text-[11px] text-slate-400 bg-slate-950/60 backdrop-blur px-2.5 py-1.5 rounded-lg border border-slate-800">
+            <span>相機距離: <strong id="valDistDisplay" class="text-pink-400">1.80m</strong></span>
+            <span>Target Y: <strong id="valTargetYDisplay" class="text-indigo-400">1.25m</strong></span>
+          </div>
+
+          <!-- Avatar Silhouette Representation -->
+          <div id="avatarSilhouette" class="transition-all duration-300 ease-out origin-bottom flex flex-col items-center relative" style="transform: scale(1) translateY(0px);">
+            <!-- Head Pat Area Marker -->
+            <div class="w-16 h-16 rounded-full bg-pink-500/30 border border-pink-400 flex items-center justify-center text-[10px] text-pink-200 font-bold shadow-lg shadow-pink-500/20 relative group">
+              <span>頭部 (1.45m)</span>
+              <div class="absolute -top-3 px-1.5 py-0.5 bg-pink-600 text-[9px] rounded text-white shadow">摸頭區域</div>
+            </div>
+            <!-- Torso -->
+            <div class="w-20 h-28 bg-gradient-to-b from-indigo-500/40 to-pink-500/30 border-x border-pink-400/40 rounded-t-lg mt-1 flex items-center justify-center text-[10px] text-slate-300">
+              胸/腰部 (1.0m)
+            </div>
+            <!-- Skirt / Lower Torso -->
+            <div class="w-24 h-14 bg-pink-500/25 border-x border-pink-400/40 rounded-b-xl flex items-center justify-center text-[10px] text-slate-300">
+              裙擺 (0.75m 重心)
+            </div>
+            <!-- Legs -->
+            <div class="flex gap-3 w-16 h-40">
+              <div class="w-6 h-full bg-indigo-500/30 border-x border-indigo-400/40 rounded-b-md flex items-end justify-center pb-2 text-[9px] text-slate-400">腳底</div>
+              <div class="w-6 h-full bg-indigo-500/30 border-x border-indigo-400/40 rounded-b-md flex items-end justify-center pb-2 text-[9px] text-slate-400">0.0m</div>
+            </div>
+          </div>
+
+          <!-- Bottom Floor Line Indicator -->
+          <div class="absolute bottom-6 w-full border-b border-indigo-500/30 flex justify-between px-3 text-[10px] text-indigo-400">
+            <span>地面 (Y = 0.0m)</span>
+            <span id="groundVisibleTag" class="text-emerald-400 font-semibold">腳底可見 ✓</span>
+          </div>
+
+          <!-- Floating Toolbar Preview (Mockup with new Camera button) -->
+          <div class="absolute bottom-2 bg-slate-950/80 backdrop-blur border border-slate-700/60 rounded-full px-3 py-1 flex items-center gap-3 text-xs shadow-lg">
+            <span title="語音" class="cursor-pointer hover:text-pink-400">🎤</span>
+            <span title="對話" class="cursor-pointer hover:text-pink-400">💬</span>
+            <span title="換裝" class="cursor-pointer hover:text-pink-400">👗</span>
+            <!-- New Feature: View Toggle -->
+            <button id="toolbarViewBtn" title="切換全身/半身視角" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 hover:bg-pink-500/40 text-[10px] font-medium flex items-center gap-1">
+              <span>🧍</span><span id="viewBtnLabel">全身</span>
+            </button>
+            <span title="設定" class="cursor-pointer hover:text-pink-400">⚙️</span>
+            <span title="休息" class="cursor-pointer hover:text-pink-400">🌙</span>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-400 mt-3 text-center">
+          💡 可使用下方滑桿模擬滑鼠滾輪推拉，觀察角色在視窗內縮放與置中效果。
+        </p>
+      </div>
+
+      <!-- Right: Technical Control & Explanation -->
+      <div class="glass-panel rounded-2xl p-6 flex flex-col justify-between space-y-6">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+            <span>⚙️</span> 動態參數即時模擬
+          </h2>
+
+          <div class="space-y-4 text-xs">
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-slate-400">相機距離 (Dist):</span>
+                <span id="distValText" class="text-pink-400 font-mono font-bold">1.80m</span>
+              </div>
+              <input id="distSlider" type="range" min="0.75" max="4.2" step="0.05" value="1.8" class="w-full accent-pink-500 cursor-pointer">
+              <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                <span>0.75m (特寫)</span>
+                <span>1.8m (預設半身)</span>
+                <span>4.2m (全身)</span>
+              </div>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+              <div class="font-medium text-slate-300">數學映射公式 (Dynamic Target Y)：</div>
+              <code class="block font-mono text-[11px] text-indigo-300 bg-slate-950 p-2 rounded border border-slate-800">
+                t = clamp((dist - 1.5) / (3.6 - 1.5), 0, 1)<br>
+                targetY = lerp(1.25, 0.75, t)
+              </code>
+              <p class="text-[11px] text-slate-400 leading-relaxed">
+                * 當相機靠近 ($dist \le 1.5$)：重心維持在 $1.25\text{m}$（專注於頭部與表情對話）。<br>
+                * 當相機拉遠 ($dist \ge 3.6$)：重心平滑下移至 $0.75\text{m}$（完整容納頭頂至腳底，上下留有美觀邊距）。
+              </p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+              <div class="font-medium text-slate-300">新增便捷操作：</div>
+              <ul class="list-disc list-inside space-y-1 text-slate-400 text-[11px]">
+                <li><strong class="text-pink-300">滾輪平滑拉遠</strong>：放寬上限至 4.2m。</li>
+                <li><strong class="text-pink-300">工具列快捷鈕</strong>：點擊「半身 / 全身」按鈕立即平滑過渡。</li>
+                <li><strong class="text-pink-300">滑鼠雙擊畫面</strong>：快速在「半身特寫」與「全身視角」切換。</li>
+                <li><strong class="text-pink-300">滑鼠中鍵</strong>：還原預設視角。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-800 pt-4 text-xs text-slate-400 flex items-center justify-between">
+          <span>狀態：原型方案就緒</span>
+          <span class="text-emerald-400 font-medium">可進入 Implementation Plan 階段</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const slider = document.getElementById('distSlider');
+    const distValText = document.getElementById('distValText');
+    const valDistDisplay = document.getElementById('valDistDisplay');
+    const valTargetYDisplay = document.getElementById('valTargetYDisplay');
+    const avatar = document.getElementById('avatarSilhouette');
+    const groundTag = document.getElementById('groundVisibleTag');
+    const btnPresetBust = document.getElementById('btnPresetBust');
+    const btnPresetFull = document.getElementById('btnPresetFull');
+    const toolbarViewBtn = document.getElementById('toolbarViewBtn');
+    const viewBtnLabel = document.getElementById('viewBtnLabel');
+
+    function updatePreview(dist) {
+      dist = parseFloat(dist);
+      slider.value = dist;
+      distValText.textContent = dist.toFixed(2) + 'm';
+      valDistDisplay.textContent = dist.toFixed(2) + 'm';
+
+      // Dynamic target Y formula
+      const t = Math.max(0, Math.min(1, (dist - 1.5) / (3.6 - 1.5)));
+      const targetY = 1.25 - (1.25 - 0.75) * t;
+      valTargetYDisplay.textContent = targetY.toFixed(2) + 'm';
+
+      // Scale representation: 1.8m is scale 1.0; 3.6m is scale 0.52
+      const scale = 1.8 / dist;
+      // Visual offset adjustment according to targetY shift
+      const translateY = (1.25 - targetY) * 110;
+
+      avatar.style.transform = `scale(${scale}) translateY(${translateY}px)`;
+
+      if (dist >= 3.2) {
+        groundTag.textContent = '腳底可見 ✓';
+        groundTag.className = 'text-emerald-400 font-semibold';
+        viewBtnLabel.textContent = '半身';
+      } else {
+        groundTag.textContent = '腳部在視窗外 (半身模式)';
+        groundTag.className = 'text-amber-400 font-normal';
+        viewBtnLabel.textContent = '全身';
+      }
+    }
+
+    slider.addEventListener('input', (e) => updatePreview(e.target.value));
+
+    btnPresetBust.addEventListener('click', () => updatePreview(1.8));
+    btnPresetFull.addEventListener('click', () => updatePreview(3.6));
+
+    toolbarViewBtn.addEventListener('click', () => {
+      const current = parseFloat(slider.value);
+      if (current > 2.7) {
+        updatePreview(1.8);
+      } else {
+        updatePreview(3.6);
+      }
+    });
+
+    updatePreview(1.8);
+  </script>
+</body>
+</html>

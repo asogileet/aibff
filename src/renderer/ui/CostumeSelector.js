@@ -9,7 +9,8 @@ export class CostumeSelector {
       { id: 'school', name: '青春水手服', icon: '🎀', file: 'costume_school.vrm' },
       { id: 'stylish', name: '優雅時尚裝', icon: '👗', file: 'costume_stylish.vrm' },
       { id: 'gothic', name: '哥德蘿莉裝', icon: '🖤', file: 'costume_gothic.vrm' },
-      { id: 'seed', name: '未來科技裝 (Seed)', icon: '✨', file: 'costume_seed.vrm' }
+      { id: 'seed', name: '未來科技裝 (Seed)', icon: '✨', file: 'costume_seed.vrm' },
+      { id: 'ayame', name: '百鬼綾目 (Ayame)', icon: '😈', file: 'ayame.vrm' }
     ];
 
     this._render();
@@ -35,7 +36,7 @@ export class CostumeSelector {
 
     this.element.innerHTML = `
       <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-        <span class="text-xs font-semibold text-indigo-300">👗 5 套專屬服裝快速切換</span>
+        <span class="text-xs font-semibold text-indigo-300">👗 角色與外觀快速切換</span>
         <button id="btnCloseCostume" class="text-slate-400 hover:text-white text-xs">✕</button>
       </div>
       <div class="grid grid-cols-2 gap-2 text-xs">

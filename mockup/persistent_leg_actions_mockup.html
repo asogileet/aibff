@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>下肢關節正向修正與持續姿態 (Action Holding) - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>🔄</span> 下肢關節轉向修正 (Joint Direction Fix) 與持續姿態維持 (Action Holding)
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          修正膝蓋與大腿轉動軸向問題（大腿向前伸 +X、膝蓋向後彎 -X），並改為「維持姿態直到切換新動作」，新增「站起來 (Stand)」控制
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">關節角度完全符合人體工學</span>
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">持續坐下/蹲下/跪坐不自動還原</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">支援「站起來」指令</span>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left Column: Interactive Simulation Frame -->
+      <div class="lg:col-span-1 glass-panel rounded-2xl p-5 flex flex-col items-center relative">
+        <div class="w-full flex justify-between items-center mb-3">
+          <h2 class="text-xs font-semibold text-slate-300">桌面視窗 (480 × 720 模擬)</h2>
+          <span id="holdingStateBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-pink-500 text-white font-bold animate-pulse">姿態持續維持中 🔒</span>
+        </div>
+
+        <div class="relative w-[300px] h-[480px] bg-slate-900/90 rounded-2xl border-2 border-pink-500/40 overflow-hidden shadow-2xl flex flex-col justify-between items-center p-3">
+          
+          <!-- Dialogue Bubble -->
+          <div class="w-full glass-panel rounded-xl p-2.5 text-xs text-pink-200 border-pink-500/40 flex items-start gap-2 shadow-lg">
+            <span id="mockEmoji" class="text-base">🪑</span>
+            <div>
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <span id="mockTag" class="text-[9px] px-1.5 py-0.2 rounded bg-pink-500/30 text-pink-200 font-medium">持續姿態</span>
+                <span id="mockActionCode" class="text-[10px] text-slate-400 font-mono">sit (holding)</span>
+              </div>
+              <p id="mockText" class="text-[11px] leading-relaxed">小櫻會乖乖坐著陪主人～主人忙完記得叫我站起來哦！</p>
+            </div>
+          </div>
+
+          <!-- Anatomical Diagram Visualizer -->
+          <div class="my-auto flex flex-col items-center">
+            <div id="poseBigIcon" class="text-7xl filter drop-shadow-[0_0_20px_rgba(244,114,182,0.6)]">
+              🪑
+            </div>
+            <span id="poseBigTitle" class="text-sm font-bold text-pink-300 mt-2">持續坐下 (Sit - Held)</span>
+            <div id="jointAnglesInfo" class="text-[10px] font-mono text-emerald-400 mt-1 bg-slate-950/80 px-2 py-1 rounded border border-slate-800">
+              大腿: +1.52 rad (向前) | 小腿: -1.55 rad (向後)
+            </div>
+          </div>
+
+          <!-- Bottom Control Bar: Quick Test Buttons -->
+          <div class="w-full space-y-1.5">
+            <div class="grid grid-cols-3 gap-1 text-[10px]">
+              <button class="action-test-btn py-1 rounded bg-slate-800 hover:bg-pink-600/40 border border-slate-700" data-act="sit">🪑 坐下 (持久)</button>
+              <button class="action-test-btn py-1 rounded bg-slate-800 hover:bg-pink-600/40 border border-slate-700" data-act="squat">🧘 蹲下 (持久)</button>
+              <button class="action-test-btn py-1 rounded bg-slate-800 hover:bg-pink-600/40 border border-slate-700" data-act="kneel">🙇 跪下 (持久)</button>
+              <button class="action-test-btn py-1 rounded bg-slate-800 hover:bg-pink-600/40 border border-slate-700" data-act="run">🏃 跑步 (持久)</button>
+              <button class="action-test-btn py-1 rounded bg-slate-800 hover:bg-pink-600/40 border border-slate-700" data-act="jump">🦘 跳一下 (單次)</button>
+              <!-- Stand Up Button -->
+              <button class="action-test-btn py-1 rounded bg-emerald-600/50 hover:bg-emerald-500/60 text-white font-bold border border-emerald-400" data-act="stand">🧍 站起來</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right 2 Columns: Explanation & Implementation Details -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Problem Analysis & Solution Card -->
+        <div class="glass-panel rounded-2xl p-5 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <span>🔬</span> 關節軸向與維持機制改善對比
+          </h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="p-3 bg-red-950/30 border border-red-500/30 rounded-xl space-y-1.5">
+              <div class="font-bold text-red-300 flex items-center gap-1">
+                <span>❌</span> 原本的問題
+              </div>
+              <ul class="list-disc list-inside space-y-1 text-slate-400 text-[11px]">
+                <li><strong class="text-red-300">關節相反</strong>：大腿誤用了負旋轉（$-1.52$ 向後），小腿誤用了正旋轉（$+1.55$ 向前踢），導致像反關節一樣不自然。</li>
+                <li><strong class="text-red-300">快速自動復原</strong>：每個動作被強制設定為 3 秒後自動還原待機，剛坐下馬上就自動彈起站立。</li>
+              </ul>
+            </div>
+
+            <div class="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1.5">
+              <div class="font-bold text-emerald-300 flex items-center gap-1">
+                <span>✅</span> 修正後的正確表現
+              </div>
+              <ul class="list-disc list-inside space-y-1 text-slate-300 text-[11px]">
+                <li><strong class="text-emerald-300">真實人體工學角度</strong>：大腿向前抬起（$+1.52\text{ rad}$），小腿向後屈曲（$-1.55\text{ rad}$），完全符合坐姿與跪姿。</li>
+                <li><strong class="text-emerald-300">持續維持姿態 (Holding)</strong>：坐下、蹲下、跪下、跑步進入該狀態後**永遠維持**，直到您點選「站起來」或換成別的動作才切換！</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Command & Control Testing -->
+        <div class="glass-panel rounded-2xl p-5 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <span>💬</span> 姿態切換與「站起來」指令測試
+          </h2>
+          <div class="flex gap-2">
+            <input id="testInput" type="text" placeholder="輸入：坐下、站起來、/stand、跑步、蹲下、跪下..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-pink-500 text-slate-100">
+            <button id="btnSendInput" class="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-xl text-xs font-medium transition shadow">
+              送出指令
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-1.5 text-[11px]">
+            <span class="text-slate-500 self-center">快速試試：</span>
+            <button class="chip-cmd px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-900/50 border border-slate-700 text-slate-300">坐下</button>
+            <button class="chip-cmd px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-900/50 border border-slate-700 text-slate-300">站起來</button>
+            <button class="chip-cmd px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-900/50 border border-slate-700 text-slate-300">蹲下</button>
+            <button class="chip-cmd px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-900/50 border border-slate-700 text-slate-300">跪坐</button>
+            <button class="chip-cmd px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-900/50 border border-slate-700 text-slate-300">跑步</button>
+            <button class="chip-cmd px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-900/50 border border-slate-700 text-slate-300">/stand</button>
+            <button class="chip-cmd px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-900/50 border border-slate-700 text-slate-300">/sit</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const postureData = {
+      sit: { icon: '🪑', title: '持續坐下 (Sit - Held)', angles: '大腿: +1.52 rad (向前) | 小腿: -1.55 rad (向後)', text: '小櫻會乖乖坐著陪主人～主人忙完記得叫我站起來哦！', isHold: true },
+      squat: { icon: '🧘', title: '持續蹲下 (Squat - Held)', angles: '大腿: +1.75 rad (緊收) | 小腿: -2.15 rad (深折)', text: '小櫻蹲在地上抬頭看著主人，有什麼事情吩咐嗎？', isHold: true },
+      kneel: { icon: '🙇', title: '持續跪坐 (Kneel - Held)', angles: '大腿: +0.15 rad (端正) | 小腿: -2.45 rad (平貼)', text: '端莊跪坐……主人有重要的事要跟小櫻說嗎？', isHold: true },
+      run: { icon: '🏃', title: '持續原地跑步 (Run - Held)', angles: '雙腿交替步頻擺動 | 膝蓋向後踢折', text: '一二一二！跑步讓身體熱起來了！叫我停止我才會停哦～', isHold: true },
+      jump: { icon: '🦘', title: '跳躍演出 (Jump - One-shot)', angles: '蓄力下蹲 -> 縱身跳起 -> 緩衝回位', text: '嘿咻——！跳起來了！活力充沛！', isHold: false },
+      stand: { icon: '🧍', title: '站立待機 (Stand / Idle)', angles: '雙腿自然垂直伸直 (0, 0, 0)', text: '小櫻站好囉！主人今天想做什麼呢？', isHold: false }
+    };
+
+    const poseBigIcon = document.getElementById('poseBigIcon');
+    const poseBigTitle = document.getElementById('poseBigTitle');
+    const jointAnglesInfo = document.getElementById('jointAnglesInfo');
+    const mockEmoji = document.getElementById('mockEmoji');
+    const mockActionCode = document.getElementById('mockActionCode');
+    const mockText = document.getElementById('mockText');
+    const holdingStateBadge = document.getElementById('holdingStateBadge');
+    const testInput = document.getElementById('testInput');
+    const btnSendInput = document.getElementById('btnSendInput');
+
+    function applyAction(actKey) {
+      const p = postureData[actKey] || postureData.stand;
+      poseBigIcon.textContent = p.icon;
+      poseBigTitle.textContent = p.title;
+      jointAnglesInfo.textContent = p.angles;
+      mockEmoji.textContent = p.icon;
+      mockActionCode.textContent = actKey + (p.isHold ? ' (holding)' : '');
+      mockText.textContent = p.text;
+
+      if (p.isHold) {
+        holdingStateBadge.textContent = '姿態持續維持中 🔒';
+        holdingStateBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-pink-500 text-white font-bold animate-pulse';
+      } else {
+        holdingStateBadge.textContent = '站立待機模式 ✓';
+        holdingStateBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+      }
+    }
+
+    document.querySelectorAll('.action-test-btn').forEach(btn => {
+      btn.addEventListener('click', () => applyAction(btn.dataset.act));
+    });
+
+    function handleCommand(cmd) {
+      cmd = cmd.trim().toLowerCase();
+      if (!cmd) return;
+      if (cmd.includes('站') || cmd.includes('起來') || cmd === '/stand' || cmd === '/idle') applyAction('stand');
+      else if (cmd.includes('坐') || cmd === '/sit') applyAction('sit');
+      else if (cmd.includes('蹲') || cmd === '/squat') applyAction('squat');
+      else if (cmd.includes('跪') || cmd === '/kneel') applyAction('kneel');
+      else if (cmd.includes('跑') || cmd === '/run') applyAction('run');
+      else if (cmd.includes('跳') || cmd === '/jump') applyAction('jump');
+    }
+
+    btnSendInput.addEventListener('click', () => {
+      handleCommand(testInput.value);
+      testInput.value = '';
+    });
+    testInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnSendInput.click();
+    });
+
+    document.querySelectorAll('.chip-cmd').forEach(btn => {
+      btn.addEventListener('click', () => handleCommand(btn.textContent));
+    });
+
+    applyAction('sit');
+  </script>
+</body>
+</html>

@@ -9,11 +9,13 @@ export class SceneManager {
 
     // Camera control parameters
     this.defaultCameraPos = new THREE.Vector3(0.0, 1.35, 1.8);
-    this.cameraTarget = new THREE.Vector3(0.0, 1.25, 0.0);
+    this.bustTargetY = 1.25;      // Target height for bust / face close-up
+    this.fullBodyTargetY = 0.75;  // Target height for full body center
+    this.cameraTarget = new THREE.Vector3(0.0, this.bustTargetY, 0.0);
     this.currentCameraDist = 1.8;
     this.targetCameraDist = 1.8;
     this.minDist = 0.75;  // Close-up face zoom
-    this.maxDist = 3.2;   // Full body view
+    this.maxDist = 4.2;   // Full body view from head to feet
 
     // Orbit angles (azimuth & elevation)
     this.orbitTheta = 0.0;       // Horizontal angle
@@ -80,9 +82,9 @@ export class SceneManager {
       if (e.button === 2) { // Right click
         this.isRightDragging = true;
         this.lastMousePos = { x: e.clientX, y: e.clientY };
-      } else if (e.button === 1) { // Middle click: Reset Camera
+      } else if (e.button === 1) { // Middle click: Toggle bust / full body view
         e.preventDefault();
-        this.resetCamera();
+        this.setCameraPreset('toggle');
       }
     });
 
@@ -106,13 +108,33 @@ export class SceneManager {
     });
   }
 
+  setCameraPreset(mode = 'toggle') {
+    if (mode === 'bust') {
+      this.targetCameraDist = 1.8;
+      this.targetOrbitTheta = 0.0;
+      this.targetOrbitPhi = 0.0;
+    } else if (mode === 'full') {
+      this.targetCameraDist = 3.6;
+      this.targetOrbitTheta = 0.0;
+      this.targetOrbitPhi = 0.0;
+    } else if (mode === 'toggle') {
+      if (this.targetCameraDist > 2.6) {
+        this.setCameraPreset('bust');
+      } else {
+        this.setCameraPreset('full');
+      }
+    }
+  }
+
   resetCamera() {
-    this.targetCameraDist = 1.8;
-    this.targetOrbitTheta = 0.0;
-    this.targetOrbitPhi = 0.0;
+    this.setCameraPreset('bust');
   }
 
   _updateCameraTransform() {
+    // Dynamically calculate cameraTarget.y based on currentCameraDist
+    const t = THREE.MathUtils.clamp((this.currentCameraDist - 1.5) / (3.6 - 1.5), 0.0, 1.0);
+    this.cameraTarget.y = THREE.MathUtils.lerp(this.bustTargetY, this.fullBodyTargetY, t);
+
     // Calculate spherical position relative to cameraTarget
     const cosPhi = Math.cos(this.orbitPhi);
     const sinPhi = Math.sin(this.orbitPhi);
