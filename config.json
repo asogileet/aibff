@@ -2,19 +2,19 @@
   "server_port": 8765,
   "server_host": "127.0.0.1",
   "llm": {
-    "api_url": "http://127.0.0.1:8080/v1",
-    "model_name": "models\\Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-IQ2_M.gguf",
+    "api_url": "http://127.0.0.1:11434",
+    "model_name": "qwen3.8:27b",
     "temperature": 0.7,
     "timeout_seconds": 60.0
   },
   "character": {
     "name": "小櫻",
     "user_nickname": "主人",
-    "system_prompt": "You are Sakura (小櫻), a gentle, loving, and attentive 3D AI virtual companion living on the user's Windows desktop. Keep your replies conversational, warm, concise, and lively without being robotic or exaggerated. You must ALWAYS reply in valid JSON format containing: 'reply' (your spoken words in Traditional/Simplified Chinese), 'emotion' ('happy' | 'shy' | 'caring' | 'angry' | 'surprised' | 'neutral'), 'action' ('idle' | 'wave' | 'comfort' | 'leave' | 'return' | 'change_costume' | 'head_pat'), 'costume' (null or one of 'casual', 'school', 'stylish', 'gothic', 'seed')."
+    "system_prompt": "生活在 Windows 桌面的可愛、自然、有情緒反饋的 AI 女友。回覆自然簡短且輸出結構化意圖 JSON。"
   },
   "tts": {
     "provider": "edge-tts",
-    "voice": "zh-CN-XiaoxiaoNeural",
+    "voice": "zh-CN-XiaoyiNeural",
     "rate": "+0%",
     "volume": "+0%"
   },

@@ -486,17 +486,21 @@ export class AnimationController {
         if (leftLowerLeg) leftLowerLeg.rotation.x = -Math.max(0, -swing * 1.3);
         if (rightLowerLeg) rightLowerLeg.rotation.x = -Math.max(0, swing * 1.3);
 
-        // Counter-balancing arm swing with bent elbows
+        // Counter-balancing arm swing with naturally forward-bent elbows
         if (leftUpperArm) {
-          leftUpperArm.rotation.x = -swing * 0.65;
+          leftUpperArm.rotation.x = swing * 0.65;
           leftUpperArm.rotation.z = 0.22;
         }
         if (rightUpperArm) {
-          rightUpperArm.rotation.x = swing * 0.65;
+          rightUpperArm.rotation.x = -swing * 0.65;
           rightUpperArm.rotation.z = -0.22;
         }
-        if (leftLowerArm) leftLowerArm.rotation.y = 1.15;
-        if (rightLowerArm) rightLowerArm.rotation.y = -1.15;
+        if (leftLowerArm) {
+          leftLowerArm.rotation.set(1.35, 0, 0);
+        }
+        if (rightLowerArm) {
+          rightLowerArm.rotation.set(1.35, 0, 0);
+        }
 
         // Subtle natural running hip bounce
         if (hips) {

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跑步手臂擺動方向與屈肘修正 - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    @keyframes correctRun {
+      0%, 100% {
+        transform: translateY(0) rotate(2deg);
+      }
+      50% {
+        transform: translateY(-8px) rotate(-2deg);
+      }
+    }
+    .anim-correct-run {
+      animation: correctRun 0.45s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>🏃‍♀️</span> 跑步手臂對側協調 (Contralateral Coordination) 與屈肘修正原型
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          修正跑步時手臂與腿部擺動相位（右臂與左腿同步向前、左臂與右腿同步向前），並改為真實跑步向前屈肘
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">對側交叉擺臂 (Contralateral)</span>
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">前屈手肘 90° (Elbow Flexion)</span>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left Column: Comparison Simulation Preview -->
+      <div class="lg:col-span-1 glass-panel rounded-2xl p-5 flex flex-col items-center relative">
+        <div class="w-full flex justify-between items-center mb-3">
+          <h2 class="text-xs font-semibold text-slate-300">跑步步態對比預覽</h2>
+          <span id="gaitModeBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">修正後：自然對側交叉 ✓</span>
+        </div>
+
+        <div class="relative w-[300px] h-[480px] bg-slate-900/90 rounded-2xl border-2 border-emerald-500/40 overflow-hidden shadow-2xl flex flex-col justify-between items-center p-3">
+          
+          <!-- Dialogue Bubble -->
+          <div class="w-full glass-panel rounded-xl p-2.5 text-xs text-pink-200 border-pink-500/40 flex items-start gap-2 shadow-lg">
+            <span class="text-base">🏃‍♀️</span>
+            <div>
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <span class="text-[9px] px-1.5 py-0.2 rounded bg-pink-500/30 text-pink-200 font-medium">步態校正</span>
+                <span class="text-[10px] text-slate-400 font-mono">running gait</span>
+              </div>
+              <p id="dialogueRunText" class="text-[11px] leading-relaxed">一、二、一、二！這次右手配左腳、左手配右腳，手肘彎曲跑起來超輕快！</p>
+            </div>
+          </div>
+
+          <!-- Running Visual Diagram -->
+          <div class="my-auto flex flex-col items-center">
+            <div id="runVisualBox" class="anim-correct-run flex flex-col items-center">
+              <div class="text-7xl filter drop-shadow-[0_0_20px_rgba(244,114,182,0.6)]">
+                🏃‍♀️
+              </div>
+              <span class="text-sm font-bold text-pink-300 mt-2">標準田徑跑步姿態</span>
+              <div id="armLegPhaseText" class="text-[10px] font-mono text-emerald-400 mt-1 bg-slate-950/80 px-2 py-1 rounded border border-slate-800">
+                左腿向前 ⟷ 右手向前 (交叉平衡)
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Mode Switcher on preview -->
+          <div class="w-full space-y-2">
+            <div class="flex gap-2">
+              <button id="btnShowCorrect" class="flex-1 py-1.5 rounded-lg bg-emerald-600/40 hover:bg-emerald-600/60 border border-emerald-400 text-xs text-emerald-200 font-bold">
+                ✓ 修正後 (對側交叉)
+              </button>
+              <button id="btnShowWrong" class="flex-1 py-1.5 rounded-lg bg-red-950/40 hover:bg-red-800/40 border border-red-500/50 text-xs text-red-300">
+                ✗ 原本 (反向/同側)
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right 2 Columns: Mathematical & Anatomical Explanation -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Detailed Problem & Solution Breakdown -->
+        <div class="glass-panel rounded-2xl p-5 space-y-4">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <span>🔬</span> 擺臂相位與手肘軸向分析
+          </h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <!-- Wrong State -->
+            <div class="p-3.5 bg-red-950/20 border border-red-500/30 rounded-xl space-y-2">
+              <div class="font-bold text-red-300 flex items-center gap-1.5">
+                <span class="text-base">❌</span> 原本的問題點
+              </div>
+              <ul class="space-y-1.5 text-slate-300 text-[11px] leading-relaxed">
+                <li><strong class="text-red-300">擺臂方向相反</strong>：手臂擺動正負號反了，導致變成「同手同腳」（左腳往前時左手也往前，或左腳往前時右手向後）。</li>
+                <li><strong class="text-red-300">手肘向外翻扭曲</strong>：原本誤用了 <code class="text-red-400">lowerArm.rotation.y = 1.15</code>，繞 Y 軸旋轉導致小臂像翅膀一樣向側邊外翻，而不是真實跑步時手肘屈曲向前的狀態。</li>
+              </ul>
+            </div>
+
+            <!-- Corrected State -->
+            <div class="p-3.5 bg-emerald-950/20 border border-emerald-500/30 rounded-xl space-y-2">
+              <div class="font-bold text-emerald-300 flex items-center gap-1.5">
+                <span class="text-base">✅</span> 修正後的正確人體力學
+              </div>
+              <ul class="space-y-1.5 text-slate-300 text-[11px] leading-relaxed">
+                <li><strong class="text-emerald-300">對側交叉平衡（Contralateral）</strong>：
+                  <br>當左腿向前抬起（<code class="text-emerald-400">leftUpperLeg.rotation.x &gt; 0</code>）時，<strong>右手臂向前擺動</strong>（<code class="text-emerald-400">rightUpperArm.rotation.x &gt; 0</code>），左手臂向後擺動。
+                </li>
+                <li><strong class="text-emerald-300">前方屈肘 90°（Elbow Flexion）</strong>：
+                  <br>改為 <code class="text-emerald-400">lowerArm.rotation.x = 1.35</code>（繞 X 軸向前屈曲），小臂保持直立向前，手腕自然微收。
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Formula and Code Snippet Comparison -->
+        <div class="glass-panel rounded-2xl p-5 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <span>📐</span> 修正後的運動學計算公式
+          </h2>
+          <pre class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] font-mono text-indigo-300 overflow-x-auto leading-relaxed">
+const swing = Math.sin(this.actionTime * 12.0);
+
+// 雙腿交替大跨步向前/向後
+leftUpperLeg.rotation.x  =  swing * 0.75;
+rightUpperLeg.rotation.x = -swing * 0.75;
+
+// 手臂對側反向擺動：左腿向前時，右臂向前 (+)、左臂向後 (-)
+leftUpperArm.rotation.x  =  swing * 0.65;   // &lt;-- 相位反轉修正！
+rightUpperArm.rotation.x = -swing * 0.65;   // &lt;-- 相位反轉修正！
+
+// 手肘自然向前屈曲 90 度，取代原本的外翻 Y 軸
+leftLowerArm.rotation.set(1.35, 0, 0);      // &lt;-- 前屈肘修正！
+rightLowerArm.rotation.set(1.35, 0, 0);     // &lt;-- 前屈肘修正！</pre>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const btnShowCorrect = document.getElementById('btnShowCorrect');
+    const btnShowWrong = document.getElementById('btnShowWrong');
+    const gaitModeBadge = document.getElementById('gaitModeBadge');
+    const dialogueRunText = document.getElementById('dialogueRunText');
+    const armLegPhaseText = document.getElementById('armLegPhaseText');
+
+    btnShowCorrect.addEventListener('click', () => {
+      gaitModeBadge.textContent = '修正後：自然對側交叉 ✓';
+      gaitModeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+      dialogueRunText.textContent = '一、二、一、二！這次右手配左腳、左手配右腳，手肘彎曲跑起來超輕快！';
+      armLegPhaseText.textContent = '左腿向前 ⟷ 右手向前 (交叉平衡)';
+      armLegPhaseText.className = 'text-[10px] font-mono text-emerald-400 mt-1 bg-slate-950/80 px-2 py-1 rounded border border-slate-800';
+    });
+
+    btnShowWrong.addEventListener('click', () => {
+      gaitModeBadge.textContent = '原本狀態：同側/反向 ✗';
+      gaitModeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40';
+      dialogueRunText.textContent = '原本的擺臂方向相反，手肘向外翻，看起來像同手同腳或反向擺動。';
+      armLegPhaseText.textContent = '左腿向前 ⟷ 左手向前 (同手同腳反向)';
+      armLegPhaseText.className = 'text-[10px] font-mono text-red-400 mt-1 bg-slate-950/80 px-2 py-1 rounded border border-slate-800';
+    });
+  </script>
+</body>
+</html>
