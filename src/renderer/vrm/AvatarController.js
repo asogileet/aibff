@@ -17,7 +17,8 @@ export class AvatarController {
       stylish: '../../assets/models/costume_stylish.vrm',
       gothic: '../../assets/models/costume_gothic.vrm',
       seed: '../../assets/models/costume_seed.vrm',
-      ayame: '../../assets/models/ayame.vrm'
+      ayame: '../../assets/models/ayame.vrm',
+      mint: '../../assets/models/mint_swimsuit.vrm'
     };
 
     // Forward face orientation for each model standard
@@ -28,7 +29,8 @@ export class AvatarController {
       stylish: Math.PI,
       gothic: Math.PI,
       seed: Math.PI,
-      ayame: Math.PI
+      ayame: Math.PI,
+      mint: Math.PI
     };
   }
 
@@ -45,13 +47,20 @@ export class AvatarController {
     console.log(`[AvatarController] Loading costume '${costumeKey}' from ${vrmPath}...`);
 
     try {
-      const gltf = await this.loader.loadAsync(vrmPath);
+      const loader = new GLTFLoader();
+      loader.register((parser) => new VRMLoaderPlugin(parser));
+
+      const gltf = await loader.loadAsync(vrmPath);
       const vrm = gltf.userData.vrm;
+      if (!vrm) {
+        throw new Error('No VRM instance found in loaded asset');
+      }
 
       VRMUtils.removeUnnecessaryVertices(gltf.scene);
       VRMUtils.combineSkeletons(gltf.scene);
 
       this._setupVRM(vrm, costumeKey);
+      console.log(`[AvatarController] Successfully loaded and setup costume '${costumeKey}'.`);
       return vrm;
     } catch (err) {
       console.warn(`[AvatarController] Failed to load ${vrmPath}: ${err.message}`);

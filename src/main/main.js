@@ -109,7 +109,8 @@ function createTray() {
         { label: '優雅時尚裝 (Stylish)', click: () => sendCostume('stylish') },
         { label: '哥德蘿莉裝 (Gothic)', click: () => sendCostume('gothic') },
         { label: '未來科技裝 (Seed)', click: () => sendCostume('seed') },
-        { label: '百鬼綾目 (Ayame)', click: () => sendCostume('ayame') }
+        { label: '百鬼綾目 (Ayame)', click: () => sendCostume('ayame') },
+        { label: '泳裝薄荷 (Mint)', click: () => sendCostume('mint') }
       ]
     },
     {

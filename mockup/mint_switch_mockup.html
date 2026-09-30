@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>泳裝薄荷 (Mint) 角色切換功能 - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+    @keyframes breathing {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-6px) scale(1.015); }
+    }
+    @keyframes switchSpin {
+      0% { transform: rotateY(0deg) scale(0.92); filter: brightness(1.6) blur(2px); }
+      50% { transform: rotateY(180deg) scale(0.85); filter: brightness(2); }
+      100% { transform: rotateY(360deg) scale(1); filter: brightness(1) blur(0px); }
+    }
+    .anim-breathing {
+      animation: breathing 3.6s ease-in-out infinite;
+    }
+    .anim-switch {
+      animation: switchSpin 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl border-cyan-500/30">
+      <div>
+        <h1 class="text-xl font-bold text-cyan-400 flex items-center gap-2">
+          <span>🩱</span> 3D 桌面虛擬伴侶 - 泳裝薄荷 (Mint) 角色切換與整合展示
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          整合《異環》（NTE）薄荷泳裝 VRM 模型 (mint_swimsuit.vrm)，支援 2D Anime 賽璐珞風格平塗、自發光材質與動態切換
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">mint_swimsuit.vrm 支援</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">MToon1 2D Flat Shading</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Humanoid 標準人形骨架</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left: 3D Stage Preview -->
+      <div class="lg:col-span-7 glass-panel rounded-2xl p-6 relative overflow-hidden flex flex-col items-center justify-between min-h-[580px] border-slate-700/50 bg-gradient-to-b from-slate-900 via-cyan-950/20 to-slate-950">
+        
+        <!-- Top Status & Dialogue -->
+        <div class="w-full flex items-center justify-between z-10">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+            <span id="currentRoleBadge" class="text-xs px-2.5 py-0.5 rounded-md bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-semibold">
+              目前角色：泳裝薄荷 (Mint)
+            </span>
+          </div>
+          <div class="text-[11px] text-slate-400">
+            模型檔案：<code id="currentModelFile" class="text-cyan-300 font-mono">assets/models/mint_swimsuit.vrm</code>
+          </div>
+        </div>
+
+        <!-- Dialogue Bubble -->
+        <div id="dialogueBox" class="z-20 w-4/5 max-w-md my-4 p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/40 shadow-2xl backdrop-blur-md transition-all duration-300">
+          <div class="flex items-center justify-between mb-1.5">
+            <span id="speakerName" class="text-xs font-bold text-cyan-400">泳裝薄荷 (Mint)</span>
+            <span id="emotionBadge" class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300">happy</span>
+          </div>
+          <p id="dialogueText" class="text-sm text-slate-200 leading-relaxed">
+            「哇！是海邊的感覺！我是薄荷，主人要和我一起去海邊玩嗎～？🩱」
+          </p>
+        </div>
+
+        <!-- 3D Avatar Visual Representation -->
+        <div class="relative w-72 h-80 flex items-center justify-center my-auto">
+          <!-- Spotlight / Pedestal glow -->
+          <div id="glowCircle" class="absolute -bottom-4 w-56 h-14 rounded-full bg-cyan-600/30 blur-xl pointer-events-none transition-all duration-500"></div>
+
+          <!-- Character Silhouette / Card -->
+          <div id="avatarVisual" class="anim-breathing flex flex-col items-center justify-center text-center select-none cursor-pointer transition-transform">
+            <div id="avatarIcon" class="text-8xl filter drop-shadow-[0_10px_20px_rgba(6,182,212,0.4)] mb-2">
+              🩱
+            </div>
+            <div id="avatarCardName" class="text-base font-bold text-white tracking-wider">
+              泳裝薄荷 (Mint - NTE)
+            </div>
+            <div id="avatarSubDesc" class="text-xs text-cyan-300/80 mt-1">
+              《異環》泳裝造型 · 二次元平塗 · MToon1 無陰影賽璐珞
+            </div>
+          </div>
+        </div>
+
+        <!-- Interaction Prompt -->
+        <div class="w-full text-center text-xs text-slate-500 z-10 pt-2 border-t border-slate-800">
+          💡 點擊右側角色切換按鈕，可立即預覽模型切換、專屬台詞與材質模式
+        </div>
+      </div>
+
+      <!-- Right: Switcher Controls & Architecture -->
+      <div class="lg:col-span-5 space-y-6">
+
+        <!-- Selector Panel -->
+        <div class="glass-panel rounded-2xl p-6 border-cyan-500/30">
+          <h2 class="text-sm font-semibold text-cyan-300 mb-4 flex items-center gap-2">
+            <span>🎭</span> 角色與外觀快速切換清單
+          </h2>
+
+          <div class="space-y-3">
+            <!-- Role 1: Mint Swimsuit (New) -->
+            <div id="item-mint" class="p-3.5 rounded-xl border border-cyan-500/60 bg-cyan-950/40 hover:bg-cyan-900/40 transition cursor-pointer flex items-center justify-between" onclick="selectRole('mint')">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">🩱</span>
+                <div>
+                  <div class="text-sm font-semibold text-cyan-200 flex items-center gap-1.5">
+                    泳裝薄荷 (Mint)
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/30 text-cyan-300 font-mono">NEW</span>
+                  </div>
+                  <div class="text-xs text-slate-400 mt-0.5">assets/models/mint_swimsuit.vrm (5.28 MB)</div>
+                </div>
+              </div>
+              <button class="px-3 py-1.5 text-xs rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-md shadow-cyan-900/50">
+                套用
+              </button>
+            </div>
+
+            <!-- Role 2: Ayame -->
+            <div id="item-ayame" class="p-3.5 rounded-xl border border-slate-700/60 bg-slate-900/50 hover:bg-red-950/30 transition cursor-pointer flex items-center justify-between" onclick="selectRole('ayame')">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">😈</span>
+                <div>
+                  <div class="text-sm font-semibold text-red-200">百鬼綾目 (Ayame)</div>
+                  <div class="text-xs text-slate-400 mt-0.5">assets/models/ayame.vrm (15.5 MB)</div>
+                </div>
+              </div>
+              <button class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">
+                切換
+              </button>
+            </div>
+
+            <!-- Role 3: Sakura Casual -->
+            <div id="item-casual" class="p-3.5 rounded-xl border border-slate-700/60 bg-slate-900/50 hover:bg-slate-800/60 transition cursor-pointer flex items-center justify-between" onclick="selectRole('casual')">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">👚</span>
+                <div>
+                  <div class="text-sm font-semibold text-slate-200">小櫻 - 日常便服 (Casual)</div>
+                  <div class="text-xs text-slate-400 mt-0.5">costume_casual.vrm</div>
+                </div>
+              </div>
+              <button class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">
+                切換
+              </button>
+            </div>
+
+            <!-- Role 4: Sakura School -->
+            <div id="item-school" class="p-3.5 rounded-xl border border-slate-700/60 bg-slate-900/50 hover:bg-slate-800/60 transition cursor-pointer flex items-center justify-between" onclick="selectRole('school')">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">🎀</span>
+                <div>
+                  <div class="text-sm font-semibold text-slate-200">小櫻 - 青春水手服 (School)</div>
+                  <div class="text-xs text-slate-400 mt-0.5">costume_school.vrm</div>
+                </div>
+              </div>
+              <button class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">
+                切換
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Technical Specification Card -->
+        <div class="glass-panel rounded-2xl p-6 border-slate-700/60">
+          <h2 class="text-sm font-semibold text-cyan-300 mb-3 flex items-center gap-2">
+            <span>⚙️</span> 技術亮點與相容架構 (Technical Highlights)
+          </h2>
+          <ul class="text-xs text-slate-300 space-y-2.5">
+            <li class="flex items-start gap-2">
+              <span class="text-cyan-400 font-bold">1.</span>
+              <span><strong>MToon1 2D Flat Shading：</strong>轉檔時已切換為 Emission 自發光無陰影材質，徹底杜絕 3D 擬真雜光與陰影撕裂。</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-cyan-400 font-bold">2.</span>
+              <span><strong>單一主 Armature 匯出：</strong>剔除額外之裝飾骨架與定位節點，確保 VRM 規範 100% 合規。</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-cyan-400 font-bold">3.</span>
+              <span><strong>標準 VRM 0.x 人形骨架：</strong>50+ 個人體關鍵骨骼（Hips/Spine/Chest/Neck/Head/雙手10指3關節/腳趾）精準對齊。</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-cyan-400 font-bold">4.</span>
+              <span><strong>托盤與 UI 雙軌支援：</strong>可在前端外觀選單或 Windows 系統托盤選單中即時自由替換。</span>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const roleData = {
+      mint: {
+        name: '泳裝薄荷 (Mint)',
+        title: '泳裝薄荷 (Mint - NTE)',
+        desc: '《異環》泳裝造型 · 二次元平塗 · MToon1 無陰影賽璐珞',
+        icon: '🩱',
+        file: 'assets/models/mint_swimsuit.vrm',
+        reply: '「哇！是海邊的感覺！我是薄荷，主人要和我一起去海邊玩嗎～？🩱」',
+        emotion: 'happy',
+        color: 'text-cyan-400',
+        glowColor: 'bg-cyan-600/30',
+        borderColor: 'border-cyan-500/40',
+        badgeBg: 'bg-cyan-950/60',
+        badgeText: 'text-cyan-300',
+        badgeBorder: 'border-cyan-500/40'
+      },
+      ayame: {
+        name: '百鬼綾目 (Ayame)',
+        title: '百鬼綾目 (Nakiri Ayame)',
+        desc: '鬼神巫女 · 雙鬼角 · 紅白雙色和服',
+        icon: '😈',
+        file: 'assets/models/ayame.vrm',
+        reply: '「Konnakiri～！余是百鬼綾目！主人今天也是元氣滿滿的一天呢～😈」',
+        emotion: 'happy',
+        color: 'text-pink-400',
+        glowColor: 'bg-red-600/30',
+        borderColor: 'border-pink-500/40',
+        badgeBg: 'bg-red-950/60',
+        badgeText: 'text-red-300',
+        badgeBorder: 'border-red-500/40'
+      },
+      casual: {
+        name: '小櫻 (便服)',
+        title: '小櫻 - 日常便服 (Casual)',
+        desc: '經典日系便服 · 溫柔粉色髮帶 · 伴侶造型',
+        icon: '👚',
+        file: 'costume_casual.vrm',
+        reply: '「換上這套日常便服，今天也請主人多多指教囉！」',
+        emotion: 'happy',
+        color: 'text-indigo-400',
+        glowColor: 'bg-indigo-600/30',
+        borderColor: 'border-indigo-500/40',
+        badgeBg: 'bg-indigo-950/60',
+        badgeText: 'text-indigo-300',
+        badgeBorder: 'border-indigo-500/40'
+      },
+      school: {
+        name: '小櫻 (水手服)',
+        title: '小櫻 - 青春水手服 (School)',
+        desc: '青春海軍藍水手服 · 活力女高中生造型',
+        icon: '🎀',
+        file: 'costume_school.vrm',
+        reply: '「鏘鏘！水手服登場！主人覺得小櫻有青春洋溢的感覺嗎？」',
+        emotion: 'shy',
+        color: 'text-blue-400',
+        glowColor: 'bg-blue-600/30',
+        borderColor: 'border-blue-500/40',
+        badgeBg: 'bg-blue-950/60',
+        badgeText: 'text-blue-300',
+        badgeBorder: 'border-blue-500/40'
+      }
+    };
+
+    function selectRole(roleKey) {
+      const data = roleData[roleKey];
+      if (!data) return;
+
+      const avatar = document.getElementById('avatarVisual');
+      avatar.classList.remove('anim-breathing');
+      avatar.classList.add('anim-switch');
+
+      setTimeout(() => {
+        document.getElementById('currentRoleBadge').innerText = `目前角色：${data.name}`;
+        document.getElementById('currentModelFile').innerText = data.file;
+        document.getElementById('speakerName').innerText = data.name;
+        document.getElementById('dialogueText').innerText = data.reply;
+        document.getElementById('emotionBadge').innerText = data.emotion;
+        document.getElementById('avatarIcon').innerText = data.icon;
+        document.getElementById('avatarCardName').innerText = data.title;
+        document.getElementById('avatarSubDesc').innerText = data.desc;
+
+        const glow = document.getElementById('glowCircle');
+        glow.className = `absolute -bottom-4 w-56 h-14 rounded-full ${data.glowColor} blur-xl pointer-events-none transition-all duration-500`;
+
+        avatar.classList.remove('anim-switch');
+        avatar.classList.add('anim-breathing');
+      }, 350);
+    }
+  </script>
+</body>
+</html>

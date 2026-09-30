@@ -70,9 +70,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   const costumeSelector = new CostumeSelector(uiContainer, (costumeId) => {
-    const isAyame = costumeId === 'ayame';
+    let reply = '好呀，馬上換裝給你看！';
+    if (costumeId === 'ayame') {
+      reply = 'Konnakiri～！余是百鬼綾目！主人今天也是元氣滿滿的一天呢～😈';
+    } else if (costumeId === 'mint') {
+      reply = '哇！是海邊的感覺！我是薄荷，主人要和我一起去海邊玩嗎～？🩱';
+    }
     actionController.dispatch({
-      reply: isAyame ? 'Konnakiri～！余是百鬼綾目！主人今天也是元氣滿滿的一天呢～😈' : '好呀，馬上換裝給你看！',
+      reply,
       emotion: 'happy',
       action: 'change_costume',
       costume: costumeId
@@ -213,9 +218,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
 
     window.electronAPI.onCostumeChange((costume) => {
-      const isAyame = costume === 'ayame';
+      let reply = '換好啦！主人覺得好看嗎？';
+      if (costume === 'ayame') {
+        reply = 'Konnakiri～！余是百鬼綾目！主人覺得余可愛嗎～😈';
+      } else if (costume === 'mint') {
+        reply = '哇！換成泳裝薄荷啦！主人覺得這套泳裝好看嗎～？🩱';
+      }
       actionController.dispatch({
-        reply: isAyame ? 'Konnakiri～！余是百鬼綾目！主人覺得余可愛嗎～😈' : '換好啦！主人覺得好看嗎？',
+        reply,
         emotion: 'happy',
         action: 'change_costume',
         costume: costume

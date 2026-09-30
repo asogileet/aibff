@@ -184,8 +184,16 @@ export class ActionController {
 
     // Play 360 degree spin and particle burst
     this.sceneManager.spawnHeartParticles(12);
+
+    // Concurrently load costume so large models load seamlessly during spin
+    const loadPromise = this.avatarController.loadCostume(costumeKey);
+
     this.animationController.playSpin(async () => {
-      await this.avatarController.loadCostume(costumeKey);
+      try {
+        await loadPromise;
+      } catch (e) {
+        console.warn('[ActionController] Error awaiting costume load in spin:', e);
+      }
       this.sceneManager.spawnHeartParticles(6);
     });
 

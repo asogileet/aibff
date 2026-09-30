@@ -28,8 +28,8 @@ export class EyeTrackingController {
     const vrm = this.avatarController.getCurrentVRM();
     if (!vrm) return;
 
-    // Invert targetX because AliciaSolid faces camera with Math.PI rotation
-    const targetX = THREE.MathUtils.clamp(-this.mouse.x * 0.8, -Math.sin(this.MAX_YAW), Math.sin(this.MAX_YAW));
+    // Target look-at in world space aligns directly with screen mouse coordinates
+    const targetX = THREE.MathUtils.clamp(this.mouse.x * 0.8, -Math.sin(this.MAX_YAW), Math.sin(this.MAX_YAW));
     const targetY = 1.35 + THREE.MathUtils.clamp(this.mouse.y * 0.5, -Math.sin(this.MAX_PITCH), Math.sin(this.MAX_PITCH));
     this.targetLookAtPos.set(targetX, targetY, 1.2);
 
@@ -45,9 +45,9 @@ export class EyeTrackingController {
     const head = vrm.humanoid?.getNormalizedBoneNode('head');
     const neck = vrm.humanoid?.getNormalizedBoneNode('neck');
 
-    // Yaw and pitch for head orientation
-    const yaw = THREE.MathUtils.clamp(-this.mouse.x * 0.35, -this.MAX_YAW, this.MAX_YAW);
-    const pitch = THREE.MathUtils.clamp(this.mouse.y * 0.25, -this.MAX_PITCH, this.MAX_PITCH);
+    // Yaw and pitch for head orientation (negative pitch for looking upward)
+    const yaw = THREE.MathUtils.clamp(this.mouse.x * 0.35, -this.MAX_YAW, this.MAX_YAW);
+    const pitch = THREE.MathUtils.clamp(-this.mouse.y * 0.25, -this.MAX_PITCH, this.MAX_PITCH);
 
     if (head) {
       head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, yaw * 0.7, delta * 5.0);

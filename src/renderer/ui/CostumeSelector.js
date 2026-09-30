@@ -10,7 +10,8 @@ export class CostumeSelector {
       { id: 'stylish', name: '優雅時尚裝', icon: '👗', file: 'costume_stylish.vrm' },
       { id: 'gothic', name: '哥德蘿莉裝', icon: '🖤', file: 'costume_gothic.vrm' },
       { id: 'seed', name: '未來科技裝 (Seed)', icon: '✨', file: 'costume_seed.vrm' },
-      { id: 'ayame', name: '百鬼綾目 (Ayame)', icon: '😈', file: 'ayame.vrm' }
+      { id: 'ayame', name: '百鬼綾目 (Ayame)', icon: '😈', file: 'ayame.vrm' },
+      { id: 'mint', name: '泳裝薄荷 (Mint)', icon: '🩱', file: 'mint_swimsuit.vrm' }
     ];
 
     this._render();

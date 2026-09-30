@@ -2,8 +2,8 @@
   "server_port": 8765,
   "server_host": "127.0.0.1",
   "llm": {
-    "api_url": "http://127.0.0.1:11434",
-    "model_name": "qwen3.8:27b",
+    "api_url": "http://127.0.0.1:8080/v1",
+    "model_name": "models\\Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-IQ2_M.gguf",
     "temperature": 0.7,
     "timeout_seconds": 60.0
   },

@@ -152,6 +152,12 @@ class OllamaLLMClient:
         elif any(w in raw_lower for w in ["科技裝", "未來裝"]):
             action = "change_costume"
             costume = "seed"
+        elif any(w in raw_lower for w in ["百鬼", "綾目", "ayame"]):
+            action = "change_costume"
+            costume = "ayame"
+        elif any(w in raw_lower for w in ["薄荷", "泳裝", "mint"]):
+            action = "change_costume"
+            costume = "mint"
         elif any(w in raw_lower for w in ["去休息", "先休息", "晚安"]):
             action = "leave"
 
@@ -164,21 +170,43 @@ class OllamaLLMClient:
         }
 
     async def chat(self, user_message: str) -> Dict[str, Any]:
-        """Send message using skip-think ChatML prompt to bypass lengthy reasoning chain."""
+        """Send message using standard OpenAI-compatible chat completions or completion fallback."""
         self.conversation_history.append({"role": "user", "content": user_message})
         
         if len(self.conversation_history) > 8:
             self.conversation_history = self.conversation_history[-8:]
 
-        prompt = f"<|im_start|>system\n{self.system_prompt}<|im_end|>\n"
-        for turn in self.conversation_history:
-            role = turn["role"]
-            content = turn["content"]
-            prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
-        prompt += "<|im_start|>assistant\n<think>\n</think>\n"
-
-        async with httpx.AsyncClient(timeout=90.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # 1. Primary: Standard OpenAI-compatible /v1/chat/completions
             try:
+                chat_endpoint = f"{self.api_url}/chat/completions"
+                payload = {
+                    "model": self.model_name,
+                    "messages": [
+                        {"role": "system", "content": self.system_prompt}
+                    ] + self.conversation_history,
+                    "max_tokens": 180,
+                    "temperature": 0.7
+                }
+                resp = await client.post(chat_endpoint, json=payload)
+                if resp.status_code == 200:
+                    msg = resp.json()["choices"][0]["message"]
+                    raw = msg.get("content") or msg.get("reasoning_content") or ""
+                    result = self._extract_intent(raw)
+                    self.conversation_history.append({"role": "assistant", "content": result["reply"]})
+                    return result
+            except Exception as e:
+                print(f"[OllamaLLMClient] Chat completions failed: {e}, attempting /completion fallback...")
+
+            # 2. Secondary fallback: llama.cpp native /completion
+            try:
+                prompt = f"<|im_start|>system\n{self.system_prompt}<|im_end|>\n"
+                for turn in self.conversation_history:
+                    role = turn["role"]
+                    content = turn["content"]
+                    prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+                prompt += "<|im_start|>assistant\n"
+
                 completion_endpoint = f"{self.base_root_url}/completion"
                 payload = {
                     "prompt": prompt,
@@ -193,25 +221,7 @@ class OllamaLLMClient:
                     self.conversation_history.append({"role": "assistant", "content": result["reply"]})
                     return result
             except Exception as e:
-                print(f"[OllamaLLMClient] Completion failed: {e}, attempting /v1/chat/completions fallback...")
-
-            try:
-                chat_endpoint = f"{self.api_url}/chat/completions"
-                payload = {
-                    "messages": [
-                        {"role": "system", "content": self.system_prompt}
-                    ] + self.conversation_history,
-                    "max_tokens": 180
-                }
-                resp = await client.post(chat_endpoint, json=payload)
-                if resp.status_code == 200:
-                    msg = resp.json()["choices"][0]["message"]
-                    raw = msg.get("content") or msg.get("reasoning_content") or ""
-                    result = self._extract_intent(raw)
-                    self.conversation_history.append({"role": "assistant", "content": result["reply"]})
-                    return result
-            except Exception as e:
-                print(f"[OllamaLLMClient] Fallback failed: {e}")
+                print(f"[OllamaLLMClient] Completion fallback failed: {e}")
 
         fallback_reply = "主人好！我在這裡陪你聊天呢～"
         return {

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>眼睛視線與頭部追蹤同向修復展示 - AI 女友</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.85);
+      --border: #334155;
+      --primary: #ec4899;
+      --primary-light: #f472b6;
+      --accent: #38bdf8;
+      --danger: #ef4444;
+      --success: #10b981;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: radial-gradient(circle at top center, #1e1b4b 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .header-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .header-card h1 {
+      font-size: 24px;
+      color: var(--primary-light);
+      margin-bottom: 8px;
+    }
+
+    .header-card p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .interactive-demo {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .demo-track-area {
+      position: relative;
+      height: 320px;
+      background: #090d16;
+      border: 2px dashed #3b82f6;
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: crosshair;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .cursor-indicator {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #38bdf8;
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+      transition: border-color 0.1s;
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .avatar-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .avatar-card.current {
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .avatar-card.fixed {
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .card-badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .badge-danger {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+    }
+
+    .face-preview {
+      width: 140px;
+      height: 140px;
+      background: #1e293b;
+      border-radius: 50%;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+      transition: transform 0.1s ease-out;
+    }
+
+    .eyes-container {
+      display: flex;
+      gap: 32px;
+      margin-top: -10px;
+    }
+
+    .eye {
+      width: 26px;
+      height: 32px;
+      background: #ffffff;
+      border-radius: 50%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pupil {
+      position: absolute;
+      width: 14px;
+      height: 18px;
+      background: #db2777;
+      border-radius: 50%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transition: transform 0.05s ease-out;
+    }
+
+    .pupil-highlight {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 3px;
+    }
+
+    .mouth {
+      position: absolute;
+      bottom: 28px;
+      width: 16px;
+      height: 8px;
+      border-bottom: 2px solid #f472b6;
+      border-radius: 0 0 10px 10px;
+    }
+
+    .math-info {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: monospace;
+      background: rgba(0,0,0,0.3);
+      padding: 8px 12px;
+      border-radius: 8px;
+      width: 100%;
+      line-height: 1.5;
+    }
+
+    .analysis-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    .analysis-table th, .analysis-table td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+
+    .analysis-table th {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--primary-light);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header-card">
+    <h1>👀 眼睛視線與頭部追蹤同向修復展示</h1>
+    <p>在此區域內滑動滑鼠，可即時比對「當前反向問題」與「修正後同向注視」的眼球及頭部連動差異</p>
+  </div>
+
+  <div class="interactive-demo">
+    <div class="demo-track-area" id="trackArea">
+      <div class="cursor-indicator" id="cursorDot"></div>
+      <div style="color: rgba(255,255,255,0.25); font-weight: 500; pointer-events: none;">
+        🖱️ 請在此框內自由移動滑鼠測試
+      </div>
+    </div>
+
+    <div class="comparison-grid">
+      <!-- Current (Buggy) -->
+      <div class="avatar-card current">
+        <span class="card-badge badge-danger">現況（反向錯誤）</span>
+        <div class="face-preview" id="faceBuggy">
+          <div class="eyes-container">
+            <div class="eye"><div class="pupil" id="pupilBuggyL"><div class="pupil-highlight"></div></div></div>
+            <div class="eye"><div class="pupil" id="pupilBuggyR"><div class="pupil-highlight"></div></div></div>
+          </div>
+          <div class="mouth"></div>
+        </div>
+        <div class="math-info" id="infoBuggy">
+          targetX = -mouse.x * 0.8<br>
+          yaw = -mouse.x * 0.35<br>
+          pitch = mouse.y * 0.25
+        </div>
+      </div>
+
+      <!-- Fixed (Correct) -->
+      <div class="avatar-card fixed">
+        <span class="card-badge badge-success">修復後（正確同向）</span>
+        <div class="face-preview" id="faceFixed">
+          <div class="eyes-container">
+            <div class="eye"><div class="pupil" id="pupilFixedL"><div class="pupil-highlight"></div></div></div>
+            <div class="eye"><div class="pupil" id="pupilFixedR"><div class="pupil-highlight"></div></div></div>
+          </div>
+          <div class="mouth"></div>
+        </div>
+        <div class="math-info" id="infoFixed">
+          targetX = +mouse.x * 0.8<br>
+          yaw = +mouse.x * 0.35<br>
+          pitch = -mouse.y * 0.25
+        </div>
+      </div>
+    </div>
+
+    <table class="analysis-table">
+      <thead>
+        <tr>
+          <th>維度 / 行為</th>
+          <th>修正前錯誤根因</th>
+          <th>修正後正確向量公式</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>水平注視 (LookAt X)</strong></td>
+          <td>誤將 <code>targetX</code> 乘上負號 <code>-this.mouse.x</code>，導致滑鼠在右眼球往左。</td>
+          <td><code>targetX = THREE.MathUtils.clamp(this.mouse.x * 0.8, -sin(MAX_YAW), sin(MAX_YAW))</code></td>
+        </tr>
+        <tr>
+          <td><strong>頭部水平旋轉 (Yaw)</strong></td>
+          <td>誤加負號 <code>-this.mouse.x * 0.35</code>，導致頭部與滑鼠方向相反轉動。</td>
+          <td><code>yaw = THREE.MathUtils.clamp(this.mouse.x * 0.35, -MAX_YAW, MAX_YAW)</code></td>
+        </tr>
+        <tr>
+          <td><strong>頭部俯仰旋轉 (Pitch)</strong></td>
+          <td>直接傳遞 <code>+this.mouse.y</code>，而 Three.js 骨骼 X 旋轉正值為低頭，造成滑鼠往上頭卻低下。</td>
+          <td><code>pitch = THREE.MathUtils.clamp(-this.mouse.y * 0.25, -MAX_PITCH, MAX_PITCH)</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const trackArea = document.getElementById('trackArea');
+  const cursorDot = document.getElementById('cursorDot');
+
+  const faceBuggy = document.getElementById('faceBuggy');
+  const pupilBuggyL = document.getElementById('pupilBuggyL');
+  const pupilBuggyR = document.getElementById('pupilBuggyR');
+
+  const faceFixed = document.getElementById('faceFixed');
+  const pupilFixedL = document.getElementById('pupilFixedL');
+  const pupilFixedR = document.getElementById('pupilFixedR');
+
+  trackArea.addEventListener('mousemove', (e) => {
+    const rect = trackArea.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    cursorDot.style.left = `${x}px`;
+    cursorDot.style.top = `${y}px`;
+
+    // Normalized coordinates (-1 to 1)
+    const normX = (x / rect.width) * 2 - 1;
+    const normY = -(y / rect.height) * 2 + 1;
+
+    // 1. Current Buggy Behavior:
+    // targetX = -normX, pitch = normY (opposite head tilt)
+    const buggyPupilX = -normX * 6;
+    const buggyPupilY = -normY * 5;
+    const buggyHeadYaw = -normX * 12;
+    const buggyHeadPitch = normY * 8;
+
+    pupilBuggyL.style.transform = `translate(calc(-50% + ${buggyPupilX}px), calc(-50% + ${buggyPupilY}px))`;
+    pupilBuggyR.style.transform = `translate(calc(-50% + ${buggyPupilX}px), calc(-50% + ${buggyPupilY}px))`;
+    faceBuggy.style.transform = `rotateY(${buggyHeadYaw}deg) rotateX(${buggyHeadPitch}deg)`;
+
+    // 2. Fixed Correct Behavior:
+    // targetX = +normX, pitch = -normY (natural look up when mouse up)
+    const fixedPupilX = normX * 6;
+    const fixedPupilY = -normY * 5;
+    const fixedHeadYaw = normX * 12;
+    const fixedHeadPitch = -normY * 8;
+
+    pupilFixedL.style.transform = `translate(calc(-50% + ${fixedPupilX}px), calc(-50% + ${fixedPupilY}px))`;
+    pupilFixedR.style.transform = `translate(calc(-50% + ${fixedPupilX}px), calc(-50% + ${fixedPupilY}px))`;
+    faceFixed.style.transform = `rotateY(${fixedHeadYaw}deg) rotateX(${fixedHeadPitch}deg)`;
+  });
+</script>
+
+</body>
+</html>
