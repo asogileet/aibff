@@ -281,6 +281,12 @@ export class PuppetController {
         if (this.poseManager?.captureCurrentPoseFromAvatar) {
           this.poseManager.captureCurrentPoseFromAvatar();
         }
+        // Save into active avatar slot if avatarManager is present
+        const activeSlot = this.avatarController?.getActiveSlot?.();
+        if (activeSlot && this.poseManager?.currentRotations) {
+          activeSlot.isSculpted = true;
+          activeSlot.customBoneRotations = { ...this.poseManager.currentRotations };
+        }
         if (typeof this.onPoseUpdated === 'function') {
           this.onPoseUpdated();
         }
@@ -353,6 +359,9 @@ export class PuppetController {
       if (vrm.scene) {
         vrm.scene.position.x = this.startModelPos.x + dx * 0.0035;
         vrm.scene.position.y = this.startModelPos.y - dy * 0.0035;
+        if (this.avatarController?.updateSelectionRing) {
+          this.avatarController.updateSelectionRing();
+        }
       }
 
       // Limbs sway and dangle

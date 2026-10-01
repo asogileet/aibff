@@ -188,6 +188,13 @@ export class PoseManager {
       this.animationController.setCustomPoseOverride(true, this.currentRotations);
     }
 
+    // Save into active avatar slot if avatarManager is present
+    const activeSlot = this.avatarController?.getActiveSlot?.();
+    if (activeSlot) {
+      activeSlot.customBoneRotations = { ...this.currentRotations };
+      activeSlot.isSculpted = true;
+    }
+
     console.log(`[PoseManager] Applied pose: ${poseData.name || 'custom'}`);
   }
 
@@ -309,4 +316,21 @@ export class PoseManager {
   getSavedPoses() {
     return this.savedPoses;
   }
+
+  /**
+   * Reload working rotations and captured pose from the currently active avatar
+   */
+  reloadFromActiveAvatar() {
+    return this.captureCurrentPoseFromAvatar();
+  }
+
+  /**
+   * Broadcast current pose across all avatars in the scene
+   */
+  syncPoseToAll() {
+    if (this.avatarController?.syncPoseToAll) {
+      this.avatarController.syncPoseToAll();
+    }
+  }
 }
+
