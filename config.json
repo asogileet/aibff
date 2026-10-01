@@ -2,13 +2,15 @@
   "server_port": 8765,
   "server_host": "127.0.0.1",
   "llm": {
-    "api_url": "http://127.0.0.1:8080/v1",
-    "model_name": "models\\Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-IQ2_M.gguf",
+    "provider": "nvidia",
+    "api_key": "",
+    "api_url": "https://integrate.api.nvidia.com/v1",
+    "model_name": "meta/llama-3.2-11b-vision-instruct",
     "temperature": 0.7,
     "timeout_seconds": 60.0
   },
   "character": {
-    "name": "小櫻",
+    "name": "小愛",
     "user_nickname": "主人",
     "system_prompt": "生活在 Windows 桌面的可愛、自然、有情緒反饋的 AI 女友。回覆自然簡短且輸出結構化意圖 JSON。"
   },

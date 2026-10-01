@@ -38,7 +38,9 @@ stt_service = WhisperSTTService(
 llm_client = OllamaLLMClient(
     api_url=config.llm.api_url,
     model_name=config.llm.model_name,
-    system_prompt=config.character.system_prompt
+    system_prompt=config.character.system_prompt,
+    api_key=config.llm.api_key,
+    provider=config.llm.provider
 )
 
 class ChatRequest(BaseModel):
@@ -71,7 +73,9 @@ async def update_configuration(new_config: AppConfig):
     llm_client = OllamaLLMClient(
         api_url=config.llm.api_url,
         model_name=config.llm.model_name,
-        system_prompt=config.character.system_prompt
+        system_prompt=config.character.system_prompt,
+        api_key=config.llm.api_key,
+        provider=config.llm.provider
     )
     return {"status": "updated", "config": config.model_dump()}
 

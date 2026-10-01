@@ -97,15 +97,22 @@ export class ConversationManager {
 
       const data = await response.json();
 
-      // Defensive check: if reply contains raw JSON string, extract dialogue content
-      if (typeof data.reply === 'string' && data.reply.trim().startsWith('{')) {
-        try {
-          const parsed = JSON.parse(data.reply.trim());
-          data.reply = parsed.response || parsed.reply || parsed.message || parsed.content || parsed.text || data.reply;
-        } catch (_) {
-          const match = data.reply.match(/"(?:response|reply|message|content|text)"\s*:\s*"((?:\\.|[^"\\])*)"/i);
-          if (match && match[1]) {
-            data.reply = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+      // Defensive check: if reply contains raw JSON string or python dict string, extract dialogue content
+      if (typeof data.reply === 'string') {
+        const trimmedReply = data.reply.trim();
+        if (trimmedReply.startsWith('{') || trimmedReply.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmedReply);
+            const target = Array.isArray(parsed) ? parsed[0] : parsed;
+            if (target && typeof target === 'object') {
+              data.reply = target.response || target.reply || target.message || target.content || target.text || data.reply;
+            }
+          } catch (_) {
+            // Support single and double quotes for vision content blocks like {'type': 'text', 'text': '...'}
+            const match = trimmedReply.match(/['"](?:response|reply|message|content|text)['"]\s*:\s*['"]((?:\\.|[^'"])*)['"]/i);
+            if (match && match[1]) {
+              data.reply = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\'/g, "'");
+            }
           }
         }
       }

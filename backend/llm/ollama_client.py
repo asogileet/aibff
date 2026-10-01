@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 from typing import List, Dict, Any, Optional
@@ -6,10 +7,19 @@ import httpx
 class OllamaLLMClient:
     """High-performance LLM Client with deep text sanitation for clean TTS and display."""
 
-    def __init__(self, api_url: str = "http://127.0.0.1:8080/v1", model_name: str = "default", system_prompt: Optional[str] = None):
+    def __init__(
+        self,
+        api_url: str = "http://127.0.0.1:8080/v1",
+        model_name: str = "default",
+        system_prompt: Optional[str] = None,
+        api_key: Optional[str] = None,
+        provider: str = "ollama"
+    ):
         self.api_url = api_url.rstrip("/")
         self.base_root_url = self.api_url.replace("/v1", "")
         self.model_name = model_name
+        self.api_key = api_key or ""
+        self.provider = provider or "ollama"
         self.system_prompt = system_prompt or (
             "你是小櫻，生活在 Windows 桌面的可愛、溫柔、貼心 3D AI 虛擬女友。"
             "請直接用溫柔自然、甜美生動的中文回覆主人。不要使用代碼標籤或 JSON 結構，直接輸出想對主人說的話。"
@@ -30,31 +40,44 @@ class OllamaLLMClient:
         text = re.sub(r"<\|im_start\|>[\s\S]*?<\|im_end\|>", "", text).strip()
         text = re.sub(r"<\|im_end\|>", "", text).strip()
 
-        # 2. Try parsing complete or enclosed JSON block
-        cleaned_json = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+        # 2. Try parsing complete or enclosed JSON block or Python dictionary/list
+        cleaned_json = re.sub(r"^```(?:json|python)?\s*", "", text, flags=re.MULTILINE)
         cleaned_json = re.sub(r"\s*```$", "", cleaned_json, flags=re.MULTILINE).strip()
-        json_cand = None
-        first_brace = cleaned_json.find('{')
-        last_brace = cleaned_json.rfind('}')
-        if first_brace != -1 and last_brace > first_brace:
+        cand = None
+
+        # Find outermost braces or brackets for JSON or Python dict/list
+        first_bracket = min([pos for pos in [cleaned_json.find('{'), cleaned_json.find('[')] if pos != -1] or [-1])
+        last_bracket = max([pos for pos in [cleaned_json.rfind('}'), cleaned_json.rfind(']')] if pos != -1] or [-1])
+
+        if first_bracket != -1 and last_bracket > first_bracket:
+            substring = cleaned_json[first_bracket:last_bracket + 1]
             try:
-                json_cand = json.loads(cleaned_json[first_brace:last_brace + 1])
+                cand = json.loads(substring)
             except Exception:
-                json_cand = None
+                try:
+                    cand = ast.literal_eval(substring)
+                except Exception:
+                    cand = None
 
-        if isinstance(json_cand, dict):
+        if isinstance(cand, list) and len(cand) > 0 and isinstance(cand[0], dict):
+            cand = cand[0]
+
+        if isinstance(cand, dict):
             for key in ["response", "reply", "message", "content", "text", "dialogue", "say", "answer"]:
-                if key in json_cand and isinstance(json_cand[key], str) and json_cand[key].strip():
-                    return json_cand[key].strip()
+                if key in cand and isinstance(cand[key], str) and cand[key].strip():
+                    return cand[key].strip()
 
-        # 3. Regex extraction for 'response', 'reply', etc. if full JSON decode fails
-        regex_match = re.search(r'"(?:response|reply|message|content|text|dialogue)"\s*:\s*"((?:\\.|[^"\\])*)"', text, re.IGNORECASE)
+        # 3. Regex extraction for 'response', 'text', etc. matching either single or double quotes
+        regex_match = re.search(
+            r"""['"](?:response|reply|message|content|text|dialogue)['"]\s*:\s*['"]((?:\\.|[^'"])*)['"]""",
+            text,
+            re.IGNORECASE
+        )
         if regex_match:
             try:
-                # Decode JSON string escapes like \n, \", etc.
                 return json.loads(f'"{regex_match.group(1)}"').strip()
             except Exception:
-                return regex_match.group(1).replace("\\n", "\n").replace('\\"', '"').strip()
+                return regex_match.group(1).replace("\\n", "\n").replace('\\"', '"').replace("\\'", "'").strip()
 
         # 4. Fallback markdown codeblock stripping
         text = cleaned_json
@@ -63,11 +86,11 @@ class OllamaLLMClient:
         text = text.replace("\\n", "\n").replace("\\r", "").replace("\\t", " ")
         text = text.replace('\\"', '"').replace("\\'", "'")
 
-        # 6. Strip stray JSON syntax
-        text = re.sub(r'^\s*\{\s*"(?:intention|sentiment|intent|mood|type)"\s*:\s*"[^"]*",?\s*', "", text)
-        text = re.sub(r'^\s*\{\s*"(?:response|reply|message|content|text)"\s*:\s*"?', "", text)
-        text = re.sub(r'"?\s*,\s*"(?:emotion|sentiment|action|costume|intention)"[\s\S]*$', "", text)
-        text = re.sub(r'"?\s*\}\s*$', "", text)
+        # 6. Strip stray JSON or python dict syntax (both single and double quotes)
+        text = re.sub(r"""^\s*[\{\[]\s*['"](?:type|intention|sentiment|intent|mood)['"]\s*:\s*['"][^'"]*['"],?\s*""", "", text)
+        text = re.sub(r"""^\s*['"](?:response|reply|message|content|text)['"]\s*:\s*['"]?""", "", text)
+        text = re.sub(r"""['"]?\s*,\s*['"](?:emotion|sentiment|action|costume|intention)['"][\s\S]*$""", "", text)
+        text = re.sub(r"""['"]?\s*[\}\]]\s*$""", "", text)
 
         # 7. Clean markdown headers and bullet stars
         text = re.sub(r"^[#*>\-]+\s+", "", text, flags=re.MULTILINE)
@@ -217,52 +240,72 @@ class OllamaLLMClient:
         if len(self.conversation_history) > 8:
             self.conversation_history = self.conversation_history[-8:]
 
+        headers = {
+            "Content-Type": "application/json"
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             # 1. Primary: Standard OpenAI-compatible /v1/chat/completions
             try:
                 chat_endpoint = f"{self.api_url}/chat/completions"
+                # Increase max_tokens for cloud providers (NVIDIA NIM) or reasoning models
+                max_tokens = 1024 if (self.api_key or self.provider == "nvidia") else 256
                 payload = {
                     "model": self.model_name,
                     "messages": [
                         {"role": "system", "content": self.system_prompt}
                     ] + self.conversation_history,
-                    "max_tokens": 180,
+                    "max_tokens": max_tokens,
                     "temperature": 0.7
                 }
-                resp = await client.post(chat_endpoint, json=payload)
+                resp = await client.post(chat_endpoint, json=payload, headers=headers)
                 if resp.status_code == 200:
                     msg = resp.json()["choices"][0]["message"]
-                    raw = msg.get("content") or msg.get("reasoning_content") or ""
+                    content = msg.get("content")
+                    # If content is a list of multi-modal content parts
+                    if isinstance(content, list):
+                        parts = [
+                            part.get("text", "") for part in content
+                            if isinstance(part, dict) and "text" in part
+                        ]
+                        content = "".join(parts) if parts else str(content)
+                    reasoning = msg.get("reasoning_content")
+                    raw = content if (content and str(content).strip()) else (reasoning or "")
                     result = self._extract_intent(raw)
                     self.conversation_history.append({"role": "assistant", "content": result["reply"]})
                     return result
+                else:
+                    print(f"[OllamaLLMClient] Chat completions returned status {resp.status_code}: {resp.text}")
             except Exception as e:
-                print(f"[OllamaLLMClient] Chat completions failed: {e}, attempting /completion fallback...")
+                print(f"[OllamaLLMClient] Chat completions failed: {e}")
 
-            # 2. Secondary fallback: llama.cpp native /completion
-            try:
-                prompt = f"<|im_start|>system\n{self.system_prompt}<|im_end|>\n"
-                for turn in self.conversation_history:
-                    role = turn["role"]
-                    content = turn["content"]
-                    prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
-                prompt += "<|im_start|>assistant\n"
+            # 2. Secondary fallback: llama.cpp native /completion (local only)
+            if not self.api_key and self.provider != "nvidia":
+                try:
+                    prompt = f"<|im_start|>system\n{self.system_prompt}<|im_end|>\n"
+                    for turn in self.conversation_history:
+                        role = turn["role"]
+                        content = turn["content"]
+                        prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+                    prompt += "<|im_start|>assistant\n"
 
-                completion_endpoint = f"{self.base_root_url}/completion"
-                payload = {
-                    "prompt": prompt,
-                    "n_predict": 180,
-                    "temperature": 0.75,
-                    "stop": ["<|im_end|>", "<|endoftext|>"]
-                }
-                resp = await client.post(completion_endpoint, json=payload)
-                if resp.status_code == 200:
-                    raw_content = resp.json().get("content", "")
-                    result = self._extract_intent(raw_content)
-                    self.conversation_history.append({"role": "assistant", "content": result["reply"]})
-                    return result
-            except Exception as e:
-                print(f"[OllamaLLMClient] Completion fallback failed: {e}")
+                    completion_endpoint = f"{self.base_root_url}/completion"
+                    payload = {
+                        "prompt": prompt,
+                        "n_predict": 180,
+                        "temperature": 0.75,
+                        "stop": ["<|im_end|>", "<|endoftext|>"]
+                    }
+                    resp = await client.post(completion_endpoint, json=payload, headers=headers)
+                    if resp.status_code == 200:
+                        raw_content = resp.json().get("content", "")
+                        result = self._extract_intent(raw_content)
+                        self.conversation_history.append({"role": "assistant", "content": result["reply"]})
+                        return result
+                except Exception as e:
+                    print(f"[OllamaLLMClient] Completion fallback failed: {e}")
 
         fallback_reply = "主人好！我在這裡陪你聊天呢～"
         return {

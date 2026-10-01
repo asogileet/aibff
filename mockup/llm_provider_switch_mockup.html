@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM 提供者切換與 NVIDIA NIM API 整合 - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.2);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.3);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-5xl mx-auto space-y-6">
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>⚡</span> LLM 提供者切換與 NVIDIA NIM API 整合原型
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          支援本地 Ollama、NVIDIA NIM (Build API) 與通用 OpenAI 相容端點動態切換，免重啟即時熱生效
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">NVIDIA NIM Ready</span>
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Ollama / Local</span>
+        <span class="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Hot Reload</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left: Settings Modal Simulation (7 cols) -->
+      <div class="lg:col-span-7 glass-panel rounded-2xl p-6 shadow-2xl space-y-5">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">⚙️</span>
+            <h2 class="text-sm font-bold text-slate-200">AI 核心配置面板 (Settings Modal)</h2>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">即時同步</span>
+        </div>
+
+        <!-- Provider Selection Tabs -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-2">LLM 提供者 (Provider) 模式</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button id="btnTabOllama" onclick="switchProvider('ollama')" class="py-2 px-3 rounded-xl border text-xs font-medium transition flex flex-col items-center gap-1 bg-pink-600/30 border-pink-500 text-pink-200">
+              <span class="text-base">🦙</span>
+              <span>Ollama (本地)</span>
+            </button>
+            <button id="btnTabNvidia" onclick="switchProvider('nvidia')" class="py-2 px-3 rounded-xl border text-xs font-medium transition flex flex-col items-center gap-1 bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500">
+              <span class="text-base">🟢</span>
+              <span>NVIDIA NIM</span>
+            </button>
+            <button id="btnTabCustom" onclick="switchProvider('custom')" class="py-2 px-3 rounded-xl border text-xs font-medium transition flex flex-col items-center gap-1 bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500">
+              <span class="text-base">🌐</span>
+              <span>自訂相容 API</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic Form Fields -->
+        <div class="space-y-3.5 bg-slate-900/60 p-4 rounded-xl border border-slate-800 text-xs">
+          <!-- API URL -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-slate-300 font-medium">API Base URL</label>
+              <span id="urlHint" class="text-[10px] text-slate-500">預設: http://127.0.0.1:11434</span>
+            </div>
+            <input id="inputApiUrl" type="text" value="http://127.0.0.1:11434" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 font-mono text-xs focus:border-pink-500 outline-none" />
+          </div>
+
+          <!-- API Key (Shown for NVIDIA / Custom) -->
+          <div id="fieldApiKey" class="hidden">
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-slate-300 font-medium flex items-center gap-1">
+                <span>🔑</span> NVIDIA API Key
+              </label>
+              <a href="https://build.nvidia.com/" target="_blank" class="text-[10px] text-emerald-400 hover:underline">取得 nvapi key ↗</a>
+            </div>
+            <div class="relative">
+              <input id="inputApiKey" type="password" placeholder="nvapi-xxxxxxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 pr-16 text-slate-200 font-mono text-xs focus:border-pink-500 outline-none" />
+              <button onclick="toggleKeyVisibility()" class="absolute right-2 top-1.5 px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300">顯示</button>
+            </div>
+          </div>
+
+          <!-- Model Selection -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-slate-300 font-medium">模型名稱 (Model Name)</label>
+              <span id="modelHint" class="text-[10px] text-slate-500">支援快速預設或手動輸入</span>
+            </div>
+            
+            <!-- Quick Preset Dropdown -->
+            <div class="flex gap-2">
+              <select id="selectModelPreset" onchange="onPresetSelected()" class="w-1/2 bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 text-xs focus:border-pink-500 outline-none">
+                <!-- Dynamically populated -->
+              </select>
+              <input id="inputModelName" type="text" value="qwen2.5:7b" class="w-1/2 bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 font-mono text-xs focus:border-pink-500 outline-none" placeholder="自訂模型識別碼" />
+            </div>
+          </div>
+
+          <!-- Temperature & Max Tokens -->
+          <div class="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <label class="text-slate-400 block mb-1">創意度 Temperature: <span id="valTemp" class="text-pink-400 font-mono">0.7</span></label>
+              <input id="inputTemp" type="range" min="0.1" max="1.5" step="0.05" value="0.7" oninput="document.getElementById('valTemp').innerText = this.value" class="w-full accent-pink-500 cursor-pointer" />
+            </div>
+            <div>
+              <label class="text-slate-400 block mb-1">回覆最大長度 Max Tokens</label>
+              <input id="inputMaxTokens" type="number" value="256" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-slate-200 text-xs font-mono" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Test & Status -->
+        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+          <div class="flex items-center space-x-2">
+            <span id="statusIndicator" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+            <span id="statusText" class="text-xs text-slate-400">尚未連線測試</span>
+          </div>
+          <button id="btnTest" onclick="testConnection()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">
+            連線測試 (Ping)
+          </button>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+          <button onclick="resetDefaults()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">重置</button>
+          <button onclick="saveAndApply()" class="px-4 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold shadow-lg shadow-pink-600/30 transition">
+            套用並儲存設定 (Save)
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Interaction & Intent Preview (5 cols) -->
+      <div class="lg:col-span-5 space-y-4">
+        <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-3">
+          <h3 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+            <span>💬</span> <span>即時對話意圖模擬 (Live Intent Test)</span>
+          </h3>
+          <p class="text-[11px] text-slate-400">
+            測試切換 LLM 後，模型回傳的對話內容是否能正確解析出表情（emotion）與動作（action）。
+          </p>
+
+          <div class="flex gap-2">
+            <input id="testPrompt" type="text" value="小櫻，今天辛苦了，好累喔" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-pink-500" />
+            <button onclick="simulateChat()" class="px-3 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold">發送</button>
+          </div>
+
+          <div class="space-y-2 pt-2">
+            <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
+              <div class="text-[11px] text-slate-400">當前作用中的 LLM：</div>
+              <div id="activeLlmBadge" class="font-mono text-pink-300 font-semibold">Ollama (qwen2.5:7b)</div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
+              <div class="text-[11px] text-slate-400">結構化解析結果：</div>
+              <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                  <span class="text-slate-500">表情 (Emotion):</span>
+                  <div id="resEmotion" class="text-amber-400 font-bold">caring</div>
+                </div>
+                <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                  <span class="text-slate-500">動作 (Action):</span>
+                  <div id="resAction" class="text-indigo-400 font-bold">stretch</div>
+                </div>
+              </div>
+              <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                <span class="text-slate-500 block mb-1">小櫻台詞 (Speech / Dialogue):</span>
+                <div id="resReply" class="text-pink-200 leading-relaxed font-medium">
+                  「辛苦啦主人！忙了一整天肯定累壞了吧？小櫻陪你伸個懶腰放鬆一下～」
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Architecture Quick Info -->
+        <div class="glass-panel rounded-2xl p-5 shadow-xl text-xs space-y-2">
+          <h4 class="font-semibold text-slate-300 flex items-center gap-1.5">
+            <span>🛡️</span> <span>安全與後端熱重載機制</span>
+          </h4>
+          <ul class="text-[11px] text-slate-400 space-y-1.5 list-disc list-inside">
+            <li>NVIDIA API Key 儲存於本地 <code class="text-pink-300">config.json</code>，前端輸入欄位支援遮蔽保護。</li>
+            <li>後端接收 <code class="text-indigo-300">/api/config</code> POST 請求後，非同步重構 LLM Client，免重啟 Python 後端服務。</li>
+            <li>相容 OpenAI 標準規格（支援 Streaming 或完整 Chat Completion 格式）。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentProvider = 'ollama';
+
+    const providerConfigs = {
+      ollama: {
+        name: 'Ollama',
+        defaultUrl: 'http://127.0.0.1:11434',
+        showKey: false,
+        models: [
+          { label: 'Qwen 2.5 7B (推薦)', value: 'qwen2.5:7b' },
+          { label: 'Qwen 2.5 14B', value: 'qwen2.5:14b' },
+          { label: 'Llama 3.1 8B', value: 'llama3.1:8b' },
+          { label: 'DeepSeek R1 8B', value: 'deepseek-r1:8b' },
+          { label: '自訂其他模型...', value: 'custom' }
+        ]
+      },
+      nvidia: {
+        name: 'NVIDIA NIM',
+        defaultUrl: 'https://integrate.api.nvidia.com/v1',
+        showKey: true,
+        models: [
+          { label: 'Llama 3.3 70B Instruct (高智商推薦)', value: 'meta/llama-3.3-70b-instruct' },
+          { label: 'DeepSeek R1 (深度推理)', value: 'deepseek-ai/deepseek-r1' },
+          { label: 'Nemotron 70B Instruct (NVIDIA優化)', value: 'nvidia/llama-3.1-nemotron-70b-instruct' },
+          { label: 'Llama 3.1 8B Instruct (快速省配額)', value: 'meta/llama-3.1-8b-instruct' },
+          { label: 'Mistral Large 2 Instruct', value: 'mistralai/mistral-large-2-instruct' },
+          { label: '自訂其他 NVIDIA 模型...', value: 'custom' }
+        ]
+      },
+      custom: {
+        name: '自訂 OpenAI 相容',
+        defaultUrl: 'http://127.0.0.1:8080/v1',
+        showKey: true,
+        models: [
+          { label: 'llama.cpp 本地伺服器', value: 'default' },
+          { label: '自訂模型識別碼...', value: 'custom' }
+        ]
+      }
+    };
+
+    function switchProvider(providerKey) {
+      currentProvider = providerKey;
+
+      // Update button styling
+      ['ollama', 'nvidia', 'custom'].forEach(p => {
+        const btn = document.getElementById('btnTab' + p.charAt(0).toUpperCase() + p.slice(1));
+        if (p === providerKey) {
+          btn.className = 'py-2 px-3 rounded-xl border text-xs font-medium transition flex flex-col items-center gap-1 bg-pink-600/30 border-pink-500 text-pink-200 shadow-md';
+        } else {
+          btn.className = 'py-2 px-3 rounded-xl border text-xs font-medium transition flex flex-col items-center gap-1 bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500';
+        }
+      });
+
+      const conf = providerConfigs[providerKey];
+      document.getElementById('inputApiUrl').value = conf.defaultUrl;
+      document.getElementById('urlHint').innerText = '預設: ' + conf.defaultUrl;
+
+      // Show/Hide API Key field
+      const fieldApiKey = document.getElementById('fieldApiKey');
+      if (conf.showKey) {
+        fieldApiKey.classList.remove('hidden');
+      } else {
+        fieldApiKey.classList.add('hidden');
+      }
+
+      // Populate presets
+      const selectPreset = document.getElementById('selectModelPreset');
+      selectPreset.innerHTML = '';
+      conf.models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.value;
+        opt.textContent = m.label;
+        selectPreset.appendChild(opt);
+      });
+
+      document.getElementById('inputModelName').value = conf.models[0].value;
+      updateIndicator('ready', '配置已切換為 ' + conf.name);
+    }
+
+    function onPresetSelected() {
+      const select = document.getElementById('selectModelPreset');
+      const input = document.getElementById('inputModelName');
+      if (select.value !== 'custom') {
+        input.value = select.value;
+      }
+    }
+
+    function toggleKeyVisibility() {
+      const input = document.getElementById('inputApiKey');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    function updateIndicator(state, message) {
+      const ind = document.getElementById('statusIndicator');
+      const txt = document.getElementById('statusText');
+      txt.innerText = message;
+
+      if (state === 'success') {
+        ind.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500';
+      } else if (state === 'error') {
+        ind.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500';
+      } else if (state === 'loading') {
+        ind.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+      } else {
+        ind.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+      }
+    }
+
+    function testConnection() {
+      updateIndicator('loading', '正在測試連線中...');
+      setTimeout(() => {
+        if (currentProvider === 'nvidia') {
+          const key = document.getElementById('inputApiKey').value.trim();
+          if (!key) {
+            updateIndicator('error', '連線失敗: 尚未填寫 NVIDIA API Key！');
+            return;
+          }
+        }
+        updateIndicator('success', '連線成功！服務正常回應 (200 OK)');
+      }, 700);
+    }
+
+    function saveAndApply() {
+      const model = document.getElementById('inputModelName').value.trim();
+      const badge = document.getElementById('activeLlmBadge');
+      badge.innerText = `${providerConfigs[currentProvider].name} (${model})`;
+      alert(`已成功儲存並熱切換至 [${providerConfigs[currentProvider].name}] ${model}！`);
+    }
+
+    function simulateChat() {
+      const prompt = document.getElementById('testPrompt').value.trim();
+      if (prompt.includes('累') || prompt.includes('辛苦')) {
+        document.getElementById('resEmotion').innerText = 'caring';
+        document.getElementById('resAction').innerText = 'stretch';
+        document.getElementById('resReply').innerText = '「辛苦啦主人！忙了一整天肯定累壞了吧？小櫻陪你伸個懶腰放鬆一下～」';
+      } else if (prompt.includes('愛') || prompt.includes('喜歡')) {
+        document.getElementById('resEmotion').innerText = 'shy';
+        document.getElementById('resAction').innerText = 'heart_pose';
+        document.getElementById('resReply').innerText = '「最喜歡主人了！這是小櫻給主人的大愛心～💖」';
+      } else {
+        document.getElementById('resEmotion').innerText = 'happy';
+        document.getElementById('resAction').innerText = 'wave';
+        document.getElementById('resReply').innerText = '「主人好！小櫻在這裡隨時陪伴著你，有什麼想跟我聊聊的嗎？」';
+      }
+    }
+
+    function resetDefaults() {
+      switchProvider('ollama');
+    }
+
+    // Init with Ollama
+    switchProvider('ollama');
+  </script>
+</body>
+</html>
