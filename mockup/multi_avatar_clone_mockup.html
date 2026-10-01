@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>影分身・多個人偶同台與姿勢調整 - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.4);
+      border-radius: 4px;
+    }
+    .transparent-pattern {
+      background-color: #0b0f19;
+      background-image: linear-gradient(45deg, #131b2e 25%, transparent 25%), 
+                        linear-gradient(-45deg, #131b2e 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #131b2e 75%), 
+                        linear-gradient(-45deg, transparent 75%, #131b2e 75%);
+      background-size: 28px 28px;
+      background-position: 0 0, 0 14px, 14px -14px, -14px 0px;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); opacity: 0.85; filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.8)); }
+      50% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 20px rgba(56, 189, 248, 1)); }
+    }
+    .animate-selection-ring {
+      animation: pulseGlow 2s ease-in-out infinite;
+    }
+    @keyframes smokePuff {
+      0% { transform: scale(0.3); opacity: 0.9; filter: blur(2px); }
+      50% { transform: scale(1.4); opacity: 0.6; filter: blur(6px); }
+      100% { transform: scale(2.2); opacity: 0; filter: blur(12px); }
+    }
+    .clone-smoke {
+      animation: smokePuff 0.65s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans select-none overflow-x-hidden">
+  <div class="max-w-7xl mx-auto space-y-4">
+
+    <!-- Header Navigation -->
+    <header class="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between shadow-2xl gap-3">
+      <div class="flex items-center space-x-3">
+        <a href="index.html" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-pink-300 border border-slate-700 transition">
+          ← 回原型首頁
+        </a>
+        <h1 class="text-lg font-bold text-pink-400 flex items-center gap-2">
+          <span>👥</span> 影分身系統・多個人偶同台與各別姿勢調整 (Multi-Avatar Clones)
+        </h1>
+      </div>
+      <div class="flex items-center flex-wrap gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">獨立 VRM 實例 (Multi-Slot)</span>
+        <span class="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">3D 點擊選取 + 腳底光圈</span>
+        <span class="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">自由拖曳站位 (Hips Offset)</span>
+        <span class="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">獨立換裝與骨架捏人</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+      <!-- Column 1: Multi-Avatar Interactive 3D Stage (8 cols) -->
+      <div class="lg:col-span-8 glass-panel rounded-2xl p-4 flex flex-col items-center relative">
+
+        <!-- Top Avatar Selector & Action Bar -->
+        <div class="w-full flex flex-wrap justify-between items-center mb-3 px-2 gap-2 z-20">
+          <!-- Clone Slots List -->
+          <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar py-1" id="avatarSlotButtons">
+            <!-- Dynamically populated slot buttons -->
+          </div>
+
+          <!-- Clone Controls -->
+          <div class="flex items-center gap-2">
+            <button id="addCloneBtn" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-xs font-semibold text-white shadow-md hover:shadow-pink-500/30 transition flex items-center gap-1.5">
+              <span>✨</span>
+              <span>召喚影分身 (+新增)</span>
+            </button>
+            <button id="removeCloneBtn" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950 text-rose-400 hover:text-rose-300 text-xs border border-rose-500/30 transition flex items-center gap-1" title="刪除選中分身">
+              <span>✕</span>
+              <span>移除選取</span>
+            </button>
+            <button id="resetPositionsBtn" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition" title="站位自動排開">
+              <span>📐</span>
+              <span>重整站位</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Simulated 3D Stage Viewport -->
+        <div class="relative w-full h-[540px] rounded-2xl overflow-hidden border-2 border-slate-700/80 shadow-2xl flex flex-col justify-end" id="stageContainer">
+          
+          <!-- Background: Transparency Simulation Grid -->
+          <div class="absolute inset-0 transparent-pattern"></div>
+          
+          <!-- Stage Grid / Horizon Line for 3D Depth -->
+          <div class="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-indigo-950/40 to-transparent pointer-events-none border-b border-indigo-500/10"></div>
+
+          <!-- Dialogue Speech Bubble from Active Avatar -->
+          <div id="activeDialogueBubble" class="absolute top-5 left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-4 py-2 rounded-2xl shadow-xl max-w-sm transition-all duration-300 border-pink-500/40 flex items-center space-x-2 z-30 pointer-events-none">
+            <span id="activeDialogueAvatarTag" class="px-1.5 py-0.5 rounded bg-pink-500/30 text-pink-300 text-[10px] font-bold border border-pink-500/50">人偶 ① 主身</span>
+            <p id="activeDialogueText" class="leading-relaxed text-[11px] truncate">忍法・影分身之術！主人想要幾個人偶陪你呢～？✨</p>
+          </div>
+
+          <!-- Interactive 2D/3D Canvas -->
+          <canvas id="multiAvatarCanvas" width="800" height="540" class="absolute inset-0 z-10 cursor-grab active:cursor-grabbing"></canvas>
+
+          <!-- Interactive Hint Overlay (Bottom) -->
+          <div class="absolute bottom-3 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
+            <div class="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-[11px] text-slate-300 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+              <span>💡 操作提示：點擊任一人偶即可切換選中；按住<strong>腰部/臀部</strong>拖曳可在場景中任意排位；拉扯關節可捏出姿勢！</span>
+            </div>
+            <div class="bg-slate-900/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-700 text-[10px] text-slate-400 font-mono" id="cloneCountBadge">
+              人偶數量：1 / 4
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Column 2: Selected Avatar Inspector & Pose/Costume Control (4 cols) -->
+      <div class="lg:col-span-4 space-y-4">
+
+        <!-- Selected Avatar Card -->
+        <div class="glass-panel rounded-2xl p-4 space-y-3">
+          <div class="flex justify-between items-center border-b border-white/10 pb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></span>
+              <h2 class="text-sm font-bold text-white" id="inspectorTitle">當前控制：人偶 ① (主身)</h2>
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" id="inspectorIdBadge">ID: avatar_1</span>
+          </div>
+
+          <!-- Costume Selector for Selected Avatar -->
+          <div>
+            <label class="text-xs text-slate-300 font-semibold mb-1.5 flex items-center justify-between">
+              <span>👗 本體外觀 / 角色換裝</span>
+              <span class="text-[10px] text-pink-400" id="currentCostumeLabel">休閒純白 (Casual)</span>
+            </label>
+            <div class="grid grid-cols-3 gap-1.5 text-xs" id="costumeButtonGrid">
+              <button data-costume="casual" class="costume-btn active py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-pink-500/50 text-pink-300 text-center transition">
+                休閒服
+              </button>
+              <button data-costume="school" class="costume-btn py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-center transition">
+                水手制服
+              </button>
+              <button data-costume="stylish" class="costume-btn py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-center transition">
+                優雅洋裝
+              </button>
+              <button data-costume="gothic" class="costume-btn py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-center transition">
+                哥德蘿莉
+              </button>
+              <button data-costume="ayame" class="costume-btn py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-300 text-center transition font-medium">
+                😈 百鬼綾目
+              </button>
+              <button data-costume="mint" class="costume-btn py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 text-center transition font-medium">
+                🩱 薄荷泳裝
+              </button>
+            </div>
+          </div>
+
+          <!-- Position Coordinates & Quick Alignment -->
+          <div class="bg-slate-900/60 rounded-xl p-2.5 border border-slate-800 space-y-2">
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-400">當前 3D 站位座標</span>
+              <span class="font-mono text-cyan-300 text-[11px]" id="coordsDisplay">X: 0.00 | Z: 0.00</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+              <button id="posLeftBtn" class="py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition">
+                ◀ 移至左側
+              </button>
+              <button id="posCenterBtn" class="py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition">
+                ⏺ 置中對齊
+              </button>
+              <button id="posRightBtn" class="py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition">
+                移至右側 ▶
+              </button>
+            </div>
+          </div>
+
+          <!-- Pose Presets & Quick Actions for Selected Avatar -->
+          <div class="space-y-2 pt-1 border-t border-white/10">
+            <div class="flex justify-between items-center">
+              <label class="text-xs text-slate-300 font-semibold flex items-center gap-1">
+                <span>🦴</span> 姿勢設定與預設庫
+              </label>
+              <span class="text-[10px] text-slate-400">套用於選取人偶</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-1.5 text-xs">
+              <button data-pose="peace" class="pose-preset-btn py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-pink-900/30 border border-slate-700 hover:border-pink-500/40 text-slate-200 transition text-left flex items-center gap-1.5">
+                <span>✌️</span>
+                <span>可愛剪刀手</span>
+              </button>
+              <button data-pose="hands_hips" class="pose-preset-btn py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-pink-900/30 border border-slate-700 hover:border-pink-500/40 text-slate-200 transition text-left flex items-center gap-1.5">
+                <span>💃</span>
+                <span>自信手插腰</span>
+              </button>
+              <button data-pose="cat" class="pose-preset-btn py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-pink-900/30 border border-slate-700 hover:border-pink-500/40 text-slate-200 transition text-left flex items-center gap-1.5">
+                <span>🐾</span>
+                <span>貓耳喵喵手</span>
+              </button>
+              <button data-pose="heart" class="pose-preset-btn py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-pink-900/30 border border-slate-700 hover:border-pink-500/40 text-slate-200 transition text-left flex items-center gap-1.5">
+                <span>🫶</span>
+                <span>胸前比愛心</span>
+              </button>
+            </div>
+
+            <div class="flex gap-2 pt-1">
+              <button id="resetPoseBtn" class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 transition">
+                🔄 恢復自然待機站姿
+              </button>
+              <button id="copyPoseBtn" class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950 border border-cyan-500/30 text-xs text-cyan-300 transition" title="複製此人偶姿勢並套用至所有人偶">
+                📋 同步至所有人偶
+              </button>
+            </div>
+          </div>
+
+          <!-- Fine Tuning Joint Sliders -->
+          <div class="space-y-2 pt-1 border-t border-white/10">
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-300 font-semibold">關節角度微調 (Slider)</span>
+              <span class="text-[10px] text-cyan-400" id="jointAngleValue">右手抬升: 0°</span>
+            </div>
+            <input type="range" id="armAngleSlider" min="-90" max="90" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500">
+            <div class="flex justify-between text-[10px] text-slate-500">
+              <span>-90° (下垂)</span>
+              <span>0° (自然)</span>
+              <span>+90° (高舉)</span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // State definition for multiple avatars
+    const MAX_AVATARS = 4;
+
+    const AVATAR_PRESETS = {
+      casual: { name: '休閒純白', color: '#f8fafc', accent: '#ec4899', headColor: '#fecdd3' },
+      school: { name: '水手制服', color: '#2563eb', accent: '#ef4444', headColor: '#fecdd3' },
+      stylish: { name: '優雅洋裝', color: '#9333ea', accent: '#f472b6', headColor: '#fecdd3' },
+      gothic: { name: '哥德蘿莉', color: '#27272a', accent: '#991b1b', headColor: '#fecdd3' },
+      ayame: { name: '百鬼綾目', color: '#dc2626', accent: '#fbbf24', headColor: '#fee2e2', isAyame: true },
+      mint: { name: '薄荷泳裝', color: '#06b6d4', accent: '#a7f3d0', headColor: '#cffafe', isMint: true }
+    };
+
+    const POSES = {
+      natural: {
+        name: '自然站姿',
+        leftArm: 20,
+        rightArm: -20,
+        leftElbow: 10,
+        rightElbow: -10,
+        headAngle: 0,
+        hipsOffsetY: 0
+      },
+      peace: {
+        name: '可愛剪刀手',
+        leftArm: 15,
+        rightArm: -75,
+        leftElbow: 10,
+        rightElbow: -70,
+        headAngle: -10,
+        hipsOffsetY: -5
+      },
+      hands_hips: {
+        name: '自信手插腰',
+        leftArm: 45,
+        rightArm: -45,
+        leftElbow: 70,
+        rightElbow: -70,
+        headAngle: 5,
+        hipsOffsetY: 0
+      },
+      cat: {
+        name: '貓耳喵喵手',
+        leftArm: -65,
+        rightArm: -65,
+        leftElbow: -80,
+        rightElbow: 80,
+        headAngle: -8,
+        hipsOffsetY: -10
+      },
+      heart: {
+        name: '胸前比愛心',
+        leftArm: -45,
+        rightArm: 45,
+        leftElbow: -55,
+        rightElbow: 55,
+        headAngle: 0,
+        hipsOffsetY: 0
+      }
+    };
+
+    // Initial avatar list
+    let avatars = [
+      {
+        id: 'avatar_1',
+        title: '人偶 ① (主身)',
+        costume: 'casual',
+        x: 400, // Screen center
+        y: 430, // Ground level
+        pose: { ...POSES.natural },
+        scale: 1.0,
+        dialogue: '忍法・影分身之術！主人想要幾個人偶陪你呢～？✨',
+        bubbleEmotion: '開心'
+      }
+    ];
+
+    let selectedAvatarIndex = 0;
+    let draggingAvatarIndex = -1;
+    let draggingJointKey = null; // 'hips', 'leftHand', 'rightHand', 'head'
+    let dragStartPos = { x: 0, y: 0 };
+    let dragStartAvatarPos = { x: 0, y: 0 };
+
+    // Canvas setup
+    const canvas = document.getElementById('multiAvatarCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // UI Elements
+    const avatarSlotButtons = document.getElementById('avatarSlotButtons');
+    const addCloneBtn = document.getElementById('addCloneBtn');
+    const removeCloneBtn = document.getElementById('removeCloneBtn');
+    const resetPositionsBtn = document.getElementById('resetPositionsBtn');
+    const cloneCountBadge = document.getElementById('cloneCountBadge');
+    const inspectorTitle = document.getElementById('inspectorTitle');
+    const inspectorIdBadge = document.getElementById('inspectorIdBadge');
+    const currentCostumeLabel = document.getElementById('currentCostumeLabel');
+    const coordsDisplay = document.getElementById('coordsDisplay');
+    const activeDialogueBubble = document.getElementById('activeDialogueBubble');
+    const activeDialogueAvatarTag = document.getElementById('activeDialogueAvatarTag');
+    const activeDialogueText = document.getElementById('activeDialogueText');
+    const armAngleSlider = document.getElementById('armAngleSlider');
+    const jointAngleValue = document.getElementById('jointAngleValue');
+
+    function updateUI() {
+      // 1. Render slot buttons
+      avatarSlotButtons.innerHTML = '';
+      avatars.forEach((av, idx) => {
+        const isSelected = idx === selectedAvatarIndex;
+        const btn = document.createElement('button');
+        btn.className = `px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition ${
+          isSelected 
+            ? 'bg-gradient-to-r from-cyan-500/30 to-blue-500/30 border-2 border-cyan-400 text-cyan-200 shadow-md shadow-cyan-500/20' 
+            : 'bg-slate-800/90 hover:bg-slate-700/80 border border-slate-700 text-slate-300'
+        }`;
+        const preset = AVATAR_PRESETS[av.costume];
+        btn.innerHTML = `
+          <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${preset.accent}"></span>
+          <span>${av.title}</span>
+        `;
+        btn.onclick = () => selectAvatar(idx);
+        avatarSlotButtons.appendChild(btn);
+      });
+
+      // 2. Clone counter badge
+      cloneCountBadge.innerText = `人偶數量：${avatars.length} / ${MAX_AVATARS}`;
+      addCloneBtn.disabled = avatars.length >= MAX_AVATARS;
+      addCloneBtn.classList.toggle('opacity-50', avatars.length >= MAX_AVATARS);
+      addCloneBtn.classList.toggle('cursor-not-allowed', avatars.length >= MAX_AVATARS);
+
+      // Remove button disabled if only 1 avatar left
+      removeCloneBtn.disabled = avatars.length <= 1;
+      removeCloneBtn.classList.toggle('opacity-40', avatars.length <= 1);
+      removeCloneBtn.classList.toggle('cursor-not-allowed', avatars.length <= 1);
+
+      // 3. Update inspector card
+      const curr = avatars[selectedAvatarIndex];
+      if (curr) {
+        inspectorTitle.innerText = `當前控制：${curr.title}`;
+        inspectorIdBadge.innerText = `ID: ${curr.id}`;
+        currentCostumeLabel.innerText = AVATAR_PRESETS[curr.costume]?.name || curr.costume;
+        
+        // Map canvas x to 3D coordinate (-2.0 ~ +2.0)
+        const simX = ((curr.x - 400) / 150).toFixed(2);
+        coordsDisplay.innerText = `X: ${simX} | Z: 0.00`;
+
+        // Update costume button styles
+        document.querySelectorAll('.costume-btn').forEach(btn => {
+          const cost = btn.dataset.costume;
+          if (cost === curr.costume) {
+            btn.className = 'costume-btn active py-1.5 px-2 rounded-lg bg-pink-500/20 border border-pink-500 text-pink-300 text-center transition font-semibold';
+          } else {
+            btn.className = 'costume-btn py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-center transition';
+          }
+        });
+
+        // Speech bubble
+        activeDialogueAvatarTag.innerText = curr.title;
+        activeDialogueText.innerText = curr.dialogue;
+      }
+    }
+
+    function selectAvatar(idx) {
+      if (idx >= 0 && idx < avatars.length) {
+        selectedAvatarIndex = idx;
+        updateUI();
+        renderStage();
+      }
+    }
+
+    // Add Clone
+    addCloneBtn.onclick = () => {
+      if (avatars.length >= MAX_AVATARS) return;
+      const newIdx = avatars.length + 1;
+      // Default offset positions: slot 2 on right, slot 3 on left, slot 4 far right
+      const offsets = [0, 160, -160, 280, -280];
+      const newX = 400 + (offsets[avatars.length] || 120);
+
+      // Pick distinct costume for fun
+      const costumeKeys = Object.keys(AVATAR_PRESETS);
+      const nextCostume = costumeKeys[avatars.length % costumeKeys.length];
+
+      avatars.push({
+        id: `avatar_${newIdx}`,
+        title: `人偶 ⓪${newIdx} (分身)`.replace('⓪', ' '),
+        costume: nextCostume,
+        x: newX,
+        y: 430,
+        pose: { ...POSES.peace },
+        scale: 1.0,
+        dialogue: `我是人偶 ${newIdx} 號分身！請主人多多指教～✨`,
+        bubbleEmotion: '開心'
+      });
+
+      selectedAvatarIndex = avatars.length - 1;
+      updateUI();
+      renderStage();
+    };
+
+    // Remove Selected Clone
+    removeCloneBtn.onclick = () => {
+      if (avatars.length <= 1) return;
+      avatars.splice(selectedAvatarIndex, 1);
+      selectedAvatarIndex = Math.max(0, selectedAvatarIndex - 1);
+      updateUI();
+      renderStage();
+    };
+
+    // Reset All Positions
+    resetPositionsBtn.onclick = () => {
+      const count = avatars.length;
+      if (count === 1) {
+        avatars[0].x = 400;
+      } else {
+        const spacing = 600 / (count + 1);
+        avatars.forEach((av, i) => {
+          av.x = 100 + spacing * (i + 1);
+        });
+      }
+      updateUI();
+      renderStage();
+    };
+
+    // Costume switch
+    document.querySelectorAll('.costume-btn').forEach(btn => {
+      btn.onclick = () => {
+        const cKey = btn.dataset.costume;
+        if (avatars[selectedAvatarIndex]) {
+          avatars[selectedAvatarIndex].costume = cKey;
+          avatars[selectedAvatarIndex].dialogue = `換好 ${AVATAR_PRESETS[cKey].name} 囉！主人覺得好看嗎？❤️`;
+          updateUI();
+          renderStage();
+        }
+      };
+    });
+
+    // Pose presets
+    document.querySelectorAll('.pose-preset-btn').forEach(btn => {
+      btn.onclick = () => {
+        const pKey = btn.dataset.pose;
+        if (avatars[selectedAvatarIndex] && POSES[pKey]) {
+          avatars[selectedAvatarIndex].pose = { ...POSES[pKey] };
+          avatars[selectedAvatarIndex].dialogue = `擺出了「${POSES[pKey].name}」姿勢！📸`;
+          updateUI();
+          renderStage();
+        }
+      };
+    });
+
+    // Reset Pose
+    document.getElementById('resetPoseBtn').onclick = () => {
+      if (avatars[selectedAvatarIndex]) {
+        avatars[selectedAvatarIndex].pose = { ...POSES.natural };
+        avatars[selectedAvatarIndex].dialogue = '骨架已恢復自然待機站姿囉～✨';
+        updateUI();
+        renderStage();
+      }
+    };
+
+    // Copy Pose to All
+    document.getElementById('copyPoseBtn').onclick = () => {
+      const sourcePose = avatars[selectedAvatarIndex].pose;
+      avatars.forEach((av, idx) => {
+        if (idx !== selectedAvatarIndex) {
+          av.pose = { ...sourcePose };
+          av.dialogue = '同步了主選角色的姿勢！齊步走～💃';
+        }
+      });
+      updateUI();
+      renderStage();
+    };
+
+    // Quick position buttons
+    document.getElementById('posLeftBtn').onclick = () => {
+      if (avatars[selectedAvatarIndex]) {
+        avatars[selectedAvatarIndex].x = 220;
+        updateUI();
+        renderStage();
+      }
+    };
+    document.getElementById('posCenterBtn').onclick = () => {
+      if (avatars[selectedAvatarIndex]) {
+        avatars[selectedAvatarIndex].x = 400;
+        updateUI();
+        renderStage();
+      }
+    };
+    document.getElementById('posRightBtn').onclick = () => {
+      if (avatars[selectedAvatarIndex]) {
+        avatars[selectedAvatarIndex].x = 580;
+        updateUI();
+        renderStage();
+      }
+    };
+
+    // Slider for fine tuning
+    armAngleSlider.oninput = (e) => {
+      const val = parseInt(e.target.value);
+      jointAngleValue.innerText = `右手抬升: ${val}°`;
+      if (avatars[selectedAvatarIndex]) {
+        avatars[selectedAvatarIndex].pose.rightArm = val;
+        renderStage();
+      }
+    };
+
+    // ==========================================
+    // Canvas 2D Puppet & Avatar Renderer
+    // ==========================================
+    function renderStage() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw each avatar
+      avatars.forEach((av, idx) => {
+        const isSelected = idx === selectedAvatarIndex;
+        drawAvatar(av, isSelected, idx);
+      });
+    }
+
+    function drawAvatar(av, isSelected, index) {
+      const rootX = av.x;
+      const rootY = av.y;
+      const preset = AVATAR_PRESETS[av.costume] || AVATAR_PRESETS.casual;
+      const pose = av.pose;
+
+      // 1. Draw Ground Ring (Selection Ring if active, or subtle shadow)
+      ctx.save();
+      if (isSelected) {
+        // Glowing cyan selection ring
+        ctx.beginPath();
+        ctx.ellipse(rootX, rootY + 10, 55, 18, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(34, 211, 238, 0.2)';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 15;
+        ctx.stroke();
+
+        // Marker label
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`▼ ${av.title} (選中)`, rootX, rootY + 36);
+      } else {
+        // Subtle ground contact shadow
+        ctx.beginPath();
+        ctx.ellipse(rootX, rootY + 10, 45, 14, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fill();
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(av.title, rootX, rootY + 32);
+      }
+      ctx.restore();
+
+      // 2. Anatomical coordinates based on pose
+      const hipsY = rootY - 140 + (pose.hipsOffsetY || 0);
+      const chestY = hipsY - 70;
+      const neckY = chestY - 25;
+      const headY = neckY - 35;
+
+      // Legs
+      const leftHipX = rootX - 16;
+      const rightHipX = rootX + 16;
+      const leftFootX = rootX - 22;
+      const rightFootX = rootX + 22;
+      const feetY = rootY;
+
+      // Draw Legs
+      ctx.save();
+      ctx.lineWidth = 14;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = preset.color;
+
+      // Left leg
+      ctx.beginPath();
+      ctx.moveTo(leftHipX, hipsY);
+      ctx.lineTo(leftFootX, feetY);
+      ctx.stroke();
+
+      // Right leg
+      ctx.beginPath();
+      ctx.moveTo(rightHipX, hipsY);
+      ctx.lineTo(rightFootX, feetY);
+      ctx.stroke();
+
+      // Feet shoes
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.ellipse(leftFootX, feetY + 2, 10, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(rightFootX, feetY + 2, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Torso / Dress
+      ctx.save();
+      ctx.fillStyle = preset.color;
+      ctx.beginPath();
+      ctx.moveTo(leftHipX - 12, hipsY + 15);
+      ctx.lineTo(rightHipX + 12, hipsY + 15);
+      ctx.lineTo(rootX + 24, chestY);
+      ctx.lineTo(rootX - 24, chestY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Torso accent / ribbon
+      ctx.strokeStyle = preset.accent;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(rootX - 10, chestY + 10);
+      ctx.lineTo(rootX + 10, chestY + 10);
+      ctx.stroke();
+      ctx.restore();
+
+      // Arms & Hands calculation
+      const leftShoulderX = rootX - 26;
+      const rightShoulderX = rootX + 26;
+      const shoulderY = chestY + 5;
+
+      // Left arm angle
+      const lAngleRad = (pose.leftArm * Math.PI) / 180;
+      const leftHandX = leftShoulderX - Math.sin(lAngleRad) * 65;
+      const leftHandY = shoulderY + Math.cos(lAngleRad) * 65;
+
+      // Right arm angle
+      const rAngleRad = (pose.rightArm * Math.PI) / 180;
+      const rightHandX = rightShoulderX - Math.sin(rAngleRad) * 65;
+      const rightHandY = shoulderY + Math.cos(rAngleRad) * 65;
+
+      // Draw Arms
+      ctx.save();
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = preset.color;
+
+      // Left Arm
+      ctx.beginPath();
+      ctx.moveTo(leftShoulderX, shoulderY);
+      ctx.lineTo(leftHandX, leftHandY);
+      ctx.stroke();
+
+      // Right Arm
+      ctx.beginPath();
+      ctx.moveTo(rightShoulderX, shoulderY);
+      ctx.lineTo(rightHandX, rightHandY);
+      ctx.stroke();
+
+      // Hands
+      ctx.fillStyle = '#fed7aa';
+      ctx.beginPath();
+      ctx.arc(leftHandX, leftHandY, 7, 0, Math.PI * 2);
+      ctx.arc(rightHandX, rightHandY, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Head & Face
+      ctx.save();
+      ctx.translate(rootX, headY);
+      ctx.rotate((pose.headAngle * Math.PI) / 180);
+
+      // Hair back
+      ctx.fillStyle = preset.isAyame ? '#991b1b' : preset.isMint ? '#0d9488' : '#e2e8f0';
+      ctx.beginPath();
+      ctx.arc(0, 0, 32, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Face skin
+      ctx.fillStyle = '#fed7aa';
+      ctx.beginPath();
+      ctx.arc(0, 2, 24, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.ellipse(-8, 2, 3, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(8, 2, 3, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eye highlights
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-9, 0, 1.5, 0, Math.PI * 2);
+      ctx.arc(7, 0, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cute Smile
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(0, 8, 4, 0, Math.PI);
+      ctx.stroke();
+
+      // Horns or Accessories
+      if (preset.isAyame) {
+        // Red Demon Horns
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.moveTo(-16, -18);
+        ctx.lineTo(-26, -42);
+        ctx.lineTo(-8, -24);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(16, -18);
+        ctx.lineTo(26, -42);
+        ctx.lineTo(8, -24);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      // 3. If selected, draw interactive joint handles (Puppet Pin Handles)
+      if (isSelected) {
+        drawJointHandle(rootX, hipsY, 'hips', '腰部/移動');
+        drawJointHandle(rightHandX, rightHandY, 'rightHand', '右手');
+        drawJointHandle(leftHandX, leftHandY, 'leftHand', '左手');
+        drawJointHandle(rootX, headY - 15, 'head', '頭部');
+      }
+    }
+
+    function drawJointHandle(x, y, jointKey, label) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, 9, 0, Math.PI * 2);
+      ctx.fillStyle = jointKey === 'hips' ? '#f59e0b' : '#38bdf8';
+      ctx.shadowColor = jointKey === 'hips' ? '#f59e0b' : '#38bdf8';
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, x, y - 12);
+      ctx.restore();
+    }
+
+    // ==========================================
+    // Mouse Interaction (Click selection & Dragging)
+    // ==========================================
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // 1. Check if clicking on joint of currently selected avatar
+      const curr = avatars[selectedAvatarIndex];
+      if (curr) {
+        const rootX = curr.x;
+        const hipsY = curr.y - 140 + (curr.pose.hipsOffsetY || 0);
+        
+        // Hips (Repositioning)
+        if (Math.hypot(mouseX - rootX, mouseY - hipsY) < 25) {
+          draggingAvatarIndex = selectedAvatarIndex;
+          draggingJointKey = 'hips';
+          dragStartPos = { x: mouseX, y: mouseY };
+          dragStartAvatarPos = { x: curr.x, y: curr.y };
+          return;
+        }
+
+        // Right Hand
+        const rAngleRad = (curr.pose.rightArm * Math.PI) / 180;
+        const rightHandX = (rootX + 26) - Math.sin(rAngleRad) * 65;
+        const rightHandY = (hipsY - 65) + Math.cos(rAngleRad) * 65;
+        if (Math.hypot(mouseX - rightHandX, mouseY - rightHandY) < 22) {
+          draggingAvatarIndex = selectedAvatarIndex;
+          draggingJointKey = 'rightHand';
+          dragStartPos = { x: mouseX, y: mouseY };
+          return;
+        }
+
+        // Left Hand
+        const lAngleRad = (curr.pose.leftArm * Math.PI) / 180;
+        const leftHandX = (rootX - 26) - Math.sin(lAngleRad) * 65;
+        const leftHandY = (hipsY - 65) + Math.cos(lAngleRad) * 65;
+        if (Math.hypot(mouseX - leftHandX, mouseY - leftHandY) < 22) {
+          draggingAvatarIndex = selectedAvatarIndex;
+          draggingJointKey = 'leftHand';
+          dragStartPos = { x: mouseX, y: mouseY };
+          return;
+        }
+      }
+
+      // 2. Check if clicking another avatar body to select it
+      for (let i = avatars.length - 1; i >= 0; i--) {
+        const av = avatars[i];
+        if (Math.abs(mouseX - av.x) < 55 && mouseY >= av.y - 220 && mouseY <= av.y + 20) {
+          selectAvatar(i);
+          // If clicked around hips/torso, start immediate dragging
+          draggingAvatarIndex = i;
+          draggingJointKey = 'hips';
+          dragStartPos = { x: mouseX, y: mouseY };
+          dragStartAvatarPos = { x: av.x, y: av.y };
+          return;
+        }
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (draggingAvatarIndex === -1) return;
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const av = avatars[draggingAvatarIndex];
+      if (!av) return;
+
+      if (draggingJointKey === 'hips') {
+        // Drag to reposition avatar horizontally across the stage
+        const deltaX = mouseX - dragStartPos.x;
+        av.x = Math.max(60, Math.min(canvas.width - 60, dragStartAvatarPos.x + deltaX));
+        updateUI();
+        renderStage();
+      } else if (draggingJointKey === 'rightHand') {
+        // Drag to rotate arm
+        const deltaY = mouseY - dragStartPos.y;
+        av.pose.rightArm = Math.max(-100, Math.min(90, av.pose.rightArm + deltaY * 0.4));
+        dragStartPos.y = mouseY;
+        renderStage();
+      } else if (draggingJointKey === 'leftHand') {
+        const deltaY = mouseY - dragStartPos.y;
+        av.pose.leftArm = Math.max(-90, Math.min(100, av.pose.leftArm - deltaY * 0.4));
+        dragStartPos.y = mouseY;
+        renderStage();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      draggingAvatarIndex = -1;
+      draggingJointKey = null;
+    });
+
+    // Initialize
+    updateUI();
+    renderStage();
+  </script>
+</body>
+</html>
