@@ -149,15 +149,17 @@ window.addEventListener('DOMContentLoaded', async () => {
       return true;
     }
     if (trimmed === '/photo' || trimmed === '/snapshot') {
-      snapshotService.capture({ transparent: false });
-      showBubble('📸 喀嚓！照片已儲存並下載！', 'happy');
-      chatBox.addAssistantMessage('📸 拍照完成！已經為主人下載存檔囉～');
+      const res = await snapshotService.capture({ transparent: false });
+      const locDesc = res?.filePath ? `\n已儲存至：${res.filePath}` : '（已下載至下載資料夾）';
+      showBubble('📸 喀嚓！照片已成功儲存！', 'happy');
+      chatBox.addAssistantMessage(`📸 拍照完成！已經為主人存檔囉～${locDesc}`);
       return true;
     }
     if (trimmed === '/photo transparent' || trimmed === '/snapshot transparent') {
-      snapshotService.capture({ transparent: true });
-      showBubble('📸 喀嚓！透明去背照片已儲存並下載！', 'happy');
-      chatBox.addAssistantMessage('📸 透明去背照片拍照完成！已經為主人下載存檔囉～');
+      const res = await snapshotService.capture({ transparent: true });
+      const locDesc = res?.filePath ? `\n已儲存至：${res.filePath}` : '（已下載至下載資料夾）';
+      showBubble('📸 喀嚓！透明去背照片已成功儲存！', 'happy');
+      chatBox.addAssistantMessage(`📸 透明去背照片拍照完成！已經為主人存檔囉～${locDesc}`);
       return true;
     }
     if (trimmed.startsWith('/camera ')) {
@@ -242,10 +244,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     onPose: () => {
       poseModal.toggle();
     },
-    onSnapshot: () => {
-      snapshotService.capture({ transparent: false });
-      const msg = arManager.isActive ? '📸 喀嚓！AR 同框合照已成功儲存並下載！' : '📸 喀嚓！照片已成功儲存並下載！';
-      showBubble(msg, 'happy');
+    onSnapshot: async () => {
+      const res = await snapshotService.capture({ transparent: false });
+      const prefix = arManager.isActive ? '📸 喀嚓！AR 同框合照' : '📸 喀嚓！照片';
+      if (res?.filePath) {
+        showBubble(`${prefix}已儲存至「圖片」資料夾！`, 'happy');
+      } else {
+        showBubble(`${prefix}已成功儲存並下載！`, 'happy');
+      }
     },
     onAR: async () => {
       try {

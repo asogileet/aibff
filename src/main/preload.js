@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setRestingMode: (resting) => ipcRenderer.send('window:set-resting-mode', resting),
   setStartup: (enable) => ipcRenderer.send('app:set-startup', enable),
 
+  // File & Snapshot Operations
+  saveSnapshot: (payload) => ipcRenderer.invoke('app:save-snapshot', payload),
+  openPath: (targetPath) => ipcRenderer.invoke('app:open-path', targetPath),
+
   // Event Listeners from Main Process (Tray / Shortcuts)
   onReturn: (callback) => ipcRenderer.on('action:return', () => callback()),
   onLeave: (callback) => ipcRenderer.on('action:leave', () => callback()),

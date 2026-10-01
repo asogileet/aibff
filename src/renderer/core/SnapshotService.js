@@ -38,7 +38,7 @@ export class SnapshotService {
    * @param {boolean} options.transparent - Whether to export as transparent PNG
    * @returns {Object} { filename, dataUrl }
    */
-  capture({ transparent = false } = {}) {
+  async capture({ transparent = false } = {}) {
     const renderer = this.sceneManager.renderer;
     const scene = this.sceneManager.scene;
     const camera = this.sceneManager.camera;
@@ -107,15 +107,34 @@ export class SnapshotService {
     const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     const filename = isARMode ? `aibff_ar_snapshot_${timestamp}.png` : `aibff_snapshot_${timestamp}.png`;
 
-    // Trigger download
+    // 1. If running in Electron, save directly to user's Pictures folder via IPC
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.saveSnapshot === 'function') {
+      try {
+        const res = await window.electronAPI.saveSnapshot({ dataUrl: finalDataUrl, filename });
+        if (res && res.success) {
+          console.log(`[SnapshotService] Saved via Electron to ${res.filePath}`);
+          // Open in Windows File Explorer
+          if (typeof window.electronAPI.openPath === 'function') {
+            window.electronAPI.openPath(res.filePath);
+          }
+          return { filename, filePath: res.filePath, dataUrl: finalDataUrl };
+        }
+      } catch (err) {
+        console.warn('[SnapshotService] Electron saveSnapshot failed, falling back to browser download:', err);
+      }
+    }
+
+    // 2. Trigger browser download (fallback for mobile / web browser)
     const link = document.createElement('a');
     link.download = filename;
     link.href = finalDataUrl;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    setTimeout(() => {
+      if (link.parentNode) link.parentNode.removeChild(link);
+    }, 200);
 
     console.log(`[SnapshotService] Successfully captured and downloaded ${filename}`);
-    return { filename, dataUrl: finalDataUrl };
+    return { filename, filePath: null, dataUrl: finalDataUrl };
   }
 }

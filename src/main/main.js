@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage, screen, session, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -189,6 +189,36 @@ ipcMain.on('app:set-startup', (event, enable) => {
     openAtLogin: enable,
     path: app.getPath('exe')
   });
+});
+
+ipcMain.handle('app:save-snapshot', async (event, { dataUrl, filename }) => {
+  try {
+    const picturesDir = path.join(app.getPath('pictures'), 'aibff_snapshots');
+    if (!fs.existsSync(picturesDir)) {
+      fs.mkdirSync(picturesDir, { recursive: true });
+    }
+    const filePath = path.join(picturesDir, filename);
+    const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[Main] Saved snapshot successfully to: ${filePath}`);
+    return { success: true, filePath, filename };
+  } catch (err) {
+    console.error('[Main] Failed to save snapshot:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('app:open-path', async (event, targetPath) => {
+  try {
+    if (fs.existsSync(targetPath)) {
+      shell.showItemInFolder(targetPath);
+      return { success: true };
+    }
+    return { success: false, error: 'Path not found' };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 app.whenReady().then(() => {
