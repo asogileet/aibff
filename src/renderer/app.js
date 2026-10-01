@@ -1,5 +1,6 @@
 import { SceneManager } from './core/SceneManager.js';
 import { SnapshotService } from './core/SnapshotService.js';
+import { ARManager } from './core/ARManager.js';
 import { RaycastManager } from './core/RaycastManager.js';
 import { AvatarController } from './vrm/AvatarController.js';
 import { AnimationController } from './vrm/AnimationController.js';
@@ -72,12 +73,57 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 3. UI & Feature Modules
   let isResting = false;
 
-  const snapshotService = new SnapshotService(sceneManager);
+  const arManager = new ARManager({
+    onStateChange: (isActive) => {
+      if (toolbar) toolbar.setARActive(isActive);
+    }
+  });
+
+  const snapshotService = new SnapshotService(sceneManager, arManager);
   const poseManager = new PoseManager(avatarController, animationController);
   const poseModal = new PoseModal(uiContainer, poseManager, sceneManager, showBubble);
 
-  const handleSlashCommand = (cmdText) => {
+  const handleSlashCommand = async (cmdText) => {
     const trimmed = cmdText.trim();
+    if (trimmed === '/ar' || trimmed === '/ar toggle') {
+      try {
+        const active = await arManager.toggle();
+        if (active) {
+          showBubble('📷 視訊 AR 模式已啟動！我就在你的房間裡喔～✨', 'happy');
+          chatBox.addAssistantMessage('📷 筆電鏡頭已開啟！現在是 AR 視訊模式，我就站在你的房間裡～');
+        } else {
+          showBubble('已回到透明桌面模式～', 'happy');
+          chatBox.addAssistantMessage('已關閉筆電鏡頭，回到透明桌面模式囉～');
+        }
+      } catch (err) {
+        showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
+        chatBox.addAssistantMessage('⚠️ 無法存取視訊攝影機，請確認筆電鏡頭權限是否已開啟。');
+      }
+      return true;
+    }
+    if (trimmed === '/ar on') {
+      try {
+        await arManager.start();
+        showBubble('📷 視訊 AR 模式已啟動！我就在你的房間裡喔～✨', 'happy');
+        chatBox.addAssistantMessage('📷 筆電鏡頭已開啟！現在是 AR 視訊模式～');
+      } catch (err) {
+        showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
+        chatBox.addAssistantMessage('⚠️ 無法存取視訊攝影機，請確認筆電鏡頭權限是否已開啟。');
+      }
+      return true;
+    }
+    if (trimmed === '/ar off') {
+      arManager.stop();
+      showBubble('已回到透明桌面模式～', 'happy');
+      chatBox.addAssistantMessage('已關閉筆電鏡頭，回到透明桌面模式囉～');
+      return true;
+    }
+    if (trimmed === '/ar mirror') {
+      const isMirror = arManager.setMirror();
+      showBubble(isMirror ? '🪞 已開啟自拍鏡像！' : '🔄 已切換為正常視角！', 'happy');
+      chatBox.addAssistantMessage(isMirror ? '🪞 已開啟視訊鏡像（自拍鏡感）' : '🔄 已切換為正常視角方向');
+      return true;
+    }
     if (trimmed === '/pose list') {
       const poses = poseManager.getSavedPoses();
       const listStr = poses.map(p => `• ${p.name}`).join('\n');
@@ -198,7 +244,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     },
     onSnapshot: () => {
       snapshotService.capture({ transparent: false });
-      showBubble('📸 喀嚓！照片已成功儲存並下載！', 'happy');
+      const msg = arManager.isActive ? '📸 喀嚓！AR 同框合照已成功儲存並下載！' : '📸 喀嚓！照片已成功儲存並下載！';
+      showBubble(msg, 'happy');
+    },
+    onAR: async () => {
+      try {
+        const active = await arManager.toggle();
+        if (active) {
+          showBubble('📷 視訊 AR 模式已啟動！我就在你的房間裡喔～✨', 'happy');
+        } else {
+          showBubble('已回到透明桌面模式～', 'happy');
+        }
+      } catch (err) {
+        showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
+      }
     },
     onViewToggle: () => {
       sceneManager.setCameraPreset('toggle');
@@ -233,6 +292,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     {
       onLeave: () => {
         isResting = true;
+        if (arManager.isActive) {
+          arManager.stop();
+        }
         canvasContainer.style.display = 'none';
         toolbar.element.style.display = 'none';
         chatBox.toggle(false);

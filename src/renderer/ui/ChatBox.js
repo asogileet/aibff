@@ -28,7 +28,7 @@ export class ChatBox {
         </div>
       </div>
       <div class="flex space-x-2">
-        <input id="chatInput" type="text" placeholder="輸入訊息... 或 /pose /photo (Enter 發送)" class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500" />
+        <input id="chatInput" type="text" placeholder="輸入訊息... 或 /ar /pose /photo (Enter 發送)" class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500" />
         <button id="btnSendChat" class="bg-pink-600 hover:bg-pink-500 text-white text-xs px-3.5 py-1.5 rounded-lg transition font-medium">發送</button>
       </div>
     `;

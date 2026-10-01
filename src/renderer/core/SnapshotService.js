@@ -6,9 +6,14 @@ import * as THREE from 'three';
  * shutter flash animations, and automatic file downloads.
  */
 export class SnapshotService {
-  constructor(sceneManager) {
+  constructor(sceneManager, arManager = null) {
     this.sceneManager = sceneManager;
+    this.arManager = arManager;
     this._createShutterOverlay();
+  }
+
+  setARManager(arManager) {
+    this.arManager = arManager;
   }
 
   _createShutterOverlay() {
@@ -28,7 +33,7 @@ export class SnapshotService {
   }
 
   /**
-   * Captures a snapshot of the current 3D scene.
+   * Captures a snapshot of the current 3D scene (with optional AR webcam background).
    * @param {Object} options
    * @param {boolean} options.transparent - Whether to export as transparent PNG
    * @returns {Object} { filename, dataUrl }
@@ -46,12 +51,14 @@ export class SnapshotService {
     // Trigger visual shutter flash
     this._flashShutter();
 
+    const isARMode = !transparent && this.arManager && this.arManager.isActive;
+
     const oldClearColor = new THREE.Color();
     renderer.getClearColor(oldClearColor);
     const oldClearAlpha = renderer.getClearAlpha();
     const oldBackground = scene.background;
 
-    if (transparent) {
+    if (transparent || isARMode) {
       scene.background = null;
       renderer.setClearColor(0x000000, 0);
     }
@@ -60,10 +67,35 @@ export class SnapshotService {
     renderer.render(scene, camera);
 
     const canvas = renderer.domElement;
-    const dataUrl = canvas.toDataURL('image/png');
+    let finalDataUrl = null;
 
-    // Restore background if transparent mode was enabled
-    if (transparent) {
+    if (isARMode) {
+      // Compose webcam background with 3D character
+      const videoEl = this.arManager.getVideoElement();
+      const compCanvas = document.createElement('canvas');
+      compCanvas.width = canvas.width;
+      compCanvas.height = canvas.height;
+      const ctx = compCanvas.getContext('2d');
+
+      if (videoEl && videoEl.readyState >= 2) {
+        ctx.save();
+        if (this.arManager.isMirror) {
+          ctx.translate(compCanvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(videoEl, 0, 0, compCanvas.width, compCanvas.height);
+        ctx.restore();
+      }
+
+      // Draw 3D avatar on top
+      ctx.drawImage(canvas, 0, 0);
+      finalDataUrl = compCanvas.toDataURL('image/png');
+    } else {
+      finalDataUrl = canvas.toDataURL('image/png');
+    }
+
+    // Restore background if transparent or AR mode was enabled
+    if (transparent || isARMode) {
       scene.background = oldBackground;
       renderer.setClearColor(oldClearColor, oldClearAlpha);
       renderer.render(scene, camera);
@@ -73,17 +105,17 @@ export class SnapshotService {
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const filename = `aibff_snapshot_${timestamp}.png`;
+    const filename = isARMode ? `aibff_ar_snapshot_${timestamp}.png` : `aibff_snapshot_${timestamp}.png`;
 
     // Trigger download
     const link = document.createElement('a');
     link.download = filename;
-    link.href = dataUrl;
+    link.href = finalDataUrl;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
     console.log(`[SnapshotService] Successfully captured and downloaded ${filename}`);
-    return { filename, dataUrl };
+    return { filename, dataUrl: finalDataUrl };
   }
 }

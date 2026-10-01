@@ -39,6 +39,10 @@ export class Toolbar {
         <span class="text-lg">📸</span>
         <span class="text-xs hidden md:inline">拍照</span>
       </button>
+      <button id="btnAR" class="flex items-center space-x-1 text-slate-300 hover:text-emerald-400 p-2 rounded-full hover:bg-white/5 transition" title="一鍵開關筆電視訊鏡頭 AR 模式">
+        <span class="text-lg">📷</span>
+        <span class="text-xs hidden md:inline">AR</span>
+      </button>
       <button id="btnView" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="切換視角 (半身特寫 / 全身視角)">
         <span class="text-lg">🧍</span>
         <span class="text-xs hidden md:inline">視角</span>
@@ -62,6 +66,7 @@ export class Toolbar {
     this.element.querySelector('#btnAction').addEventListener('click', () => this.handlers.onAction?.());
     this.element.querySelector('#btnPose').addEventListener('click', () => this.handlers.onPose?.());
     this.element.querySelector('#btnSnapshot').addEventListener('click', () => this.handlers.onSnapshot?.());
+    this.element.querySelector('#btnAR').addEventListener('click', () => this.handlers.onAR?.());
     this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
     this.element.querySelector('#btnLeave').addEventListener('click', () => this.handlers.onLeave?.());
     this.element.querySelector('#btnSettings').addEventListener('click', () => this.handlers.onSettings?.());
@@ -103,6 +108,18 @@ export class Toolbar {
     } else {
       btn.classList.remove('text-pink-400', 'bg-pink-500/20');
       btn.title = '目前為半身特寫 (點擊切換為全身視角)';
+    }
+  }
+
+  setARActive(active) {
+    const btn = this.element.querySelector('#btnAR');
+    if (!btn) return;
+    if (active) {
+      btn.classList.add('text-emerald-300', 'bg-emerald-500/30', 'ring-2', 'ring-emerald-400/60', 'animate-pulse');
+      btn.title = 'AR 視訊鏡頭運作中 (點擊關閉相機返回透明桌面)';
+    } else {
+      btn.classList.remove('text-emerald-300', 'bg-emerald-500/30', 'ring-2', 'ring-emerald-400/60', 'animate-pulse');
+      btn.title = '一鍵開關筆電視訊鏡頭 AR 模式';
     }
   }
 }

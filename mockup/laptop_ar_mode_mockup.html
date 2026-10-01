@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>筆電視訊鏡頭一鍵開關 AR 模式 - 原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.4);
+      border-radius: 4px;
+    }
+    /* Checkerboard pattern to represent desktop transparency */
+    .transparent-pattern {
+      background-color: #0f172a;
+      background-image: linear-gradient(45deg, #1e293b 25%, transparent 25%), 
+                        linear-gradient(-45deg, #1e293b 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #1e293b 75%), 
+                        linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+    }
+    .video-mirror {
+      transform: scaleX(-1);
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(52, 211, 153, 0.6); }
+      50% { box-shadow: 0 0 25px rgba(52, 211, 153, 0.9); }
+    }
+    .ar-active-glow {
+      animation: pulseGlow 2s infinite ease-in-out;
+    }
+    @keyframes shutterFlash {
+      0% { opacity: 0; }
+      20% { opacity: 0.95; }
+      100% { opacity: 0; }
+    }
+    .shutter-effect {
+      animation: shutterFlash 0.35s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans">
+  <div class="max-w-7xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>📷</span> 筆電鏡頭一鍵開關 AR 模式・原型展示
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          支援 Windows 桌面透明寵物模式與真實視訊鏡頭 AR 模式無縫切換、鏡像自拍感、真實視訊同框合照與斜線指令
+        </p>
+      </div>
+      <div class="flex items-center flex-wrap gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Webcam Passthrough</span>
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Mirror Mode</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">AR 合照匯出</span>
+        <span class="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Slash: /ar</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Column 1: AI Girlfriend Window Simulator (5 cols) -->
+      <div class="lg:col-span-5 glass-panel rounded-2xl p-5 flex flex-col items-center">
+        <div class="w-full flex justify-between items-center mb-3">
+          <div class="flex items-center gap-2">
+            <span id="windowModeDot" class="w-2.5 h-2.5 rounded-full bg-pink-400 animate-pulse"></span>
+            <span id="windowModeTitle" class="text-xs font-medium text-slate-300">桌面視窗預覽 (透明桌寵模式)</span>
+          </div>
+          <span id="arBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">AR 關閉</span>
+        </div>
+
+        <!-- Simulated Electron Window Frame -->
+        <div class="relative w-[340px] h-[520px] rounded-3xl overflow-hidden border-2 border-slate-700 shadow-2xl transition-all duration-500 flex flex-col justify-end" id="simulatedWindow">
+          
+          <!-- Background Layer 1: Transparency pattern (Desktop) -->
+          <div id="desktopPatternBg" class="absolute inset-0 transparent-pattern transition-opacity duration-500">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+              <span class="text-slate-400 text-sm font-semibold tracking-wider">Windows 桌面透視區域</span>
+            </div>
+          </div>
+
+          <!-- Background Layer 2: Real / Mock Webcam Video Feed -->
+          <video id="webcamVideo" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover hidden opacity-0 transition-opacity duration-500 video-mirror"></video>
+          <div id="fallbackRoomBg" class="absolute inset-0 w-full h-full bg-cover bg-center hidden opacity-0 transition-opacity duration-500 video-mirror" style="background-image: url('https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80');">
+            <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-cyan-300 text-[10px] px-2 py-1 rounded">
+              模擬房間視訊背景 (若無鏡頭時)
+            </div>
+          </div>
+
+          <!-- Shutter Flash Effect Layer -->
+          <div id="shutterOverlay" class="absolute inset-0 bg-white pointer-events-none opacity-0 z-40"></div>
+
+          <!-- Foreground 3D VRM Canvas (Simulated) -->
+          <canvas id="characterCanvas" width="340" height="520" class="absolute inset-0 z-10 cursor-grab active:cursor-grabbing"></canvas>
+
+          <!-- Dialogue Bubble -->
+          <div id="dialogueBubble" class="absolute top-6 left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-3.5 py-2 rounded-2xl shadow-xl max-w-[280px] transition-all duration-300 border-pink-500/40 flex items-center space-x-2 z-20 pointer-events-none">
+            <span id="emotionBadge" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40">開心</span>
+            <p id="dialogueText" class="leading-relaxed text-[11px] truncate">主人好！今天想把我放到你的房間裡嗎？</p>
+          </div>
+
+          <!-- Bottom Floating Toolbar -->
+          <div class="relative z-30 mb-4 px-2 flex justify-center w-full">
+            <div class="glass-panel rounded-full px-3 py-1.5 flex items-center space-x-2 shadow-2xl border-slate-700/80 bg-slate-900/90 text-xs">
+              <button id="btnToolbarAR" class="flex items-center space-x-1 px-2.5 py-1 rounded-full text-slate-300 hover:text-emerald-400 hover:bg-emerald-500/10 transition group" title="一鍵切換視訊鏡頭 AR 模式">
+                <span class="text-base group-hover:scale-110 transition">📷</span>
+                <span id="btnToolbarARText" class="text-[11px] font-medium">AR</span>
+              </button>
+              <div class="w-px h-4 bg-slate-700"></div>
+              <button id="btnToolbarSnapshot" class="flex items-center space-x-1 px-2 py-1 rounded-full text-slate-300 hover:text-pink-400 hover:bg-white/5 transition" title="拍照截圖">
+                <span class="text-base">📸</span>
+              </button>
+              <button id="btnToolbarCostume" class="flex items-center space-x-1 px-2 py-1 rounded-full text-slate-300 hover:text-pink-400 hover:bg-white/5 transition" title="換裝">
+                <span class="text-base">👗</span>
+              </button>
+              <button id="btnToolbarAction" class="flex items-center space-x-1 px-2 py-1 rounded-full text-slate-300 hover:text-pink-400 hover:bg-white/5 transition" title="動作">
+                <span class="text-base">💃</span>
+              </button>
+              <button id="btnToolbarSettings" class="flex items-center space-x-1 px-2 py-1 rounded-full text-slate-300 hover:text-pink-400 hover:bg-white/5 transition" title="設定">
+                <span class="text-base">⚙️</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <p class="text-[11px] text-slate-400 mt-3 text-center">
+          💡 點擊工具列上的「📷 AR」即可即時打開/關閉鏡頭，體驗角色穿梭現實房間的臨場感。
+        </p>
+      </div>
+
+      <!-- Column 2: Controls, Settings & Realtime Status (7 cols) -->
+      <div class="lg:col-span-7 space-y-6">
+
+        <!-- AR Mode Master Control Panel -->
+        <div class="glass-panel rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-semibold text-emerald-400 flex items-center gap-2">
+                <span>✨</span> AR 視訊功能主控台
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5">控制鏡頭輸入源、鏡像翻轉與環境亮度對比</p>
+            </div>
+            <button id="btnMasterARToggle" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-lg transition flex items-center gap-2">
+              <span id="masterBtnIcon">🎥</span>
+              <span id="masterBtnText">啟動筆電 AR 鏡頭</span>
+            </button>
+          </div>
+
+          <!-- Controls Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <!-- Camera Device Select -->
+            <div class="space-y-1.5">
+              <label class="text-slate-300 font-medium flex items-center justify-between">
+                <span>視訊設備 (Webcam Device)</span>
+                <span id="deviceCountBadge" class="text-[10px] text-slate-400">正在偵測...</span>
+              </label>
+              <select id="cameraSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-pink-500">
+                <option value="default">預設視訊攝影機 (Integrated Camera)</option>
+                <option value="mock">模擬房間畫面 (Mock Test Video)</option>
+              </select>
+            </div>
+
+            <!-- Mirror Toggle -->
+            <div class="space-y-1.5">
+              <label class="text-slate-300 font-medium">視訊鏡像 (Mirror Mode)</label>
+              <div class="flex items-center gap-2">
+                <button id="btnToggleMirror" class="flex-1 py-2 px-3 rounded-lg bg-pink-500/20 text-pink-300 border border-pink-500/40 hover:bg-pink-500/30 transition text-center font-medium">
+                  🪞 已開啟鏡像 (自拍鏡感)
+                </button>
+              </div>
+            </div>
+
+            <!-- Brightness / Environment slider -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between">
+                <label class="text-slate-300 font-medium">背景視訊亮度</label>
+                <span id="valBrightness" class="text-slate-400">100%</span>
+              </div>
+              <input id="sliderBrightness" type="range" min="50" max="150" value="100" class="w-full accent-pink-500">
+            </div>
+
+            <!-- Character Position Scale -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between">
+                <label class="text-slate-300 font-medium">女友站在空間的距離 (縮放)</label>
+                <span id="valDistance" class="text-slate-400">中景 (桌前)</span>
+              </div>
+              <input id="sliderDistance" type="range" min="1" max="3" step="1" value="2" class="w-full accent-emerald-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Snapshot & Interaction Test -->
+        <div class="glass-panel rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h2 class="text-sm font-semibold text-pink-400 flex items-center gap-2">
+              <span>📸</span> AR 實景同框拍照與預覽
+            </h2>
+            <button id="btnTakeARPhoto" class="px-3 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-medium text-xs transition flex items-center gap-1.5">
+              <span>📷</span> 拍下一張 AR 合照
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+            <div class="text-xs text-slate-300 space-y-2">
+              <p>在 AR 模式開啟時，拍照功能會自動將<strong>真實鏡頭背景</strong>與 <strong>3D 女友模型</strong>合併輸出。</p>
+              <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                <div>✔️ 支援解析度：1280x720 或高畫質視窗原尺寸</div>
+                <div>✔️ 支援鏡像校正：拍出的照片符合自拍視覺方向</div>
+                <div>✔️ 隱私保障：照片僅在本機端下載或儲存，不傳上外部雲端</div>
+              </div>
+            </div>
+
+            <!-- Photo Preview Canvas Container -->
+            <div class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-900/80 border border-slate-800 min-h-[140px]">
+              <div id="photoPreviewContainer" class="hidden flex flex-col items-center gap-2">
+                <img id="photoPreviewImg" class="w-36 h-28 object-cover rounded-lg border border-pink-500/50 shadow-lg">
+                <a id="downloadPhotoLink" href="#" download="AR_AI_Girlfriend.png" class="text-[10px] text-pink-400 hover:underline">
+                  ⬇️ 點此下載合照 (PNG)
+                </a>
+              </div>
+              <div id="photoPlaceholder" class="text-center text-slate-500 text-xs py-4">
+                尚未拍攝合照<br><span class="text-[10px]">點擊「拍下一張 AR 合照」體驗合成效果</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slash Commands & Fast Testing -->
+        <div class="glass-panel rounded-2xl p-5 space-y-3">
+          <h2 class="text-sm font-semibold text-cyan-400 flex items-center gap-2">
+            <span>💬</span> 對話斜線指令 (Slash Commands)
+          </h2>
+          <div class="flex flex-wrap gap-2 text-xs">
+            <button class="cmd-chip px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 transition" data-cmd="/ar">
+              <code>/ar</code> (切換開關)
+            </button>
+            <button class="cmd-chip px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 transition" data-cmd="/ar on">
+              <code>/ar on</code> (開啟鏡頭)
+            </button>
+            <button class="cmd-chip px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 transition" data-cmd="/ar off">
+              <code>/ar off</code> (關閉鏡頭)
+            </button>
+            <button class="cmd-chip px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 transition" data-cmd="/ar mirror">
+              <code>/ar mirror</code> (切換鏡像)
+            </button>
+          </div>
+          <div class="flex gap-2">
+            <input id="slashInput" type="text" placeholder="輸入指令或聊天文字..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400">
+            <button id="btnSendSlash" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition">
+              發送
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // State management
+    let isARActive = false;
+    let isMirror = true;
+    let mediaStream = null;
+    let currentScale = 1.0;
+    let brightness = 100;
+
+    // DOM Elements
+    const simulatedWindow = document.getElementById('simulatedWindow');
+    const windowModeDot = document.getElementById('windowModeDot');
+    const windowModeTitle = document.getElementById('windowModeTitle');
+    const arBadge = document.getElementById('arBadge');
+    const desktopPatternBg = document.getElementById('desktopPatternBg');
+    const webcamVideo = document.getElementById('webcamVideo');
+    const fallbackRoomBg = document.getElementById('fallbackRoomBg');
+    const shutterOverlay = document.getElementById('shutterOverlay');
+    const characterCanvas = document.getElementById('characterCanvas');
+    const dialogueText = document.getElementById('dialogueText');
+    const emotionBadge = document.getElementById('emotionBadge');
+
+    const btnToolbarAR = document.getElementById('btnToolbarAR');
+    const btnToolbarARText = document.getElementById('btnToolbarARText');
+    const btnMasterARToggle = document.getElementById('btnMasterARToggle');
+    const masterBtnText = document.getElementById('masterBtnText');
+    const masterBtnIcon = document.getElementById('masterBtnIcon');
+
+    const cameraSelect = document.getElementById('cameraSelect');
+    const deviceCountBadge = document.getElementById('deviceCountBadge');
+    const btnToggleMirror = document.getElementById('btnToggleMirror');
+    const sliderBrightness = document.getElementById('sliderBrightness');
+    const valBrightness = document.getElementById('valBrightness');
+    const sliderDistance = document.getElementById('sliderDistance');
+    const valDistance = document.getElementById('valDistance');
+
+    const btnTakeARPhoto = document.getElementById('btnTakeARPhoto');
+    const btnToolbarSnapshot = document.getElementById('btnToolbarSnapshot');
+    const photoPreviewContainer = document.getElementById('photoPreviewContainer');
+    const photoPlaceholder = document.getElementById('photoPlaceholder');
+    const photoPreviewImg = document.getElementById('photoPreviewImg');
+    const downloadPhotoLink = document.getElementById('downloadPhotoLink');
+
+    const slashInput = document.getElementById('slashInput');
+    const btnSendSlash = document.getElementById('btnSendSlash');
+
+    // Simple 2D Canvas Cartoon Character Simulator to mimic 3D VRM
+    const ctx = characterCanvas.getContext('2d');
+    let animFrame = null;
+    let time = 0;
+    let blinkTimer = 0;
+    let isBlinking = false;
+
+    function drawGirlfriend() {
+      ctx.clearRect(0, 0, characterCanvas.width, characterCanvas.height);
+      time += 0.04;
+      blinkTimer++;
+      if (blinkTimer > 120 && Math.random() < 0.05) {
+        isBlinking = true;
+        if (blinkTimer > 130) {
+          blinkTimer = 0;
+          isBlinking = false;
+        }
+      }
+
+      const cx = characterCanvas.width / 2;
+      const cy = 340 + Math.sin(time) * 4; // Idle breathing
+      const scale = currentScale;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(scale, scale);
+
+      // Body (Dress)
+      ctx.fillStyle = '#f472b6'; // Pink
+      ctx.beginPath();
+      ctx.moveTo(-35, 30);
+      ctx.lineTo(35, 30);
+      ctx.lineTo(65, 170);
+      ctx.lineTo(-65, 170);
+      ctx.closePath();
+      ctx.fill();
+
+      // Neck
+      ctx.fillStyle = '#ffedd5';
+      ctx.fillRect(-10, -5, 20, 35);
+
+      // Arms
+      ctx.lineWidth = 14;
+      ctx.strokeStyle = '#ffedd5';
+      ctx.lineCap = 'round';
+      // Left arm waving slightly
+      ctx.beginPath();
+      ctx.moveTo(-30, 35);
+      ctx.quadraticCurveTo(-60, 70 + Math.sin(time * 1.5) * 8, -40, 110);
+      ctx.stroke();
+      // Right arm
+      ctx.beginPath();
+      ctx.moveTo(30, 35);
+      ctx.quadraticCurveTo(60, 70, 45, 110);
+      ctx.stroke();
+
+      // Head
+      ctx.fillStyle = '#ffedd5';
+      ctx.beginPath();
+      ctx.arc(0, -45, 42, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hair Back
+      ctx.fillStyle = '#6366f1'; // Indigo hair
+      ctx.beginPath();
+      ctx.arc(0, -45, 48, Math.PI * 0.8, Math.PI * 2.2);
+      ctx.fill();
+
+      // Eyes
+      ctx.fillStyle = '#312e81';
+      if (!isBlinking) {
+        ctx.beginPath();
+        ctx.arc(-16, -42, 6, 0, Math.PI * 2);
+        ctx.arc(16, -42, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye highlights
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(-18, -44, 2.5, 0, Math.PI * 2);
+        ctx.arc(14, -44, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Blinking line
+        ctx.strokeStyle = '#312e81';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-22, -42);
+        ctx.lineTo(-10, -42);
+        ctx.moveTo(10, -42);
+        ctx.lineTo(22, -42);
+        ctx.stroke();
+      }
+
+      // Blush
+      ctx.fillStyle = 'rgba(244, 114, 182, 0.5)';
+      ctx.beginPath();
+      ctx.arc(-22, -32, 6, 0, Math.PI * 2);
+      ctx.arc(22, -32, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Smile mouth
+      ctx.strokeStyle = '#e11d48';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, -32, 8, 0.2 * Math.PI, 0.8 * Math.PI);
+      ctx.stroke();
+
+      // Hair Bangs Front
+      ctx.fillStyle = '#6366f1';
+      ctx.beginPath();
+      ctx.moveTo(-44, -55);
+      ctx.quadraticCurveTo(-15, -30, 0, -50);
+      ctx.quadraticCurveTo(15, -30, 44, -55);
+      ctx.lineTo(35, -80);
+      ctx.lineTo(-35, -80);
+      ctx.closePath();
+      ctx.fill();
+
+      // Cat Ear Accents
+      ctx.fillStyle = '#f472b6';
+      ctx.beginPath();
+      ctx.moveTo(-35, -75);
+      ctx.lineTo(-50, -105);
+      ctx.lineTo(-20, -85);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(35, -75);
+      ctx.lineTo(50, -105);
+      ctx.lineTo(20, -85);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+
+      animFrame = requestAnimationFrame(drawGirlfriend);
+    }
+
+    drawGirlfriend();
+
+    // Enumerate Cameras
+    async function initCameraDevices() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        deviceCountBadge.textContent = '不支援設備偵測';
+        return;
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        if (videoDevices.length > 0) {
+          deviceCountBadge.textContent = `找到 ${videoDevices.length} 個視訊設備`;
+          cameraSelect.innerHTML = '';
+          videoDevices.forEach((device, index) => {
+            const opt = document.createElement('option');
+            opt.value = device.deviceId;
+            opt.text = device.label || `視訊攝影機 ${index + 1}`;
+            cameraSelect.appendChild(opt);
+          });
+          const mockOpt = document.createElement('option');
+          mockOpt.value = 'mock';
+          mockOpt.text = '模擬房間背景 (靜態測試照)';
+          cameraSelect.appendChild(mockOpt);
+        } else {
+          deviceCountBadge.textContent = '無可用實體鏡頭';
+        }
+      } catch (err) {
+        console.warn('Cannot enumerate devices:', err);
+        deviceCountBadge.textContent = '已受限或未取得授權';
+      }
+    }
+
+    initCameraDevices();
+
+    // Toggle AR Mode logic
+    async function setARMode(active) {
+      if (active === isARActive) return;
+      isARActive = active;
+
+      if (isARActive) {
+        // Try starting webcam
+        const selectedDevice = cameraSelect.value;
+        if (selectedDevice === 'mock') {
+          startMockVideo();
+        } else {
+          try {
+            const constraints = {
+              video: selectedDevice && selectedDevice !== 'default' ? { deviceId: { exact: selectedDevice } } : true,
+              audio: false
+            };
+            mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+            webcamVideo.srcObject = mediaStream;
+            webcamVideo.classList.remove('hidden');
+            fallbackRoomBg.classList.add('hidden');
+            setTimeout(() => {
+              webcamVideo.classList.remove('opacity-0');
+            }, 50);
+            notifyDialogue('開心', '哇！我看到主人的房間了～今天桌面好整齊呀！✨');
+          } catch (e) {
+            console.warn('Webcam permission denied or unavailable, using fallback mock:', e);
+            startMockVideo();
+            notifyDialogue('調皮', '雖然沒偵測到實體鏡頭，但我先換上了客廳背景哦！');
+          }
+        }
+
+        // UI Updates
+        desktopPatternBg.classList.add('opacity-0');
+        simulatedWindow.classList.add('ar-active-glow');
+        windowModeDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+        windowModeTitle.textContent = '視訊 AR 模式 (真實房間背景)';
+        arBadge.className = 'text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium';
+        arBadge.textContent = 'AR 運作中';
+
+        btnToolbarAR.className = 'flex items-center space-x-1 px-2.5 py-1 rounded-full text-emerald-300 bg-emerald-500/20 ring-1 ring-emerald-400/50 shadow transition group';
+        btnToolbarARText.textContent = 'AR ON';
+
+        btnMasterARToggle.className = 'px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs shadow-lg transition flex items-center gap-2';
+        masterBtnIcon.textContent = '⏹️';
+        masterBtnText.textContent = '關閉視訊 AR 模式';
+
+      } else {
+        // Stop stream
+        if (mediaStream) {
+          mediaStream.getTracks().forEach(track => track.stop());
+          mediaStream = null;
+        }
+        webcamVideo.classList.add('opacity-0');
+        fallbackRoomBg.classList.add('opacity-0');
+        setTimeout(() => {
+          webcamVideo.classList.add('hidden');
+          fallbackRoomBg.classList.add('hidden');
+        }, 400);
+
+        // UI Updates
+        desktopPatternBg.classList.remove('opacity-0');
+        simulatedWindow.classList.remove('ar-active-glow');
+        windowModeDot.className = 'w-2.5 h-2.5 rounded-full bg-pink-400 animate-pulse';
+        windowModeTitle.textContent = '桌面視窗預覽 (透明桌寵模式)';
+        arBadge.className = 'text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700';
+        arBadge.textContent = 'AR 關閉';
+
+        btnToolbarAR.className = 'flex items-center space-x-1 px-2.5 py-1 rounded-full text-slate-300 hover:text-emerald-400 hover:bg-emerald-500/10 transition group';
+        btnToolbarARText.textContent = 'AR';
+
+        btnMasterARToggle.className = 'px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-lg transition flex items-center gap-2';
+        masterBtnIcon.textContent = '🎥';
+        masterBtnText.textContent = '啟動筆電 AR 鏡頭';
+
+        notifyDialogue('害羞', '回到主人的透明桌面囉！我會乖乖陪你工作的～❤️');
+      }
+    }
+
+    function startMockVideo() {
+      fallbackRoomBg.classList.remove('hidden');
+      webcamVideo.classList.add('hidden');
+      setTimeout(() => {
+        fallbackRoomBg.classList.remove('opacity-0');
+      }, 50);
+    }
+
+    function notifyDialogue(emotion, message) {
+      emotionBadge.textContent = emotion;
+      dialogueText.textContent = message;
+    }
+
+    // Mirror Toggle
+    function toggleMirror() {
+      isMirror = !isMirror;
+      if (isMirror) {
+        webcamVideo.classList.add('video-mirror');
+        fallbackRoomBg.classList.add('video-mirror');
+        btnToggleMirror.textContent = '🪞 已開啟鏡像 (自拍鏡感)';
+        btnToggleMirror.className = 'flex-1 py-2 px-3 rounded-lg bg-pink-500/20 text-pink-300 border border-pink-500/40 hover:bg-pink-500/30 transition text-center font-medium';
+      } else {
+        webcamVideo.classList.remove('video-mirror');
+        fallbackRoomBg.classList.remove('video-mirror');
+        btnToggleMirror.textContent = '🔄 正常視角 (他人所見方向)';
+        btnToggleMirror.className = 'flex-1 py-2 px-3 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-750 transition text-center font-medium';
+      }
+    }
+
+    // Brightness Slider
+    sliderBrightness.addEventListener('input', (e) => {
+      brightness = e.target.value;
+      valBrightness.textContent = `${brightness}%`;
+      webcamVideo.style.filter = `brightness(${brightness}%)`;
+      fallbackRoomBg.style.filter = `brightness(${brightness}%)`;
+    });
+
+    // Distance Slider (Scaling model)
+    sliderDistance.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      if (val === 1) {
+        currentScale = 0.8;
+        valDistance.textContent = '遠景 (全身立體)';
+      } else if (val === 2) {
+        currentScale = 1.0;
+        valDistance.textContent = '中景 (桌前半身)';
+      } else {
+        currentScale = 1.25;
+        valDistance.textContent = '近景 (臉部特寫)';
+      }
+    });
+
+    // Button event bindings
+    btnToolbarAR.addEventListener('click', () => setARMode(!isARActive));
+    btnMasterARToggle.addEventListener('click', () => setARMode(!isARActive));
+    btnToggleMirror.addEventListener('click', toggleMirror);
+
+    // Snapshot Combine Logic
+    function captureARSnapshot() {
+      // Shutter flash
+      shutterOverlay.classList.remove('shutter-effect');
+      void shutterOverlay.offsetWidth;
+      shutterOverlay.classList.add('shutter-effect');
+
+      const compositeCanvas = document.createElement('canvas');
+      compositeCanvas.width = characterCanvas.width;
+      compositeCanvas.height = characterCanvas.height;
+      const cCtx = compositeCanvas.getContext('2d');
+
+      // 1. Draw Background
+      if (isARActive && mediaStream && webcamVideo.readyState >= 2) {
+        cCtx.save();
+        if (isMirror) {
+          cCtx.translate(compositeCanvas.width, 0);
+          cCtx.scale(-1, 1);
+        }
+        cCtx.filter = `brightness(${brightness}%)`;
+        cCtx.drawImage(webcamVideo, 0, 0, compositeCanvas.width, compositeCanvas.height);
+        cCtx.restore();
+      } else if (isARActive && !fallbackRoomBg.classList.contains('hidden')) {
+        // Draw simulated room color/gradient
+        const grad = cCtx.createLinearGradient(0, 0, 0, compositeCanvas.height);
+        grad.addColorStop(0, '#fde68a');
+        grad.addColorStop(1, '#78350f');
+        cCtx.fillStyle = grad;
+        cCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+      } else {
+        // Desktop transparent / dark gradient
+        cCtx.fillStyle = '#0f172a';
+        cCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+      }
+
+      // 2. Draw Girlfriend on top
+      cCtx.drawImage(characterCanvas, 0, 0);
+
+      // 3. Watermark
+      cCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      cCtx.font = '11px sans-serif';
+      cCtx.fillText('AI Girlfriend AR Photo', 12, compositeCanvas.height - 12);
+
+      // Output to Preview
+      const dataUrl = compositeCanvas.toDataURL('image/png');
+      photoPreviewImg.src = dataUrl;
+      downloadPhotoLink.href = dataUrl;
+      photoPlaceholder.classList.add('hidden');
+      photoPreviewContainer.classList.remove('hidden');
+
+      notifyDialogue('幸福', '喀嚓！拍好我們在房間的合照了～主人快看看好不好看！📸💕');
+    }
+
+    btnTakeARPhoto.addEventListener('click', captureARSnapshot);
+    btnToolbarSnapshot.addEventListener('click', captureARSnapshot);
+
+    // Slash command parser
+    function executeSlashCommand(input) {
+      const text = input.trim();
+      if (!text) return;
+
+      if (text === '/ar' || text === '/ar toggle') {
+        setARMode(!isARActive);
+      } else if (text === '/ar on') {
+        setARMode(true);
+      } else if (text === '/ar off') {
+        setARMode(false);
+      } else if (text === '/ar mirror') {
+        toggleMirror();
+      } else if (text === '/photo' || text === '/snapshot') {
+        captureARSnapshot();
+      } else {
+        notifyDialogue('疑惑', `收到訊息：「${text}」，主人真棒！`);
+      }
+      slashInput.value = '';
+    }
+
+    btnSendSlash.addEventListener('click', () => executeSlashCommand(slashInput.value));
+    slashInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') executeSlashCommand(slashInput.value);
+    });
+
+    document.querySelectorAll('.cmd-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        executeSlashCommand(btn.getAttribute('data-cmd'));
+      });
+    });
+  </script>
+</body>
+</html>
