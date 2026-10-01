@@ -66,3 +66,10 @@ body.in-browser {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(244, 114, 182, 0.6);
 }
+
+/* Stacking offset when both PuppetPoseBar and MultiAvatarBar are visible */
+#puppetPoseBar:not(.hidden) ~ #multiAvatarBar,
+#multiAvatarBar.stacked-offset {
+  top: 4.5rem !important;
+}
+
