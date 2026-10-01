@@ -3,6 +3,7 @@ import { SnapshotService } from './core/SnapshotService.js';
 import { ARManager } from './core/ARManager.js';
 import { HandTracker } from './core/HandTracker.js';
 import { RaycastManager } from './core/RaycastManager.js';
+import { AvatarManager } from './vrm/AvatarManager.js';
 import { AvatarController } from './vrm/AvatarController.js';
 import { AnimationController } from './vrm/AnimationController.js';
 import { EmotionController } from './vrm/EmotionController.js';
@@ -21,6 +22,7 @@ import { PuppetVisualizer } from './ui/PuppetVisualizer.js';
 import { HeartWidget } from './ui/HeartWidget.js';
 import { SettingsModal } from './ui/SettingsModal.js';
 import { PuppetPoseBar } from './ui/PuppetPoseBar.js';
+import { MultiAvatarBar } from './ui/MultiAvatarBar.js';
 
 import { ConversationManager } from './services/ConversationManager.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
@@ -52,8 +54,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 1. Initialize 3D Engine & Scene
   const sceneManager = new SceneManager(canvasContainer);
 
-  // 2. Initialize Controllers
-  const avatarController = new AvatarController(sceneManager);
+  // 2. Initialize Controllers with AvatarManager
+  const avatarManager = new AvatarManager(sceneManager, {
+    onSelectionChanged: (slot, index) => {
+      if (slot) {
+        costumeSelector?.setTargetAvatarTitle(slot.title);
+        poseManager?.reloadFromActiveAvatar();
+      }
+    }
+  });
+  const avatarController = avatarManager;
   const animationController = new AnimationController(avatarController);
   const emotionController = new EmotionController(avatarController);
   const lipSyncController = new LipSyncController(avatarController);
@@ -133,6 +143,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     puppetVisualizer.setVisible(isPuppetMode);
     if (puppetPoseBar) puppetPoseBar.setVisible(isPuppetMode);
     if (toolbar) toolbar.setPuppetActive(isPuppetMode);
+    if (multiAvatarBar?.element) {
+      multiAvatarBar.element.classList.toggle('stacked-offset', isPuppetMode);
+    }
 
     if (isPuppetMode) {
       if (arManager.isActive && arManager.getVideoElement()) {
@@ -160,6 +173,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     poseModal,
     (text, emotion) => showBubble(text, emotion),
     sceneManager
+  );
+
+  const multiAvatarBar = new MultiAvatarBar(
+    uiContainer,
+    avatarManager,
+    (text, emotion) => showBubble(text, emotion)
   );
 
   const handleSlashCommand = async (cmdText) => {
@@ -274,6 +293,88 @@ window.addEventListener('DOMContentLoaded', async () => {
         return true;
       }
     }
+    if (trimmed === '/clone' || trimmed === '/clone toggle') {
+      const isVis = multiAvatarBar.toggle();
+      toolbar.setCloneActive(isVis);
+      return true;
+    }
+    if (trimmed === '/clone on') {
+      multiAvatarBar.setVisible(true);
+      toolbar.setCloneActive(true);
+      return true;
+    }
+    if (trimmed === '/clone off') {
+      multiAvatarBar.setVisible(false);
+      toolbar.setCloneActive(false);
+      return true;
+    }
+    if (trimmed === '/clone add' || trimmed === '/clone spawn') {
+      try {
+        const slot = await avatarManager.spawnClone();
+        showBubble(`忍法・影分身！召喚了${slot.title}～✨`, 'happy');
+        chatBox.addAssistantMessage(`已召喚${slot.title}！點擊人偶或頂部標籤即可切換選中與調整姿勢。`);
+      } catch (err) {
+        showBubble(err.message, 'surprised');
+        chatBox.addAssistantMessage(`⚠️ ${err.message}`);
+      }
+      return true;
+    }
+    if (trimmed.startsWith('/clone add ') || trimmed.startsWith('/clone spawn ')) {
+      const costKey = trimmed.replace('/clone add ', '').replace('/clone spawn ', '').trim();
+      try {
+        const slot = await avatarManager.spawnClone(costKey);
+        showBubble(`忍法・影分身！召喚了穿著「${costKey}」的${slot.title}～✨`, 'happy');
+        chatBox.addAssistantMessage(`已召喚${slot.title}（外觀：${costKey}）！`);
+      } catch (err) {
+        showBubble(err.message, 'surprised');
+        chatBox.addAssistantMessage(`⚠️ ${err.message}`);
+      }
+      return true;
+    }
+    if (trimmed === '/clone remove' || trimmed === '/clone delete') {
+      const activeSlot = avatarManager.getActiveSlot();
+      const title = activeSlot?.title || '分身';
+      const success = avatarManager.removeClone();
+      if (success) {
+        showBubble(`已收回${title}～`, 'happy');
+        chatBox.addAssistantMessage(`已成功移除${title}。`);
+      } else {
+        showBubble('主身無法移除喔！至少需保留一個人偶。', 'shy');
+        chatBox.addAssistantMessage('⚠️ 主身人偶無法移除，至少必須保留 1 個人偶在場景中。');
+      }
+      return true;
+    }
+    if (trimmed === '/clone reset') {
+      avatarManager.resetPositions();
+      showBubble('所有人偶已重新均勻排開站位！', 'happy');
+      chatBox.addAssistantMessage('已為主人將所有同台人偶均勻排開站位～');
+      return true;
+    }
+    if (trimmed === '/clone sync') {
+      avatarManager.syncPoseToAll();
+      showBubble('已將當前選中人偶姿勢同步至全員！💃', 'happy');
+      chatBox.addAssistantMessage('已將當前姿勢同步廣播給所有人偶囉～');
+      return true;
+    }
+    if (trimmed === '/clone list') {
+      const slots = avatarManager.getAllSlots();
+      const listStr = slots.map((s, i) => `${i === avatarManager.activeIndex ? '👉 ' : '   '}• ${s.title} (外觀: ${s.costumeKey}, X: ${s.vrm?.scene?.position?.x?.toFixed(2) || 0})`).join('\n');
+      chatBox.addAssistantMessage(`目前同台人偶清單 (${slots.length}/4)：\n${listStr}`);
+      return true;
+    }
+    if (trimmed.startsWith('/clone select ')) {
+      const numStr = trimmed.replace('/clone select ', '').trim();
+      const idx = parseInt(numStr, 10) - 1;
+      if (!isNaN(idx) && idx >= 0 && idx < avatarManager.slots.length) {
+        avatarManager.selectAvatar(idx);
+        const slot = avatarManager.getActiveSlot();
+        showBubble(`切換控制：${slot.title}！`, 'happy');
+        chatBox.addAssistantMessage(`已切換至「${slot.title}」，接下來的姿勢與換裝將以此人偶為目標。`);
+      } else {
+        chatBox.addAssistantMessage(`請輸入有效的人偶編號（1 ~ ${avatarManager.slots.length}）。`);
+      }
+      return true;
+    }
     return false;
   };
 
@@ -292,7 +393,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   }, handleSlashCommand);
 
   const costumeSelector = new CostumeSelector(uiContainer, (costumeId) => {
-    let reply = '好呀，馬上換裝給你看！';
+    const targetTitle = avatarManager.getActiveSlot()?.title || '人偶';
+    let reply = `好呀，馬上為${targetTitle}換裝給你看！`;
     if (costumeId === 'ayame') {
       reply = 'Konnakiri～！余是百鬼綾目！主人今天也是元氣滿滿的一天呢～😈';
     } else if (costumeId === 'mint') {
@@ -373,6 +475,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     onPuppet: () => {
       togglePuppetMode();
     },
+    onClone: () => {
+      const isVis = multiAvatarBar.toggle();
+      toolbar.setCloneActive(isVis);
+    },
     onViewToggle: () => {
       sceneManager.setCameraPreset('toggle');
       const isFull = sceneManager.targetCameraDist > 2.6;
@@ -392,7 +498,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Enable pointer events for active UI children
-  [toolbar.element, chatBox.element, costumeSelector.element, actionSelector.element, poseModal.element, heartWidget.element, settingsModal.element, puppetPoseBar.element].forEach(el => {
+  [toolbar.element, chatBox.element, costumeSelector.element, actionSelector.element, poseModal.element, heartWidget.element, settingsModal.element, puppetPoseBar.element, multiAvatarBar.element].forEach(el => {
     if (el) el.style.pointerEvents = 'auto';
   });
 

@@ -47,6 +47,10 @@ export class Toolbar {
         <span class="text-lg">🤏</span>
         <span class="text-xs hidden md:inline">玩偶</span>
       </button>
+      <button id="btnClone" class="flex items-center space-x-1 text-slate-300 hover:text-cyan-300 p-2 rounded-full hover:bg-white/5 transition" title="開關影分身控制列（多人偶同台）">
+        <span class="text-lg">👥</span>
+        <span class="text-xs hidden md:inline">分身</span>
+      </button>
       <button id="btnView" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="切換視角 (半身特寫 / 全身視角)">
         <span class="text-lg">🧍</span>
         <span class="text-xs hidden md:inline">視角</span>
@@ -72,6 +76,7 @@ export class Toolbar {
     this.element.querySelector('#btnSnapshot').addEventListener('click', () => this.handlers.onSnapshot?.());
     this.element.querySelector('#btnAR').addEventListener('click', () => this.handlers.onAR?.());
     this.element.querySelector('#btnPuppet').addEventListener('click', () => this.handlers.onPuppet?.());
+    this.element.querySelector('#btnClone').addEventListener('click', () => this.handlers.onClone?.());
     this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
     this.element.querySelector('#btnLeave').addEventListener('click', () => this.handlers.onLeave?.());
     this.element.querySelector('#btnSettings').addEventListener('click', () => this.handlers.onSettings?.());
@@ -142,5 +147,18 @@ export class Toolbar {
       if (txt) txt.textContent = '玩偶';
     }
   }
+
+  setCloneActive(active) {
+    const btn = this.element.querySelector('#btnClone');
+    if (!btn) return;
+    if (active) {
+      btn.classList.add('text-cyan-200', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60');
+      btn.title = '影分身控制列已開啟 (可隨時點擊隱藏)';
+    } else {
+      btn.classList.remove('text-cyan-200', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60');
+      btn.title = '開關影分身控制列（多人偶同台）';
+    }
+  }
 }
+
 
