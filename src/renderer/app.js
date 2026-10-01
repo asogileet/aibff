@@ -18,6 +18,11 @@ import { ConversationManager } from './services/ConversationManager.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Apply in-browser styling if running outside Electron (e.g. mobile or web browser)
+  if (!window.electronAPI) {
+    document.body.classList.add('in-browser');
+  }
+
   const canvasContainer = document.getElementById('canvas-container');
   const uiContainer = document.getElementById('ui-container');
   const dialogueBubble = document.getElementById('dialogueBubble');
@@ -51,6 +56,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   sceneManager.addUpdatable(emotionController);
   sceneManager.addUpdatable(lipSyncController);
   sceneManager.addUpdatable(eyeTrackingController);
+
+  // Mobile Web Audio autoplay policy unlock on first user gesture
+  const unlockAudio = () => {
+    if (lipSyncController.audioContext && lipSyncController.audioContext.state === 'suspended') {
+      lipSyncController.audioContext.resume();
+    }
+  };
+  window.addEventListener('touchstart', unlockAudio, { once: true });
+  window.addEventListener('click', unlockAudio, { once: true });
 
   // 3. UI Modules
   let isResting = false;
@@ -90,9 +104,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  const apiBase = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://'))
+    ? window.location.origin
+    : 'http://127.0.0.1:8765';
+
   const settingsModal = new SettingsModal(uiContainer, async (newConfig) => {
     try {
-      await fetch('http://127.0.0.1:8765/api/config', {
+      await fetch(`${apiBase}/api/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newConfig)
@@ -194,8 +212,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   wsClient.connect();
 
   // 7. Initial Model Load
-  await avatarController.loadCostume('casual');
-  showBubble('主人好！今天有什麼我可以陪你的嗎？', 'happy');
+  try {
+    await avatarController.loadCostume('casual');
+    showBubble('主人好！今天有什麼我可以陪你的嗎？', 'happy');
+  } catch (err) {
+    console.warn('[App] Initial model load notice:', err);
+    showBubble('主人好！今天有什麼我可以陪你的嗎？', 'happy');
+  }
 
   // 8. Bind Electron IPC listeners (Tray & Global Shortcuts)
   if (window.electronAPI) {

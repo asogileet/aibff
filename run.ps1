@@ -42,9 +42,14 @@ Write-Host ""
 
 # 2. Launch Python Backend Service
 Write-Host "[2/3] Starting Python backend service (Port: 8765)..." -ForegroundColor Yellow
-Start-Process -FilePath "python" -ArgumentList "-m", "uvicorn", "backend.app:app", "--host", "127.0.0.1", "--port", "8765" -WindowStyle Minimized -ErrorAction SilentlyContinue
+Start-Process -FilePath "python" -ArgumentList "-m", "uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8765" -WindowStyle Minimized -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
-Write-Host "[SUCCESS] Backend service is running in background." -ForegroundColor Green
+Write-Host "[SUCCESS] Backend service is running in background (0.0.0.0:8765)." -ForegroundColor Green
+
+$localIps = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback|vEthernet' -and $_.IPAddress -notmatch '^169\.254\.' } | Select-Object -ExpandProperty IPAddress
+if ($localIps) {
+    Write-Host "[MOBILE] Mobile Web URL: http://$($localIps[0]):8765/" -ForegroundColor Magenta
+}
 Write-Host ""
 
 # 3. Launch Electron Frontend

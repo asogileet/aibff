@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>手機版角色切換與載入反饋最佳化 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 30%, #1e1b4b 0%, #0f172a 60%, #020617 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .mobile-phone-frame {
+      width: 390px;
+      height: 844px;
+      border-radius: 48px;
+      border: 12px solid #334155;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      position: relative;
+      overflow: hidden;
+    }
+    @keyframes spinPulse {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-spinner {
+      border: 3px solid rgba(244, 114, 182, 0.2);
+      border-top-color: #f472b6;
+      border-radius: 50%;
+      animation: spinPulse 0.9s linear infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 flex flex-col items-center justify-center p-6 bg-slate-950">
+
+  <div class="mb-6 text-center max-w-xl">
+    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-pink-500/20 text-pink-300 text-xs font-semibold mb-2 border border-pink-500/30">
+      <span>📱 行動端體驗修復方案</span>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-2">手機版角色切換與載入體驗最佳化</h1>
+    <p class="text-sm text-slate-400">解決行動瀏覽器下模型載入路徑解析、底部工具列定位重疊、大型 VRM 下載進度提示與自然語言切換問題。</p>
+  </div>
+
+  <!-- Mobile Screen Simulator -->
+  <div class="mobile-phone-frame flex flex-col justify-between p-4 relative bg-gradient-to-b from-slate-950/40 via-indigo-950/20 to-slate-950/80">
+
+    <!-- Top Status Bar & Model Header -->
+    <div class="z-20 flex items-center justify-between pt-4 px-2">
+      <div class="flex items-center space-x-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+        <span class="text-xs text-slate-300 font-mono">192.168.10.156</span>
+      </div>
+      <div class="text-[11px] bg-indigo-500/20 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/30">
+        當前角色: <span id="currentRoleText" class="font-bold text-pink-300">泳裝薄荷 (Mint)</span>
+      </div>
+    </div>
+
+    <!-- Dialogue Speech Bubble -->
+    <div id="dialogueBubble" class="absolute top-16 left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-4 py-2.5 rounded-2xl shadow-xl w-[86%] transition-all duration-300 border-pink-500/30 flex items-start space-x-2 z-30">
+      <span id="emotionTag" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40">開心</span>
+      <p id="dialogueText" class="leading-relaxed flex-1">哇！是海邊的感覺！我是薄荷，主人要和我一起去海邊玩嗎～？🩱</p>
+    </div>
+
+    <!-- 3D Avatar Center Graphic Placeholder -->
+    <div class="flex-1 flex flex-col items-center justify-center relative pointer-events-none">
+      <div id="avatarGraphic" class="w-48 h-80 rounded-2xl border border-dashed border-pink-500/30 flex flex-col items-center justify-center p-4 text-center bg-slate-900/30 backdrop-blur-sm transition-all duration-500">
+        <div id="avatarIcon" class="text-7xl mb-3 drop-shadow-[0_0_20px_rgba(244,114,182,0.6)]">🩱</div>
+        <div id="avatarName" class="text-sm font-bold text-pink-300">泳裝薄荷 (Mint)</div>
+        <div id="avatarInfo" class="text-[11px] text-slate-400 mt-1">mint_swimsuit.vrm (18.4 MB)</div>
+        
+        <!-- Loading Indicator Overlay inside avatar canvas during switch -->
+        <div id="loadingOverlay" class="hidden absolute inset-0 bg-slate-950/80 rounded-2xl flex flex-col items-center justify-center p-4">
+          <div class="w-8 h-8 loading-spinner mb-3"></div>
+          <div class="text-xs text-pink-300 font-medium">模型下載與解析中...</div>
+          <div id="loadPercent" class="text-[10px] text-slate-400 mt-1 font-mono">載入進度 68%</div>
+          <div class="w-32 bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+            <div id="loadProgressBar" class="bg-pink-500 h-full w-2/3 transition-all duration-300"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Popover Costume Selector Menu (Mobile Optimized) -->
+    <div id="costumeMenu" class="absolute bottom-24 left-1/2 -translate-x-1/2 glass-panel rounded-2xl p-4 shadow-2xl border border-indigo-500/40 w-[90%] z-40">
+      <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+        <span class="text-xs font-semibold text-indigo-300 flex items-center">
+          <span class="mr-1">👗</span> 選擇角色與外觀 (Mobile Ready)
+        </span>
+        <button id="btnCloseMenu" class="text-slate-400 hover:text-white text-xs px-2 py-1">✕</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <button onclick="simulateSwitch('mint', '泳裝薄荷 (Mint)', '🩱', 'mint_swimsuit.vrm', '哇！是海邊的感覺！我是薄荷，主人要和我一起去海邊玩嗎～？🩱')" class="costume-btn p-2 rounded-lg bg-pink-900/40 hover:bg-pink-600/40 border border-pink-400/50 text-left transition flex items-center space-x-2">
+          <span class="text-xl">🩱</span>
+          <div>
+            <div class="font-medium text-pink-200 text-xs">泳裝薄荷</div>
+            <div class="text-[10px] text-slate-400">18.4 MB</div>
+          </div>
+        </button>
+
+        <button onclick="simulateSwitch('ayame', '百鬼綾目 (Ayame)', '😈', 'ayame.vrm', 'Konnakiri～！余是百鬼綾目！主人今天也是元氣滿滿的一天呢～😈')" class="costume-btn p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span class="text-xl">😈</span>
+          <div>
+            <div class="font-medium text-slate-200 text-xs">百鬼綾目</div>
+            <div class="text-[10px] text-slate-400">15.5 MB</div>
+          </div>
+        </button>
+
+        <button onclick="simulateSwitch('casual', '日常便服 (小櫻)', '👚', 'costume_casual.vrm', '換回舒適的便服啦！主人現在想做什麼呢？')" class="costume-btn p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span class="text-xl">👚</span>
+          <div>
+            <div class="font-medium text-slate-200 text-xs">日常便服</div>
+            <div class="text-[10px] text-slate-400">Alicia Solid</div>
+          </div>
+        </button>
+
+        <button onclick="simulateSwitch('school', '青春水手服', '🎀', 'costume_school.vrm', '水手服換好了！主人覺得有校園戀愛的感覺嗎？')" class="costume-btn p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span class="text-xl">🎀</span>
+          <div>
+            <div class="font-medium text-slate-200 text-xs">青春水手服</div>
+            <div class="text-[10px] text-slate-400">校園風</div>
+          </div>
+        </button>
+
+        <button onclick="simulateSwitch('gothic', '哥德蘿莉裝', '🖤', 'costume_gothic.vrm', '黑暗優雅的哥德風……主人會害怕這樣的我嗎？')" class="costume-btn p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span class="text-xl">🖤</span>
+          <div>
+            <div class="font-medium text-slate-200 text-xs">哥德蘿莉</div>
+            <div class="text-[10px] text-slate-400">黑色禮服</div>
+          </div>
+        </button>
+
+        <button onclick="simulateSwitch('seed', '未來科技裝', '✨', 'costume_seed.vrm', '科技護甲啟動！小櫻隨時待命保護主人！')" class="costume-btn p-2 rounded-lg bg-indigo-900/40 hover:bg-indigo-600/40 border border-indigo-400/30 text-left transition flex items-center space-x-2">
+          <span class="text-xl">✨</span>
+          <div>
+            <div class="font-medium text-slate-200 text-xs">未來科技</div>
+            <div class="text-[10px] text-slate-400">Cyber Cyan</div>
+          </div>
+        </button>
+      </div>
+
+      <div class="mt-2 text-[10px] text-slate-400 text-center">
+        💡 提示：也可以在聊天中輸入「換成百鬼」或「換角色」進行切換
+      </div>
+    </div>
+
+    <!-- Fixed Bottom Toolbar (Optimized for Mobile Touch) -->
+    <div class="z-50 pb-2 flex justify-center">
+      <div id="bottomToolbar" class="glass-panel rounded-full px-4 py-2 flex items-center justify-around space-x-2 shadow-2xl border border-slate-700/60 max-w-[94vw] w-full">
+        <button class="flex flex-col items-center text-slate-300 p-1.5 rounded-full hover:bg-white/5">
+          <span class="text-xl">🎤</span>
+          <span class="text-[9px]">語音</span>
+        </button>
+        <button class="flex flex-col items-center text-slate-300 p-1.5 rounded-full hover:bg-white/5">
+          <span class="text-xl">💬</span>
+          <span class="text-[9px]">對話</span>
+        </button>
+        <button id="btnToggleCostume" onclick="toggleMenu()" class="flex flex-col items-center text-pink-400 p-1.5 rounded-full bg-pink-500/20 ring-2 ring-pink-500/50">
+          <span class="text-xl">👗</span>
+          <span class="text-[9px] font-bold">換裝</span>
+        </button>
+        <button class="flex flex-col items-center text-slate-300 p-1.5 rounded-full hover:bg-white/5">
+          <span class="text-xl">💃</span>
+          <span class="text-[9px]">動作</span>
+        </button>
+        <button class="flex flex-col items-center text-slate-300 p-1.5 rounded-full hover:bg-white/5">
+          <span class="text-xl">🧍</span>
+          <span class="text-[9px]">視角</span>
+        </button>
+        <button class="flex flex-col items-center text-slate-300 p-1.5 rounded-full hover:bg-white/5">
+          <span class="text-xl">⚙️</span>
+          <span class="text-[9px]">設定</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function toggleMenu() {
+      const menu = document.getElementById('costumeMenu');
+      menu.classList.toggle('hidden');
+    }
+
+    document.getElementById('btnCloseMenu').addEventListener('click', () => {
+      document.getElementById('costumeMenu').classList.add('hidden');
+    });
+
+    function simulateSwitch(id, name, icon, file, speech) {
+      const loading = document.getElementById('loadingOverlay');
+      const progressBar = document.getElementById('loadProgressBar');
+      const loadPercent = document.getElementById('loadPercent');
+      const dialogueText = document.getElementById('dialogueText');
+      const emotionTag = document.getElementById('emotionTag');
+
+      // 1. Show immediate loading state
+      loading.classList.remove('hidden');
+      progressBar.style.width = '15%';
+      loadPercent.innerText = '正在下載 ' + file + ' (15%)...';
+      dialogueText.innerText = '正在切換至「' + name + '」，請稍候一下下唷～✨';
+      emotionTag.innerText = '切換中';
+
+      // 2. Simulate progressive network download
+      setTimeout(() => {
+        progressBar.style.width = '60%';
+        loadPercent.innerText = '載入模型網格與材質 (60%)...';
+      }, 400);
+
+      setTimeout(() => {
+        progressBar.style.width = '100%';
+        loadPercent.innerText = 'VRM 骨骼初始化完成！';
+      }, 900);
+
+      setTimeout(() => {
+        loading.classList.add('hidden');
+        document.getElementById('avatarIcon').innerText = icon;
+        document.getElementById('avatarName').innerText = name;
+        document.getElementById('avatarInfo').innerText = file;
+        document.getElementById('currentRoleText').innerText = name;
+        dialogueText.innerText = speech;
+        emotionTag.innerText = '開心';
+        document.getElementById('costumeMenu').classList.add('hidden');
+      }, 1200);
+    }
+  </script>
+</body>
+</html>

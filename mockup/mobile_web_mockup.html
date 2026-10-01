@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>手機版網頁 (Mobile Web) - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.3);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>📱</span> 3D 桌面伴侶 - 手機網頁版 (Mobile Web) 原型
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          方案 A：透過同 Wi-Fi 區域網路直接存取，支援單指旋轉、雙指縮放、底部抽屜式聊天與行動音訊解鎖
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Wi-Fi LAN: 192.168.10.156</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Touch Gesture Ready</span>
+        <span class="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Mobile Autoplay Gate</span>
+      </div>
+    </header>
+
+    <!-- Main Comparison Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      
+      <!-- Left: Mobile Phone Simulation Frame (5 cols) -->
+      <div class="lg:col-span-5 flex justify-center">
+        <!-- Phone Bezel (375x760) -->
+        <div class="relative w-[360px] h-[720px] bg-slate-900 rounded-[44px] p-3 shadow-[0_25px_60px_-15px_rgba(236,72,153,0.3)] border-4 border-slate-700 flex flex-col overflow-hidden">
+          
+          <!-- Speaker & Camera Dynamic Island -->
+          <div class="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-5 bg-black rounded-full z-50 flex items-center justify-center">
+            <div class="w-2.5 h-2.5 rounded-full bg-slate-900 mr-2"></div>
+            <div class="w-2 h-2 rounded-full bg-indigo-950"></div>
+          </div>
+
+          <!-- Phone Inner Screen -->
+          <div class="relative w-full h-full bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950/80 rounded-[34px] overflow-hidden flex flex-col justify-between select-none">
+            
+            <!-- Top Status Bar -->
+            <div class="pt-2 px-6 flex justify-between items-center text-[10px] text-slate-400 z-40">
+              <span id="phoneClock" class="font-semibold">12:00</span>
+              <div class="flex items-center space-x-1.5 text-xs">
+                <span>📶 5G</span>
+                <span>🔋 98%</span>
+              </div>
+            </div>
+
+            <!-- Dialogue Bubble at Top -->
+            <div class="pt-6 px-4 z-30">
+              <div id="mockBubble" class="glass-panel text-xs text-pink-200 px-3.5 py-2.5 rounded-2xl shadow-xl border border-pink-500/30 flex items-start space-x-2 transition-all">
+                <span class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40 shrink-0">開心</span>
+                <p id="mockDialogueText" class="leading-relaxed flex-1 text-[11px]">主人好！用手機看到我了嗎？我也好想你呢～💕</p>
+              </div>
+            </div>
+
+            <!-- 3D Character Simulation Canvas Area -->
+            <div id="mockCanvasArea" class="absolute inset-0 flex items-center justify-center pointer-events-auto cursor-grab active:cursor-grabbing">
+              <!-- Visual Guide Grids -->
+              <div class="absolute inset-0 bg-[radial-gradient(#ec489915_1px,transparent_1px)] [background-size:20px_20px]"></div>
+
+              <!-- Character Silhouette Simulation -->
+              <div class="relative flex flex-col items-center transition-transform duration-200" id="mockAvatarBody">
+                <div class="w-16 h-16 rounded-full bg-pink-300/30 border-2 border-pink-400 flex items-center justify-center text-2xl shadow-lg shadow-pink-500/20">
+                  👧
+                </div>
+                <div class="w-12 h-24 bg-pink-200/20 rounded-t-xl mt-1 border border-pink-400/40"></div>
+                <div class="flex space-x-2 mt-1">
+                  <div class="w-4 h-28 bg-pink-200/20 rounded-b-md border border-pink-400/40"></div>
+                  <div class="w-4 h-28 bg-pink-200/20 rounded-b-md border border-pink-400/40"></div>
+                </div>
+                <span class="absolute -bottom-6 text-[10px] text-pink-300 bg-slate-950/70 px-2 py-0.5 rounded-full border border-pink-500/30">單指滑動旋轉視角</span>
+              </div>
+            </div>
+
+            <!-- Audio Unlock Splash Overlay (First Visit on Mobile) -->
+            <div id="audioUnlockOverlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center space-y-4">
+              <div class="w-16 h-16 rounded-full bg-pink-600/30 border border-pink-500/50 flex items-center justify-center text-3xl shadow-xl animate-bounce">
+                💖
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-slate-100">點擊螢幕喚醒小櫻</h3>
+                <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  手機瀏覽器限制需使用者點擊後解鎖音訊播放。
+                </p>
+              </div>
+              <button onclick="unlockAudio()" class="px-5 py-2.5 rounded-full bg-gradient-to-r from-pink-600 to-rose-500 text-white text-xs font-semibold shadow-lg shadow-pink-500/30 hover:scale-105 active:scale-95 transition">
+                進入陪伴模式 (開始)
+              </button>
+            </div>
+
+            <!-- Bottom Floating Action Toolbar (Optimized for Thumb) -->
+            <div class="px-3 pb-5 z-40 space-y-2">
+              <div class="glass-panel rounded-full px-3 py-2 flex items-center justify-around shadow-2xl border border-pink-500/30">
+                <button onclick="toggleChatDrawer()" class="flex flex-col items-center text-slate-300 hover:text-pink-400 active:scale-90 transition">
+                  <span class="text-base">💬</span>
+                  <span class="text-[9px]">對話</span>
+                </button>
+                <button onclick="triggerQuickAction('dance')" class="flex flex-col items-center text-slate-300 hover:text-pink-400 active:scale-90 transition">
+                  <span class="text-base">💃</span>
+                  <span class="text-[9px]">動作</span>
+                </button>
+                <button onclick="triggerQuickAction('costume')" class="flex flex-col items-center text-slate-300 hover:text-pink-400 active:scale-90 transition">
+                  <span class="text-base">👗</span>
+                  <span class="text-[9px]">換裝</span>
+                </button>
+                <button onclick="toggleMobileView()" class="flex flex-col items-center text-slate-300 hover:text-pink-400 active:scale-90 transition">
+                  <span class="text-base">🧍</span>
+                  <span id="lblMobileView" class="text-[9px]">全身</span>
+                </button>
+                <button onclick="triggerQuickAction('heart')" class="flex flex-col items-center text-slate-300 hover:text-pink-400 active:scale-90 transition">
+                  <span class="text-base">💖</span>
+                  <span class="text-[9px]">比心</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Bottom Sheet: Chat Drawer (Slide up when tapping Chat) -->
+            <div id="chatDrawer" class="hidden absolute bottom-0 inset-x-0 glass-panel rounded-t-3xl p-4 z-40 border-t border-pink-500/40 shadow-2xl space-y-3 transition-transform">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                <span class="text-xs font-semibold text-pink-300">與小櫻文字聊天</span>
+                <button onclick="toggleChatDrawer(false)" class="text-slate-400 hover:text-white text-xs">✕</button>
+              </div>
+              <div class="h-32 overflow-y-auto space-y-2 text-xs custom-scrollbar pr-1" id="chatList">
+                <div class="bg-pink-500/20 text-pink-200 p-2 rounded-xl border border-pink-500/30 max-w-[85%]">
+                  主人好呀！今天有什麼想跟我聊的嗎？
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <input id="mobileChatInput" type="text" placeholder="輸入訊息..." class="flex-1 bg-slate-950 border border-slate-700 rounded-full px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-pink-500" onkeydown="if(event.key==='Enter') sendMobileMessage()" />
+                <button onclick="sendMobileMessage()" class="px-3.5 py-1.5 rounded-full bg-pink-600 hover:bg-pink-500 text-white text-xs font-medium shrink-0">發送</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Technical Specification & Connection Steps (7 cols) -->
+      <div class="lg:col-span-7 space-y-5">
+        
+        <!-- Connection Card -->
+        <div class="glass-panel rounded-2xl p-6 shadow-xl space-y-4">
+          <h2 class="text-sm font-bold text-pink-400 flex items-center gap-2">
+            <span>📡</span> 方案 A：區域網路 (Wi-Fi) 連線流程
+          </h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+              <span class="text-slate-400 font-semibold block">步驟 1：確認手機與電腦在同一 Wi-Fi</span>
+              <p class="text-slate-400 text-[11px] leading-relaxed">
+                手機需連線至與電腦相同的路由器 Wi-Fi 名稱（LAN 內網互通）。
+              </p>
+            </div>
+            <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+              <span class="text-slate-400 font-semibold block">步驟 2：後端啟用 0.0.0.0 監聽</span>
+              <p class="text-slate-400 text-[11px] leading-relaxed">
+                後端啟動參數由 <code class="text-pink-300">--host 127.0.0.1</code> 調整為 <code class="text-emerald-300">--host 0.0.0.0</code>。
+              </p>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-xl bg-slate-900 border border-pink-500/30 flex items-center justify-between">
+            <div class="space-y-1">
+              <span class="text-[11px] text-slate-400">手機瀏覽器連線網址 (已自動偵測本機 IP)：</span>
+              <div class="text-base font-mono text-pink-300 font-bold tracking-wide">
+                http://192.168.10.156:8765/
+              </div>
+            </div>
+            <button onclick="navigator.clipboard.writeText('http://192.168.10.156:8765/')" class="px-3 py-1.5 rounded-lg bg-pink-600/30 border border-pink-500/40 text-pink-200 text-xs hover:bg-pink-600/50">
+              複製網址
+            </button>
+          </div>
+        </div>
+
+        <!-- Touch Controls & Architecture Details -->
+        <div class="glass-panel rounded-2xl p-6 shadow-xl space-y-3 text-xs">
+          <h3 class="font-bold text-slate-200 flex items-center gap-2">
+            <span>🖐️</span> 行動端手勢客製化規格
+          </h3>
+          <table class="w-full text-left border-collapse text-[11px]">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400">
+                <th class="py-2">手勢操作 (Touch)</th>
+                <th class="py-2">對應 3D 動作</th>
+                <th class="py-2">技術實作機制</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-slate-300">
+              <tr>
+                <td class="py-2 text-pink-300 font-medium">單指拖曳 (Single Touch)</td>
+                <td>360 度環繞旋轉視角</td>
+                <td>監聽 <code>touchstart / touchmove</code> 計算 deltaX/deltaY 驅動 Orbit Theta/Phi</td>
+              </tr>
+              <tr>
+                <td class="py-2 text-pink-300 font-medium">雙指捏合 (Pinch to Zoom)</td>
+                <td>相機拉近/拉遠 (特寫/全身)</td>
+                <td>計算兩指間距 <code>hypot(dx, dy)</code> 平滑 Lerp 調整 <code>targetCameraDist</code></td>
+              </tr>
+              <tr>
+                <td class="py-2 text-pink-300 font-medium">單指輕點頭部 (Tap Head)</td>
+                <td>摸頭反應、害羞表情、語音反饋</td>
+                <td>觸控座標轉為 NDC Normalized Device Coordinates 進行 Raycast 射線碰撞</td>
+              </tr>
+              <tr>
+                <td class="py-2 text-pink-300 font-medium">首屏點擊 (Audio Gate)</td>
+                <td>解鎖 Web Audio 聲音播放</td>
+                <td>使用者觸控解鎖 <code>AudioContext.resume()</code> 符合 iOS/Android 限制</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Fast Static Hosting Architecture -->
+        <div class="glass-panel rounded-2xl p-6 shadow-xl space-y-2 text-xs">
+          <h3 class="font-bold text-slate-200 flex items-center gap-2">
+            <span>⚙️</span> FastAPI 整合靜態站點架構
+          </h3>
+          <p class="text-slate-400 text-[11px] leading-relaxed">
+            透過 FastAPI 的 <code class="text-pink-300">StaticFiles</code> 掛載前端頁面、Three.js 核心與 VRM 3D 模型資源。手機只要連入 <code class="text-emerald-300">http://&lt;IP&gt;:8765/</code> 即可直接載入完整 3D 伴侶體驗，不需要額外架設 Nginx 或獨立 Web Server。
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Update Clock in phone
+    function updateClock() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const el = document.getElementById('phoneClock');
+      if (el) el.innerText = timeStr;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function unlockAudio() {
+      const overlay = document.getElementById('audioUnlockOverlay');
+      overlay.classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => overlay.remove(), 300);
+    }
+
+    function toggleChatDrawer(force = null) {
+      const drawer = document.getElementById('chatDrawer');
+      if (force === false) {
+        drawer.classList.add('hidden');
+      } else if (force === true) {
+        drawer.classList.remove('hidden');
+      } else {
+        drawer.classList.toggle('hidden');
+      }
+    }
+
+    function sendMobileMessage() {
+      const input = document.getElementById('mobileChatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const list = document.getElementById('chatList');
+      const userMsg = document.createElement('div');
+      userMsg.className = 'bg-indigo-600/40 text-indigo-100 p-2 rounded-xl border border-indigo-500/30 max-w-[85%] ml-auto text-right';
+      userMsg.innerText = text;
+      list.appendChild(userMsg);
+      input.value = '';
+
+      // Simulate reply
+      setTimeout(() => {
+        const aiMsg = document.createElement('div');
+        aiMsg.className = 'bg-pink-500/20 text-pink-200 p-2 rounded-xl border border-pink-500/30 max-w-[85%]';
+        aiMsg.innerText = '主人，我在手機上也隨時陪伴著你哦！';
+        list.appendChild(aiMsg);
+        document.getElementById('mockDialogueText').innerText = '主人，我在手機上也隨時陪伴著你哦！';
+        list.scrollTop = list.scrollHeight;
+      }, 600);
+    }
+
+    let isFullView = false;
+    function toggleMobileView() {
+      isFullView = !isFullView;
+      const avatar = document.getElementById('mockAvatarBody');
+      const lbl = document.getElementById('lblMobileView');
+      if (isFullView) {
+        avatar.style.transform = 'scale(0.7) translateY(40px)';
+        lbl.innerText = '半身';
+      } else {
+        avatar.style.transform = 'scale(1.0) translateY(0px)';
+        lbl.innerText = '全身';
+      }
+    }
+
+    function triggerQuickAction(action) {
+      if (action === 'heart') {
+        document.getElementById('mockDialogueText').innerText = '最喜歡主人了！比心～💖';
+      } else if (action === 'dance') {
+        document.getElementById('mockDialogueText').innerText = '主人想看小櫻跳舞嗎？馬上準備！💃';
+      } else if (action === 'costume') {
+        document.getElementById('mockDialogueText').innerText = '好呀，要換哪一套衣服呢？👗';
+      }
+    }
+
+    // Touch / Drag Simulation
+    let isDragging = false;
+    let startX = 0;
+    let currentRot = 0;
+    const canvas = document.getElementById('mockCanvasArea');
+    const avatar = document.getElementById('mockAvatarBody');
+
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - startX;
+      currentRot += deltaX * 0.4;
+      avatar.style.transform = `rotateY(${currentRot}deg) ${isFullView ? 'scale(0.7) translateY(40px)' : ''}`;
+      startX = e.clientX;
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+  </script>
+</body>
+</html>

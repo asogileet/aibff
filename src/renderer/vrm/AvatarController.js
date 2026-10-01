@@ -10,15 +10,18 @@ export class AvatarController {
     this.loader = new GLTFLoader();
     this.loader.register((parser) => new VRMLoaderPlugin(parser));
 
-    // Costume VRM file mapping
+    const isWeb = typeof window !== 'undefined' && !window.electronAPI;
+    const baseDir = isWeb ? '/assets/models/' : '../../assets/models/';
+
+    // Costume VRM file mapping with environment-aware root paths
     this.costumePaths = {
-      casual: '../../assets/models/costume_casual.vrm',
-      school: '../../assets/models/costume_school.vrm',
-      stylish: '../../assets/models/costume_stylish.vrm',
-      gothic: '../../assets/models/costume_gothic.vrm',
-      seed: '../../assets/models/costume_seed.vrm',
-      ayame: '../../assets/models/ayame.vrm',
-      mint: '../../assets/models/mint_swimsuit.vrm'
+      casual: `${baseDir}costume_casual.vrm`,
+      school: `${baseDir}costume_school.vrm`,
+      stylish: `${baseDir}costume_stylish.vrm`,
+      gothic: `${baseDir}costume_gothic.vrm`,
+      seed: `${baseDir}costume_seed.vrm`,
+      ayame: `${baseDir}ayame.vrm`,
+      mint: `${baseDir}mint_swimsuit.vrm`
     };
 
     // Forward face orientation for each model standard
@@ -42,7 +45,7 @@ export class AvatarController {
     return this.modelOrientations[costumeKey] !== undefined ? this.modelOrientations[costumeKey] : Math.PI;
   }
 
-  async loadCostume(costumeKey = 'casual') {
+  async loadCostume(costumeKey = 'casual', onProgress = null) {
     const vrmPath = this.costumePaths[costumeKey] || this.costumePaths.casual;
     console.log(`[AvatarController] Loading costume '${costumeKey}' from ${vrmPath}...`);
 
@@ -50,7 +53,12 @@ export class AvatarController {
       const loader = new GLTFLoader();
       loader.register((parser) => new VRMLoaderPlugin(parser));
 
-      const gltf = await loader.loadAsync(vrmPath);
+      const gltf = await loader.loadAsync(vrmPath, (xhr) => {
+        if (typeof onProgress === 'function' && xhr.total) {
+          const percent = Math.round((xhr.loaded / xhr.total) * 100);
+          onProgress(percent);
+        }
+      });
       const vrm = gltf.userData.vrm;
       if (!vrm) {
         throw new Error('No VRM instance found in loaded asset');
@@ -63,11 +71,12 @@ export class AvatarController {
       console.log(`[AvatarController] Successfully loaded and setup costume '${costumeKey}'.`);
       return vrm;
     } catch (err) {
-      console.warn(`[AvatarController] Failed to load ${vrmPath}: ${err.message}`);
-      if (this.currentVRM) return this.currentVRM;
-      const fallbackVRM = this._createProceduralAvatar(costumeKey);
-      this._setupVRM(fallbackVRM, costumeKey);
-      return fallbackVRM;
+      console.error(`[AvatarController] Failed to load ${vrmPath}: ${err.message}`, err);
+      if (!this.currentVRM) {
+        const fallbackVRM = this._createProceduralAvatar(costumeKey);
+        this._setupVRM(fallbackVRM, costumeKey);
+      }
+      throw err;
     }
   }
 

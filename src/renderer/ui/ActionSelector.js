@@ -29,7 +29,7 @@ export class ActionSelector {
   _render() {
     this.element = document.createElement('div');
     this.element.id = 'actionMenu';
-    this.element.className = 'hidden absolute bottom-20 left-1/2 -translate-x-1/2 glass-panel rounded-2xl p-4 shadow-2xl border border-pink-500/40 w-84 z-40 max-h-96 overflow-y-auto';
+    this.element.className = 'hidden fixed bottom-20 left-1/2 -translate-x-1/2 glass-panel rounded-2xl p-4 shadow-2xl border border-pink-500/40 w-[92vw] max-w-sm z-50 pointer-events-auto max-h-[75vh] overflow-y-auto';
 
     let buttonsHtml = '';
     for (const item of this.actions) {

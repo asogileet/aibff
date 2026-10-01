@@ -7,9 +7,11 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+from pathlib import Path
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.config import load_config, save_config, AppConfig
@@ -153,6 +155,19 @@ async def websocket_endpoint(websocket: WebSocket):
         print("[WebSocket] Client disconnected.")
     except Exception as e:
         print(f"[WebSocket] Error: {e}")
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
+# Mount static asset folders for mobile browser and web clients
+if (ROOT_DIR / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(ROOT_DIR / "assets")), name="assets")
+if (ROOT_DIR / "node_modules").exists():
+    app.mount("/node_modules", StaticFiles(directory=str(ROOT_DIR / "node_modules")), name="node_modules")
+
+# Mount renderer directory at root for web browser access
+RENDERER_DIR = ROOT_DIR / "src" / "renderer"
+if RENDERER_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(RENDERER_DIR), html=True), name="renderer")
 
 if __name__ == "__main__":
     import uvicorn

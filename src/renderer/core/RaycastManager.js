@@ -59,6 +59,26 @@ export class RaycastManager {
         this._checkHeadClick(e);
       }
     });
+
+    // Mobile touch tap detection for head pat
+    let touchStartTime = 0;
+    let touchStartPos = { x: 0, y: 0 };
+    dom.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        touchStartTime = Date.now();
+        touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    }, { passive: true });
+
+    dom.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1 && Date.now() - touchStartTime < 350) {
+        const touch = e.changedTouches[0];
+        const dist = Math.hypot(touch.clientX - touchStartPos.x, touch.clientY - touchStartPos.y);
+        if (dist < 10) {
+          this._checkHeadClick({ clientX: touch.clientX, clientY: touch.clientY });
+        }
+      }
+    }, { passive: true });
   }
 
   _checkHeadClick(e) {

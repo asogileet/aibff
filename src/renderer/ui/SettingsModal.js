@@ -319,7 +319,10 @@ export class SettingsModal {
 
   async loadConfig() {
     try {
-      const res = await fetch('http://127.0.0.1:8765/api/config');
+      const apiBase = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://'))
+        ? window.location.origin
+        : 'http://127.0.0.1:8765';
+      const res = await fetch(`${apiBase}/api/config`);
       if (!res.ok) return;
       const cfg = await res.json();
       this.currentConfig = cfg;

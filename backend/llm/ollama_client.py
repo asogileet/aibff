@@ -222,6 +222,16 @@ class OllamaLLMClient:
             elif any(w in raw_lower for w in ["薄荷", "泳裝", "mint"]):
                 action = "change_costume"
                 costume = "mint"
+            elif any(w in raw_lower for w in ["哥德", "蘿莉", "暗黑裝", "gothic"]):
+                action = "change_costume"
+                costume = "gothic"
+            elif any(w in raw_lower for w in ["便服", "日常裝", "休閒裝", "小櫻", "casual"]):
+                action = "change_costume"
+                costume = "casual"
+            elif any(w in raw_lower for w in ["換角色", "切換角色", "換人", "換個角色", "換裝", "換衣服"]):
+                action = "change_costume"
+                # Default toggle between favorite characters
+                costume = "ayame" if "ayame" not in raw_lower else "mint"
             elif any(w in raw_lower for w in ["去休息", "先休息", "晚安"]):
                 action = "leave"
 

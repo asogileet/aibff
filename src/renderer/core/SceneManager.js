@@ -106,6 +106,52 @@ export class SceneManager {
         this.isRightDragging = false;
       }
     });
+
+    // 3. Mobile touch controls: single touch orbit & pinch-to-zoom
+    this.touchStartDist = null;
+    this.lastTouchPos = null;
+
+    dom.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      } else if (e.touches.length === 2) {
+        this.touchStartDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
+    }, { passive: true });
+
+    dom.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && this.lastTouchPos) {
+        const deltaX = e.touches[0].clientX - this.lastTouchPos.x;
+        const deltaY = e.touches[0].clientY - this.lastTouchPos.y;
+        this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+
+        this.targetOrbitTheta -= deltaX * 0.008;
+        this.targetOrbitPhi += deltaY * 0.006;
+        this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -0.45, 0.55);
+      } else if (e.touches.length === 2 && this.touchStartDist) {
+        const currentDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const diff = (this.touchStartDist - currentDist) * 0.006;
+        this.targetCameraDist = THREE.MathUtils.clamp(this.targetCameraDist + diff, this.minDist, this.maxDist);
+        this.touchStartDist = currentDist;
+      }
+    }, { passive: true });
+
+    dom.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        this.touchStartDist = null;
+      }
+      if (e.touches.length === 1) {
+        this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      } else if (e.touches.length === 0) {
+        this.lastTouchPos = null;
+      }
+    }, { passive: true });
   }
 
   setCameraPreset(mode = 'toggle') {

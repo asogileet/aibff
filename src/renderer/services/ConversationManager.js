@@ -1,8 +1,14 @@
 export class ConversationManager {
-  constructor(actionController, chatBox, backendBaseUrl = 'http://127.0.0.1:8765') {
+  constructor(actionController, chatBox, backendBaseUrl = null) {
     this.actionController = actionController;
     this.chatBox = chatBox;
-    this.baseUrl = backendBaseUrl;
+    if (backendBaseUrl) {
+      this.baseUrl = backendBaseUrl;
+    } else if (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://')) {
+      this.baseUrl = window.location.origin;
+    } else {
+      this.baseUrl = 'http://127.0.0.1:8765';
+    }
     this.isProcessing = false;
   }
 

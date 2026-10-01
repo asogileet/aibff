@@ -12,7 +12,7 @@ export class Toolbar {
   _render() {
     this.element = document.createElement('div');
     this.element.id = 'bottomToolbar';
-    this.element.className = 'glass-panel rounded-full px-5 py-2 flex items-center space-x-4 shadow-2xl transition-all duration-300 border-slate-700/60 hover:border-pink-500/40 opacity-30 hover:opacity-100';
+    this.element.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto glass-panel rounded-full px-3 sm:px-5 py-1.5 sm:py-2 flex items-center justify-around sm:justify-start space-x-1 sm:space-x-4 shadow-2xl transition-all duration-300 border-slate-700/60 hover:border-pink-500/40 opacity-90 sm:opacity-40 sm:hover:opacity-100 max-w-[95vw] overflow-x-auto';
 
     this.element.innerHTML = `
       <button id="btnMic" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="即時語音對話 (Faster-Whisper)">

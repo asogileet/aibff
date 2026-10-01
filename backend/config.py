@@ -24,7 +24,7 @@ class CharacterConfig(BaseModel):
         "'reply' (your spoken words in Traditional/Simplified Chinese), "
         "'emotion' ('happy' | 'shy' | 'caring' | 'angry' | 'surprised' | 'neutral'), "
         "'action' ('idle' | 'wave' | 'comfort' | 'leave' | 'return' | 'change_costume' | 'head_pat'), "
-        "'costume' (null or one of 'casual', 'school', 'stylish', 'gothic', 'seed')."
+        "'costume' (null or one of 'casual', 'school', 'stylish', 'gothic', 'seed', 'ayame', 'mint')."
     )
 
 class TTSConfig(BaseModel):
@@ -42,7 +42,7 @@ class STTConfig(BaseModel):
 
 class AppConfig(BaseModel):
     server_port: int = 8765
-    server_host: str = "127.0.0.1"
+    server_host: str = "0.0.0.0"
     llm: LLMConfig = Field(default_factory=LLMConfig)
     character: CharacterConfig = Field(default_factory=CharacterConfig)
     tts: TTSConfig = Field(default_factory=TTSConfig)

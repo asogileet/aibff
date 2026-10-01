@@ -12,7 +12,7 @@ export class ChatBox {
   _render() {
     this.element = document.createElement('div');
     this.element.id = 'chatModal';
-    this.element.className = 'hidden absolute bottom-20 left-1/2 -translate-x-1/2 w-96 glass-panel rounded-2xl p-4 shadow-2xl border border-pink-500/30 z-40';
+    this.element.className = 'hidden fixed bottom-20 left-1/2 -translate-x-1/2 w-[92vw] max-w-sm glass-panel rounded-2xl p-4 shadow-2xl border border-pink-500/30 z-50 pointer-events-auto';
 
     this.element.innerHTML = `
       <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">

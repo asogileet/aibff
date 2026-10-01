@@ -182,23 +182,43 @@ export class ActionController {
   async _handleCostumeChange(costumeKey, reply, audioBase64) {
     if (!costumeKey) costumeKey = 'casual';
 
+    // Show initial switching speech bubble
+    if (typeof this.uiCallbacks.showDialogue === 'function') {
+      this.uiCallbacks.showDialogue('正在更換角色外觀中，請稍候一下下唷～✨', 'happy');
+    }
+
     // Play 360 degree spin and particle burst
     this.sceneManager.spawnHeartParticles(12);
 
-    // Concurrently load costume so large models load seamlessly during spin
-    const loadPromise = this.avatarController.loadCostume(costumeKey);
+    try {
+      // Concurrently load costume and track progress
+      const loadPromise = this.avatarController.loadCostume(costumeKey);
 
-    this.animationController.playSpin(async () => {
-      try {
-        await loadPromise;
-      } catch (e) {
-        console.warn('[ActionController] Error awaiting costume load in spin:', e);
+      this.animationController.playSpin(async () => {
+        try {
+          await loadPromise;
+          this.sceneManager.spawnHeartParticles(8);
+          // Show character-specific greetings after successful load
+          if (reply && typeof this.uiCallbacks.showDialogue === 'function') {
+            this.uiCallbacks.showDialogue(reply, 'happy');
+          }
+          if (audioBase64) {
+            await this.lipSyncController.playAudioBase64(audioBase64);
+          } else if (reply && typeof this.uiCallbacks.onPatSpeech === 'function') {
+            this.uiCallbacks.onPatSpeech(reply);
+          }
+        } catch (e) {
+          console.warn('[ActionController] Error loading costume in spin:', e);
+          if (typeof this.uiCallbacks.showDialogue === 'function') {
+            this.uiCallbacks.showDialogue('角色載入失敗，請確認網路連線後再試一次！', 'shy');
+          }
+        }
+      });
+    } catch (err) {
+      console.error('[ActionController] Costume change error:', err);
+      if (typeof this.uiCallbacks.showDialogue === 'function') {
+        this.uiCallbacks.showDialogue('換裝遇到問題，請稍候再試～', 'shy');
       }
-      this.sceneManager.spawnHeartParticles(6);
-    });
-
-    if (audioBase64) {
-      await this.lipSyncController.playAudioBase64(audioBase64);
     }
   }
 
