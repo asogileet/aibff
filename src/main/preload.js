@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeWindow: () => ipcRenderer.send('window:close'),
   setRestingMode: (resting) => ipcRenderer.send('window:set-resting-mode', resting),
   setStartup: (enable) => ipcRenderer.send('app:set-startup', enable),
+  toggleFullscreen: () => ipcRenderer.invoke('window:toggle-fullscreen'),
+  setIgnoreMouseEvents: (ignore, forward) => ipcRenderer.send('window:set-ignore-mouse-events', { ignore, forward }),
 
   // File & Snapshot Operations
   saveSnapshot: (payload) => ipcRenderer.invoke('app:save-snapshot', payload),

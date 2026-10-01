@@ -14,14 +14,32 @@ export class RaycastManager {
     this.startPos = { x: 0, y: 0 };
     this.startTime = 0;
     this.DRAG_THRESHOLD = 5; // Pixels
+    this.puppetController = null;
 
     this._bindEvents();
+  }
+
+  setPuppetController(puppetController) {
+    this.puppetController = puppetController;
   }
 
   _bindEvents() {
     const dom = this.sceneManager.renderer.domElement;
 
     dom.addEventListener('mousedown', (e) => {
+      // In puppet mode, lock window dragging completely on left-click so pulling puppet limbs is never interrupted
+      if (this.puppetController && this.puppetController.isEnabled) {
+        if (e.button === 2) {
+          // In small desktop window mode (<=600px), right-click moves the window.
+          // In full-screen mode, let SceneManager handle right-click to pan avatar across the screen!
+          if (window.innerWidth <= 600) {
+            this.isMouseDown = true;
+            this.isDragging = false;
+            this.startPos = { x: e.screenX, y: e.screenY };
+          }
+        }
+        return;
+      }
       if (e.button !== 0) return; // Left click only
       this.isMouseDown = true;
       this.isDragging = false;
@@ -30,6 +48,9 @@ export class RaycastManager {
     });
 
     window.addEventListener('mousemove', (e) => {
+      if (this.puppetController && this.puppetController.isEnabled && !this.isMouseDown) {
+        return;
+      }
       if (!this.isMouseDown) return;
 
       const deltaX = e.screenX - this.startPos.x;
@@ -38,8 +59,8 @@ export class RaycastManager {
 
       if (distance > this.DRAG_THRESHOLD) {
         this.isDragging = true;
-        // Request Electron main process to move transparent window
-        if (window.electronAPI && typeof window.electronAPI.moveWindow === 'function') {
+        // Request Electron main process to move transparent window only in small window mode
+        if (window.innerWidth <= 600 && window.electronAPI && typeof window.electronAPI.moveWindow === 'function') {
           window.electronAPI.moveWindow({ mouseX: deltaX, mouseY: deltaY });
           this.startPos = { x: e.screenX, y: e.screenY };
         }

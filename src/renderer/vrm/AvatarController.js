@@ -41,6 +41,10 @@ export class AvatarController {
     return this.currentVRM;
   }
 
+  get currentVrm() {
+    return this.currentVRM;
+  }
+
   getFrontRotation(costumeKey) {
     return this.modelOrientations[costumeKey] !== undefined ? this.modelOrientations[costumeKey] : Math.PI;
   }

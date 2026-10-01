@@ -13,6 +13,8 @@ export class SceneManager {
     this.fullBodyTargetY = 0.75;  // Target height for full body center
     this.targetPanY = 1.25;
     this.currentPanY = 1.25;
+    this.targetPanX = 0.0;
+    this.currentPanX = 0.0;
     this.isCustomTargetY = false;
     this.cameraTarget = new THREE.Vector3(0.0, this.bustTargetY, 0.0);
     this.currentCameraDist = 1.8;
@@ -99,20 +101,26 @@ export class SceneManager {
         const deltaY = e.clientY - this.lastMousePos.y;
         this.lastMousePos = { x: e.clientX, y: e.clientY };
 
-        if (e.shiftKey) {
+        const isFullscreen = window.innerWidth > 600;
+        if (isFullscreen && !e.altKey) {
+          // In full-screen mode, right-click drag pans the avatar across the screen
+          const panFactor = this.currentCameraDist * 0.0016;
+          this.setCameraPan(this.targetPanX - deltaX * panFactor, this.targetPanY + deltaY * panFactor);
+        } else if (e.shiftKey) {
           // Shift + Right drag: Pan target height (head to feet)
           this.setCameraTargetY(this.targetPanY + deltaY * 0.005);
         } else {
           // Orbit around avatar
           this.targetOrbitTheta -= deltaX * 0.008;
           this.targetOrbitPhi += deltaY * 0.006;
-          // Clamp vertical elevation to allow looking directly down at head top or up from feet
           this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
         }
       } else if (this.isMiddleDragging) {
+        const deltaX = e.clientX - this.lastMousePos.x;
         const deltaY = e.clientY - this.lastMousePos.y;
         this.lastMousePos = { x: e.clientX, y: e.clientY };
-        this.setCameraTargetY(this.targetPanY + deltaY * 0.005);
+        const panFactor = this.currentCameraDist * 0.0016;
+        this.setCameraPan(this.targetPanX - deltaX * panFactor, this.targetPanY + deltaY * panFactor);
       }
     });
 
@@ -192,6 +200,29 @@ export class SceneManager {
     this.targetPanY = THREE.MathUtils.clamp(y, -0.2, 2.2);
   }
 
+  setCameraPan(x, y) {
+    if (x !== undefined) this.targetPanX = THREE.MathUtils.clamp(x, -6.0, 6.0);
+    if (y !== undefined) {
+      this.isCustomTargetY = true;
+      this.targetPanY = THREE.MathUtils.clamp(y, -0.5, 3.0);
+    }
+  }
+
+  setCameraPanPreset(preset = 'center') {
+    const aspect = this.container.clientWidth / (this.container.clientHeight || 1);
+    const distFactor = Math.max(1.0, this.currentCameraDist * 0.4);
+    if (preset === 'right') {
+      // Moves camera target left so avatar sits on the right side of the screen
+      this.setCameraPan(-aspect * 0.55 * distFactor, this.targetPanY);
+    } else if (preset === 'left') {
+      // Moves camera target right so avatar sits on the left side of the screen
+      this.setCameraPan(aspect * 0.55 * distFactor, this.targetPanY);
+    } else {
+      // Center
+      this.setCameraPan(0.0, this.targetPanY);
+    }
+  }
+
   setCameraDistance(dist) {
     this.targetCameraDist = THREE.MathUtils.clamp(dist, this.minDist, this.maxDist);
   }
@@ -236,6 +267,7 @@ export class SceneManager {
   }
 
   resetCamera() {
+    this.targetPanX = 0.0;
     this.setCameraPreset('bust');
   }
 
@@ -245,6 +277,7 @@ export class SceneManager {
       const t = THREE.MathUtils.clamp((this.currentCameraDist - 1.5) / (3.6 - 1.5), 0.0, 1.0);
       this.targetPanY = THREE.MathUtils.lerp(this.bustTargetY, this.fullBodyTargetY, t);
     }
+    this.cameraTarget.x = this.currentPanX;
     this.cameraTarget.y = this.currentPanY;
 
     // Calculate spherical position relative to cameraTarget
@@ -366,6 +399,7 @@ export class SceneManager {
 
     // Smooth camera distance, pan height & orbit angle lerp
     this.currentCameraDist = THREE.MathUtils.lerp(this.currentCameraDist, this.targetCameraDist, delta * 8.0);
+    this.currentPanX = THREE.MathUtils.lerp(this.currentPanX, this.targetPanX, delta * 8.0);
     this.currentPanY = THREE.MathUtils.lerp(this.currentPanY, this.targetPanY, delta * 8.0);
     this.orbitTheta = THREE.MathUtils.lerp(this.orbitTheta, this.targetOrbitTheta, delta * 10.0);
     this.orbitPhi = THREE.MathUtils.lerp(this.orbitPhi, this.targetOrbitPhi, delta * 10.0);

@@ -33,7 +33,8 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    console.log(`[Renderer] ${message}`);
+    const filename = sourceId ? sourceId.split('/').pop() : 'inline';
+    console.log(`[Renderer] ${message} (${filename}:${line})`);
   });
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
@@ -163,11 +164,41 @@ function registerShortcuts() {
   });
 }
 
+let isFullscreenCanvas = false;
+let lastWindowBounds = null;
+
 // IPC Handlers
 ipcMain.on('window:move', (event, { mouseX, mouseY }) => {
-  if (!mainWindow) return;
+  if (!mainWindow || isFullscreenCanvas) return;
   const { x, y } = mainWindow.getBounds();
   mainWindow.setPosition(x + mouseX, y + mouseY);
+});
+
+ipcMain.handle('window:toggle-fullscreen', () => {
+  if (!mainWindow) return false;
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  isFullscreenCanvas = !isFullscreenCanvas;
+  if (isFullscreenCanvas) {
+    lastWindowBounds = mainWindow.getBounds();
+    mainWindow.setBounds({ x: 0, y: 0, width: screenWidth, height: screenHeight });
+  } else {
+    const fallbackBounds = {
+      width: 480,
+      height: 720,
+      x: Math.max(0, screenWidth - 480 - 30),
+      y: Math.max(0, screenHeight - 720 - 10)
+    };
+    mainWindow.setBounds(lastWindowBounds || fallbackBounds);
+  }
+  return isFullscreenCanvas;
+});
+
+ipcMain.on('window:set-ignore-mouse-events', (event, { ignore, forward }) => {
+  if (mainWindow) {
+    mainWindow.setIgnoreMouseEvents(ignore, { forward: forward !== false });
+  }
 });
 
 ipcMain.on('window:minimize', () => {

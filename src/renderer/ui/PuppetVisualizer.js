@@ -9,7 +9,7 @@ export class PuppetVisualizer {
     this.puppetController = puppetController;
     this.canvas = null;
     this.ctx = null;
-    this.isVisible = false;
+    this.isVisible = true;
 
     this._initCanvas();
   }
@@ -17,7 +17,7 @@ export class PuppetVisualizer {
   _initCanvas() {
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'puppetVisualizerCanvas';
-    this.canvas.className = 'fixed inset-0 w-screen h-screen pointer-events-none z-40 hidden';
+    this.canvas.className = 'fixed inset-0 w-screen h-screen pointer-events-none z-40';
     this.container.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
 
@@ -83,15 +83,24 @@ export class PuppetVisualizer {
         // Chinese Joint Label
         const labelMap = {
           head: '摸頭',
+          neck: '轉頸',
+          chest: '挺胸',
+          spine: '彎腰',
           hips: '抓腰提拔',
-          rightHand: '右手',
+          leftLowerArm: '左手肘',
+          rightLowerArm: '右手肘',
           leftHand: '左手',
-          rightFoot: '右腳',
-          leftFoot: '左腳'
+          rightHand: '右手',
+          leftUpperLeg: '左大腿',
+          rightUpperLeg: '右大腿',
+          leftLowerLeg: '左膝蓋',
+          rightLowerLeg: '右膝蓋',
+          leftFoot: '左腳',
+          rightFoot: '右腳'
         };
         const label = labelMap[key] || key;
         ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-        ctx.fillRect(pos.x - 28, pos.y - 28, 56, 18);
+        ctx.fillRect(pos.x - 32, pos.y - 28, 64, 18);
         ctx.fillStyle = isGrabbed ? '#6ee7b7' : '#fbcfe8';
         ctx.font = '11px sans-serif';
         ctx.textAlign = 'center';

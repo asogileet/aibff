@@ -20,6 +20,7 @@ import { PoseModal } from './ui/PoseModal.js';
 import { PuppetVisualizer } from './ui/PuppetVisualizer.js';
 import { HeartWidget } from './ui/HeartWidget.js';
 import { SettingsModal } from './ui/SettingsModal.js';
+import { PuppetPoseBar } from './ui/PuppetPoseBar.js';
 
 import { ConversationManager } from './services/ConversationManager.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
@@ -73,9 +74,21 @@ window.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('touchstart', unlockAudio, { once: true });
   window.addEventListener('click', unlockAudio, { once: true });
 
+  // F11 Fullscreen Canvas shortcut
+  window.addEventListener('keydown', async (e) => {
+    if (e.key === 'F11') {
+      e.preventDefault();
+      if (window.electronAPI?.toggleFullscreen) {
+        const isFull = await window.electronAPI.toggleFullscreen();
+        if (puppetPoseBar) puppetPoseBar.setFullscreenState(isFull);
+        showBubble(isFull ? '🖥️ 已切換為全螢幕透明畫布模式！' : '已切換回桌面懸浮小視窗～', 'happy');
+      }
+    }
+  });
+
   // 3. UI & Feature Modules
   let isResting = false;
-  let isPuppetMode = false;
+  let isPuppetMode = true; // Enabled by default for direct mouse puppet interaction
 
   const puppetController = new PuppetController(
     avatarController,
@@ -118,18 +131,19 @@ window.addEventListener('DOMContentLoaded', async () => {
     isPuppetMode = forceState !== null ? forceState : !isPuppetMode;
     puppetController.setEnabled(isPuppetMode);
     puppetVisualizer.setVisible(isPuppetMode);
+    if (puppetPoseBar) puppetPoseBar.setVisible(isPuppetMode);
     if (toolbar) toolbar.setPuppetActive(isPuppetMode);
 
     if (isPuppetMode) {
       if (arManager.isActive && arManager.getVideoElement()) {
         await handTracker.startCameraTracking(arManager.getVideoElement());
       }
-      showBubble('🤏 玩偶拉扯模式已開啟！可以用手指或滑鼠抓我的手腳喔～✨', 'happy');
-      chatBox.addAssistantMessage('🤏 已開啟人偶拉扯模式！伸出手指靠近手腕或腳踝捏合抓取，即可隨心所欲牽引拉動～');
+      showBubble('🤏 玩偶捏人模式已開啟！按住手、腳拉出姿勢，放開即自動保持，點擊「存為新姿勢」可隨時保存～✨', 'happy');
+      chatBox.addAssistantMessage('🤏 玩偶捏人模式已開啟！拉扯肢體放開後會保持形狀，點擊上方「存為新姿勢」即可永久儲存；想恢復站姿點擊「復位」即可。');
     } else {
       handTracker.stopCameraTracking();
-      showBubble('已退出玩偶拉扯模式～', 'happy');
-      chatBox.addAssistantMessage('已關閉人偶拉扯模式，恢復自然互動狀態。');
+      showBubble('已恢復普通桌面模式（可隨意拖曳移動視窗）～', 'happy');
+      chatBox.addAssistantMessage('已退出玩偶拉扯模式，現在按住滑鼠可以移動應用程式視窗。');
     }
     return isPuppetMode;
   };
@@ -137,6 +151,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   const snapshotService = new SnapshotService(sceneManager, arManager);
   const poseManager = new PoseManager(avatarController, animationController);
   const poseModal = new PoseModal(uiContainer, poseManager, sceneManager, showBubble);
+
+  puppetController.setPoseManager(poseManager);
+  const puppetPoseBar = new PuppetPoseBar(
+    uiContainer,
+    puppetController,
+    poseManager,
+    poseModal,
+    (text, emotion) => showBubble(text, emotion),
+    sceneManager
+  );
 
   const handleSlashCommand = async (cmdText) => {
     const trimmed = cmdText.trim();
@@ -150,6 +174,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     if (trimmed === '/puppet off') {
       await togglePuppetMode(false);
+      return true;
+    }
+    if (trimmed === '/fullscreen' || trimmed === '/fs') {
+      if (window.electronAPI?.toggleFullscreen) {
+        const isFull = await window.electronAPI.toggleFullscreen();
+        puppetPoseBar.setFullscreenState(isFull);
+        showBubble(isFull ? '🖥️ 已切換為全螢幕透明畫布模式！' : '已切換回桌面懸浮小視窗～', 'happy');
+      }
       return true;
     }
     if (trimmed === '/ar' || trimmed === '/ar toggle') {
@@ -360,7 +392,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Enable pointer events for active UI children
-  [toolbar.element, chatBox.element, costumeSelector.element, actionSelector.element, poseModal.element, heartWidget.element, settingsModal.element].forEach(el => {
+  [toolbar.element, chatBox.element, costumeSelector.element, actionSelector.element, poseModal.element, heartWidget.element, settingsModal.element, puppetPoseBar.element].forEach(el => {
     if (el) el.style.pointerEvents = 'auto';
   });
 
@@ -386,6 +418,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         costumeSelector.toggle(false);
         actionSelector.toggle(false);
         poseModal.toggle(false);
+        puppetPoseBar.setVisible(false);
         heartWidget.show();
         if (window.electronAPI?.setRestingMode) {
           window.electronAPI.setRestingMode(true);
@@ -396,6 +429,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         heartWidget.hide();
         canvasContainer.style.display = 'block';
         toolbar.element.style.display = 'flex';
+        if (isPuppetMode) {
+          puppetPoseBar.setVisible(true);
+        }
         if (window.electronAPI?.setRestingMode) {
           window.electronAPI.setRestingMode(false);
         }
@@ -410,12 +446,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     poseManager
   );
 
-  // 5. Raycast Interaction (Head Pat vs Drag)
-  new RaycastManager(sceneManager, avatarController, (hitPoint) => {
+  // 5. Raycast Interaction (Head Pat vs Drag vs Puppet)
+  const raycastManager = new RaycastManager(sceneManager, avatarController, (hitPoint) => {
     if (!isResting) {
       actionController.triggerHeadPat(hitPoint);
     }
   });
+  raycastManager.setPuppetController(puppetController);
+  toolbar.setPuppetActive(true);
 
   // 6. Services
   const conversationManager = new ConversationManager(actionController, chatBox);

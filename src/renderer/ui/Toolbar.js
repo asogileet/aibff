@@ -131,12 +131,15 @@ export class Toolbar {
   setPuppetActive(active) {
     const btn = this.element.querySelector('#btnPuppet');
     if (!btn) return;
+    const txt = btn.querySelector('span:nth-child(2)');
     if (active) {
       btn.classList.add('text-cyan-300', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60', 'animate-pulse');
-      btn.title = '人偶手指拉扯互動中 (點擊關閉)';
+      btn.title = '玩偶拉扯中 (視窗已鎖定，滑鼠點擊任意部位拉扯！點擊切換為移動視窗)';
+      if (txt) txt.textContent = '拉扯中';
     } else {
       btn.classList.remove('text-cyan-300', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60', 'animate-pulse');
-      btn.title = '開關手指人偶肢體拉扯互動';
+      btn.title = '開關手指/滑鼠人偶肢體拉扯互動 (開啟時鎖定視窗)';
+      if (txt) txt.textContent = '玩偶';
     }
   }
 }
