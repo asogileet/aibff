@@ -11,11 +11,14 @@ export class SceneManager {
     this.defaultCameraPos = new THREE.Vector3(0.0, 1.35, 1.8);
     this.bustTargetY = 1.25;      // Target height for bust / face close-up
     this.fullBodyTargetY = 0.75;  // Target height for full body center
+    this.targetPanY = 1.25;
+    this.currentPanY = 1.25;
+    this.isCustomTargetY = false;
     this.cameraTarget = new THREE.Vector3(0.0, this.bustTargetY, 0.0);
     this.currentCameraDist = 1.8;
     this.targetCameraDist = 1.8;
-    this.minDist = 0.75;  // Close-up face zoom
-    this.maxDist = 4.2;   // Full body view from head to feet
+    this.minDist = 0.15;  // Extreme close-up micro zoom on face/eyes
+    this.maxDist = 12.0;  // Full panoramic wide distance
 
     // Orbit angles (azimuth & elevation)
     this.orbitTheta = 0.0;       // Horizontal angle
@@ -23,6 +26,7 @@ export class SceneManager {
     this.targetOrbitTheta = 0.0;
     this.targetOrbitPhi = 0.0;
     this.isRightDragging = false;
+    this.isMiddleDragging = false;
     this.lastMousePos = { x: 0, y: 0 };
 
     this._initRenderer();
@@ -65,9 +69,9 @@ export class SceneManager {
     // 1. Mouse Wheel Zoom (In / Out)
     dom.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const zoomStep = 0.18;
+      const zoomStep = 0.2;
       if (e.deltaY < 0) {
-        // Zoom in towards face
+        // Zoom in towards face / detail
         this.targetCameraDist = Math.max(this.minDist, this.targetCameraDist - zoomStep);
       } else {
         // Zoom out
@@ -75,41 +79,53 @@ export class SceneManager {
       }
     }, { passive: false });
 
-    // 2. Right-click drag to adjust view angle / Orbit
+    // 2. Right-click / Middle-click drag to adjust view angle / Orbit / Pan
     dom.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent browser context menu
 
     dom.addEventListener('mousedown', (e) => {
       if (e.button === 2) { // Right click
         this.isRightDragging = true;
         this.lastMousePos = { x: e.clientX, y: e.clientY };
-      } else if (e.button === 1) { // Middle click: Toggle bust / full body view
+      } else if (e.button === 1) { // Middle click: Pan camera target Y
+        this.isMiddleDragging = true;
+        this.lastMousePos = { x: e.clientX, y: e.clientY };
         e.preventDefault();
-        this.setCameraPreset('toggle');
       }
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (!this.isRightDragging) return;
-      const deltaX = e.clientX - this.lastMousePos.x;
-      const deltaY = e.clientY - this.lastMousePos.y;
-      this.lastMousePos = { x: e.clientX, y: e.clientY };
+      if (this.isRightDragging) {
+        const deltaX = e.clientX - this.lastMousePos.x;
+        const deltaY = e.clientY - this.lastMousePos.y;
+        this.lastMousePos = { x: e.clientX, y: e.clientY };
 
-      // Orbit around avatar
-      this.targetOrbitTheta -= deltaX * 0.008;
-      this.targetOrbitPhi += deltaY * 0.006;
-      // Clamp vertical elevation to avoid flipped camera
-      this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -0.45, 0.55);
-    });
-
-    window.addEventListener('mouseup', (e) => {
-      if (e.button === 2) {
-        this.isRightDragging = false;
+        if (e.shiftKey) {
+          // Shift + Right drag: Pan target height (head to feet)
+          this.setCameraTargetY(this.targetPanY + deltaY * 0.005);
+        } else {
+          // Orbit around avatar
+          this.targetOrbitTheta -= deltaX * 0.008;
+          this.targetOrbitPhi += deltaY * 0.006;
+          // Clamp vertical elevation to allow looking directly down at head top or up from feet
+          this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
+        }
+      } else if (this.isMiddleDragging) {
+        const deltaY = e.clientY - this.lastMousePos.y;
+        this.lastMousePos = { x: e.clientX, y: e.clientY };
+        this.setCameraTargetY(this.targetPanY + deltaY * 0.005);
       }
     });
 
-    // 3. Mobile touch controls: single touch orbit & pinch-to-zoom
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 2) this.isRightDragging = false;
+      if (e.button === 1) this.isMiddleDragging = false;
+    });
+
+    // 3. Mobile touch controls: single touch orbit, pinch-to-zoom & two-finger pan height
     this.touchStartDist = null;
+    this.lastTouchMidY = null;
     this.lastTouchPos = null;
+    let lastTapTime = 0;
 
     dom.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
@@ -119,6 +135,7 @@ export class SceneManager {
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
+        this.lastTouchMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       }
     }, { passive: true });
 
@@ -130,28 +147,58 @@ export class SceneManager {
 
         this.targetOrbitTheta -= deltaX * 0.008;
         this.targetOrbitPhi += deltaY * 0.006;
-        this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -0.45, 0.55);
+        this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
       } else if (e.touches.length === 2 && this.touchStartDist) {
+        // Pinch-to-zoom distance
         const currentDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
-        const diff = (this.touchStartDist - currentDist) * 0.006;
-        this.targetCameraDist = THREE.MathUtils.clamp(this.targetCameraDist + diff, this.minDist, this.maxDist);
+        const distDiff = (this.touchStartDist - currentDist) * 0.008;
+        this.targetCameraDist = THREE.MathUtils.clamp(this.targetCameraDist + distDiff, this.minDist, this.maxDist);
         this.touchStartDist = currentDist;
+
+        // Two-finger vertical pan to adjust height from feet to head
+        const currentMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        if (this.lastTouchMidY !== null && this.lastTouchMidY !== undefined) {
+          const deltaMidY = currentMidY - this.lastTouchMidY;
+          this.setCameraTargetY(this.targetPanY + deltaMidY * 0.005);
+        }
+        this.lastTouchMidY = currentMidY;
       }
     }, { passive: true });
 
     dom.addEventListener('touchend', (e) => {
       if (e.touches.length < 2) {
         this.touchStartDist = null;
+        this.lastTouchMidY = null;
       }
       if (e.touches.length === 1) {
         this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       } else if (e.touches.length === 0) {
         this.lastTouchPos = null;
+        // Double tap detection to quickly reset camera
+        const now = Date.now();
+        if (now - lastTapTime < 300) {
+          this.resetCamera();
+        }
+        lastTapTime = now;
       }
     }, { passive: true });
+  }
+
+  setCameraTargetY(y) {
+    this.isCustomTargetY = true;
+    this.targetPanY = THREE.MathUtils.clamp(y, -0.2, 2.2);
+  }
+
+  setCameraDistance(dist) {
+    this.targetCameraDist = THREE.MathUtils.clamp(dist, this.minDist, this.maxDist);
+  }
+
+  setCameraOrbit(theta, phi) {
+    if (theta !== undefined) this.targetOrbitTheta = theta;
+    if (phi !== undefined) this.targetOrbitPhi = THREE.MathUtils.clamp(phi, -1.48, 1.48);
   }
 
   setCameraPreset(mode = 'toggle') {
@@ -159,10 +206,26 @@ export class SceneManager {
       this.targetCameraDist = 1.8;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 0.0;
+      this.targetPanY = 1.25;
+      this.isCustomTargetY = false;
     } else if (mode === 'full') {
       this.targetCameraDist = 3.6;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 0.0;
+      this.targetPanY = 0.75;
+      this.isCustomTargetY = false;
+    } else if (mode === 'top') {
+      this.targetCameraDist = 1.1;
+      this.targetOrbitTheta = 0.0;
+      this.targetOrbitPhi = 1.35; // Looking directly down onto head top
+      this.targetPanY = 1.45;
+      this.isCustomTargetY = true;
+    } else if (mode === 'feet') {
+      this.targetCameraDist = 1.2;
+      this.targetOrbitTheta = 0.0;
+      this.targetOrbitPhi = -1.25; // Looking upward at feet from ground
+      this.targetPanY = 0.1;
+      this.isCustomTargetY = true;
     } else if (mode === 'toggle') {
       if (this.targetCameraDist > 2.6) {
         this.setCameraPreset('bust');
@@ -177,9 +240,12 @@ export class SceneManager {
   }
 
   _updateCameraTransform() {
-    // Dynamically calculate cameraTarget.y based on currentCameraDist
-    const t = THREE.MathUtils.clamp((this.currentCameraDist - 1.5) / (3.6 - 1.5), 0.0, 1.0);
-    this.cameraTarget.y = THREE.MathUtils.lerp(this.bustTargetY, this.fullBodyTargetY, t);
+    if (!this.isCustomTargetY) {
+      // Dynamically calculate cameraTarget.y based on currentCameraDist
+      const t = THREE.MathUtils.clamp((this.currentCameraDist - 1.5) / (3.6 - 1.5), 0.0, 1.0);
+      this.targetPanY = THREE.MathUtils.lerp(this.bustTargetY, this.fullBodyTargetY, t);
+    }
+    this.cameraTarget.y = this.currentPanY;
 
     // Calculate spherical position relative to cameraTarget
     const cosPhi = Math.cos(this.orbitPhi);
@@ -188,7 +254,7 @@ export class SceneManager {
     const cosTheta = Math.cos(this.orbitTheta);
 
     const x = this.cameraTarget.x + this.currentCameraDist * cosPhi * sinTheta;
-    const y = this.cameraTarget.y + 0.1 + this.currentCameraDist * sinPhi;
+    const y = this.cameraTarget.y + this.currentCameraDist * sinPhi;
     const z = this.cameraTarget.z + this.currentCameraDist * cosPhi * cosTheta;
 
     this.camera.position.set(x, y, z);
@@ -298,8 +364,9 @@ export class SceneManager {
     requestAnimationFrame(this._animate);
     const delta = this.clock.getDelta();
 
-    // Smooth camera distance & orbit angle lerp
+    // Smooth camera distance, pan height & orbit angle lerp
     this.currentCameraDist = THREE.MathUtils.lerp(this.currentCameraDist, this.targetCameraDist, delta * 8.0);
+    this.currentPanY = THREE.MathUtils.lerp(this.currentPanY, this.targetPanY, delta * 8.0);
     this.orbitTheta = THREE.MathUtils.lerp(this.orbitTheta, this.targetOrbitTheta, delta * 10.0);
     this.orbitPhi = THREE.MathUtils.lerp(this.orbitPhi, this.targetOrbitPhi, delta * 10.0);
     this._updateCameraTransform();

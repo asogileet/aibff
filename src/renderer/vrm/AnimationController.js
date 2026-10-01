@@ -20,9 +20,25 @@ export class AnimationController {
     this.spinProgress = 0;
     this.onActionComplete = null;
     this.baseHipsY = null;
+
+    // Custom pose override mode
+    this.isCustomPoseOverride = false;
+    this.customPoseData = null;
+  }
+
+  setCustomPoseOverride(override = true, poseData = null) {
+    this.isCustomPoseOverride = override;
+    this.customPoseData = poseData;
+  }
+
+  resetCustomPose() {
+    this.isCustomPoseOverride = false;
+    this.customPoseData = null;
+    this.resetToIdle();
   }
 
   playAction(actionName, onComplete = null) {
+    this.isCustomPoseOverride = false;
     this.currentAction = actionName;
     this.actionTime = 0;
     this.onActionComplete = onComplete;
@@ -107,6 +123,10 @@ export class AnimationController {
       cb();
     }
 
+    if (this.isCustomPoseOverride) {
+      return;
+    }
+
     const vrm = this.avatarController.getCurrentVRM();
     if (!vrm) return;
 
@@ -162,6 +182,8 @@ export class AnimationController {
   }
 
   _updateBreathing(delta, vrm) {
+    if (this.isCustomPoseOverride) return;
+
     this.breathTime += delta * this.breathSpeed;
     const sinVal = Math.sin(this.breathTime);
 

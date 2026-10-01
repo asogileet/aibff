@@ -1,11 +1,12 @@
 export class ActionController {
-  constructor(avatarController, animationController, emotionController, lipSyncController, sceneManager, uiCallbacks) {
+  constructor(avatarController, animationController, emotionController, lipSyncController, sceneManager, uiCallbacks, poseManager = null) {
     this.avatarController = avatarController;
     this.animationController = animationController;
     this.emotionController = emotionController;
     this.lipSyncController = lipSyncController;
     this.sceneManager = sceneManager;
     this.uiCallbacks = uiCallbacks || {}; // { onLeave, onReturn, showDialogue, onPatSpeech }
+    this.poseManager = poseManager;
 
     this.headPatQuotes = [
       { text: "嘿嘿……不要一直摸我的頭啦～人家會害羞的！", emotion: "shy" },
@@ -34,6 +35,10 @@ export class ActionController {
     };
   }
 
+  setPoseManager(poseManager) {
+    this.poseManager = poseManager;
+  }
+
   async dispatch(intent, audioBase64 = null) {
     if (!intent) return;
     let { reply, emotion, action, costume } = intent;
@@ -52,6 +57,19 @@ export class ActionController {
     // 2. Display Dialogue text in UI
     if (reply && typeof this.uiCallbacks.showDialogue === 'function') {
       this.uiCallbacks.showDialogue(reply, emotion || 'happy');
+    }
+
+    // Check if user has a custom saved pose that overrides this action
+    if (this.poseManager && action) {
+      const customOverride = this.poseManager.getCustomOverrideForAction(action);
+      if (customOverride) {
+        console.log(`[ActionController] Overriding standard action '${action}' with custom pose '${customOverride.name}'`);
+        this.poseManager.applyPose(customOverride);
+        if (reply && audioBase64 && this.lipSyncController) {
+          await this.lipSyncController.playSpeech(audioBase64);
+        }
+        return;
+      }
     }
 
     // 3. Dispatch Animation & System Action

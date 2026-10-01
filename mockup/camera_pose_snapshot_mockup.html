@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自由鏡頭、骨架關節調整、姿勢快捷指令與拍照功能 - 原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.4);
+      border-radius: 4px;
+    }
+    @keyframes shutterFlash {
+      0% { opacity: 0; }
+      20% { opacity: 0.95; }
+      100% { opacity: 0; }
+    }
+    .shutter-effect {
+      animation: shutterFlash 0.35s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans">
+  <div class="max-w-7xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>🎥</span> 自由鏡頭・骨架關節微調・自訂姿勢快捷指令・3D拍照原型
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          支援任意高度俯仰(頭頂至腳底)、極近至極遠縮放、手機雙指手勢、VRM骨架關節自由旋轉、姿勢儲存/斜線指令、高畫質透明截圖
+        </p>
+      </div>
+      <div class="flex items-center flex-wrap gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Three.js Orbit & Pan</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">VRM Humanoid Bones</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Slash: /pose</span>
+        <span class="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Canvas PNG Snapshot</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Column 1: 3D Simulator Window (5 cols) -->
+      <div class="lg:col-span-5 glass-panel rounded-2xl p-5 flex flex-col items-center">
+        <div class="w-full flex justify-between items-center mb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <h2 class="text-xs font-semibold text-slate-200">3D 視窗預覽 (手機/桌面直立模式)</h2>
+          </div>
+          <span id="cameraStatusBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-pink-300 border border-slate-700">
+            鏡頭: 自由漫遊
+          </span>
+        </div>
+
+        <!-- 320x520 Virtual 3D Canvas Screen -->
+        <div id="simViewport" class="relative w-[320px] h-[520px] bg-slate-900 rounded-2xl border-2 border-pink-500/40 overflow-hidden shadow-2xl flex flex-col justify-between items-center p-3 select-none touch-none">
+          
+          <!-- Grid & Ground Reference Lines -->
+          <div class="absolute inset-0 bg-[radial-gradient(#ec489918_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
+
+          <!-- Flash shutter overlay -->
+          <div id="shutterOverlay" class="absolute inset-0 bg-white pointer-events-none opacity-0 z-50"></div>
+
+          <!-- Top HUD Display -->
+          <div class="w-full flex justify-between items-center text-[10px] bg-slate-950/70 backdrop-blur px-2.5 py-1.5 rounded-lg border border-slate-800 z-10">
+            <div>
+              <span class="text-slate-400">高度: </span>
+              <strong id="hudTargetY" class="text-pink-400">1.25m</strong>
+              <span class="text-slate-500 ml-1">| 距離: </span>
+              <strong id="hudDistance" class="text-indigo-400">1.80m</strong>
+            </div>
+            <div>
+              <span class="text-slate-400">俯仰: </span>
+              <strong id="hudPhi" class="text-emerald-400">0°</strong>
+            </div>
+          </div>
+
+          <!-- 3D Interactive Model Visual Representation -->
+          <div id="modelContainer" class="my-auto relative flex flex-col items-center transition-all duration-150 origin-center" style="transform: translateY(0px) scale(1);">
+            
+            <!-- Head Pat & Head Joint -->
+            <div id="jointHead" class="joint-node w-14 h-14 rounded-full bg-pink-500/30 border-2 border-pink-400 flex flex-col items-center justify-center text-[9px] text-pink-200 font-bold shadow-lg shadow-pink-500/20 cursor-pointer hover:border-yellow-400 transition transform">
+              <span>頭部</span>
+              <span class="text-[8px] text-pink-300">Head</span>
+            </div>
+
+            <!-- Neck / Chest -->
+            <div id="jointChest" class="joint-node w-8 h-4 bg-slate-700/80 border border-slate-500 rounded my-0.5 flex items-center justify-center text-[7px] text-slate-300 cursor-pointer hover:border-yellow-400">
+              頸/胸
+            </div>
+
+            <!-- Arms & Torso Row -->
+            <div class="flex items-start justify-center gap-1.5 w-full">
+              <!-- Left Arm Branch -->
+              <div class="flex flex-col items-center">
+                <div id="jointLeftUpperArm" class="joint-node w-5 h-12 bg-indigo-500/30 border border-indigo-400 rounded-t flex items-center justify-center text-[7px] text-indigo-200 cursor-pointer hover:border-yellow-400 transition origin-top">
+                  左上臂
+                </div>
+                <div id="jointLeftLowerArm" class="joint-node w-4 h-10 bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-[7px] text-indigo-200 cursor-pointer hover:border-yellow-400 transition origin-top">
+                  左前臂
+                </div>
+                <div id="jointLeftHand" class="joint-node w-5 h-5 bg-pink-500/40 border border-pink-400 rounded-full flex items-center justify-center text-[7px] text-pink-200 cursor-pointer hover:border-yellow-400 transition">
+                  左手
+                </div>
+              </div>
+
+              <!-- Spine / Torso -->
+              <div class="flex flex-col items-center">
+                <div id="jointSpine" class="joint-node w-16 h-16 bg-gradient-to-b from-indigo-500/40 to-pink-500/30 border border-pink-400/40 rounded flex flex-col items-center justify-center text-[8px] text-slate-200 cursor-pointer hover:border-yellow-400">
+                  <span>軀幹脊椎</span>
+                  <span class="text-[7px] text-slate-400">Spine</span>
+                </div>
+                <!-- Hips -->
+                <div id="jointHips" class="joint-node w-20 h-10 bg-pink-500/25 border-x border-pink-400/40 rounded-b-xl flex items-center justify-center text-[8px] text-slate-300 cursor-pointer hover:border-yellow-400">
+                  骨盆 Hips
+                </div>
+              </div>
+
+              <!-- Right Arm Branch -->
+              <div class="flex flex-col items-center">
+                <div id="jointRightUpperArm" class="joint-node w-5 h-12 bg-indigo-500/30 border border-indigo-400 rounded-t flex items-center justify-center text-[7px] text-indigo-200 cursor-pointer hover:border-yellow-400 transition origin-top">
+                  右上臂
+                </div>
+                <div id="jointRightLowerArm" class="joint-node w-4 h-10 bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-[7px] text-indigo-200 cursor-pointer hover:border-yellow-400 transition origin-top">
+                  右前臂
+                </div>
+                <div id="jointRightHand" class="joint-node w-5 h-5 bg-pink-500/40 border border-pink-400 rounded-full flex items-center justify-center text-[7px] text-pink-200 cursor-pointer hover:border-yellow-400 transition">
+                  右手
+                </div>
+              </div>
+            </div>
+
+            <!-- Legs Branch -->
+            <div class="flex gap-4 mt-1">
+              <!-- Left Leg -->
+              <div class="flex flex-col items-center">
+                <div id="jointLeftUpperLeg" class="joint-node w-6 h-16 bg-indigo-500/30 border border-indigo-400 flex items-center justify-center text-[7px] text-indigo-200 cursor-pointer hover:border-yellow-400 origin-top">
+                  左大腿
+                </div>
+                <div id="jointLeftLowerLeg" class="joint-node w-5 h-14 bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-[7px] text-indigo-200 cursor-pointer hover:border-yellow-400 origin-top">
+                  左小腿
+                </div>
+                <div id="jointLeftFoot" class="joint-node w-7 h-4 bg-pink-500/40 border border-pink-400 rounded-r flex items-center justify-center text-[7px] text-pink-200 cursor-pointer hover:border-yellow-400">
+                  左腳掌
+                </div>
+              </div>
+
+              <!-- Right Leg -->
+              <div class="flex flex-col items-center">
+                <div id="jointRightUpperLeg" class="joint-node w-6 h-16 bg-indigo-500/30 border border-indigo-400 flex items-center justify-center text-[7px] text-indigo-200 cursor-pointer hover:border-yellow-400 origin-top">
+                  右大腿
+                </div>
+                <div id="jointRightLowerLeg" class="joint-node w-5 h-14 bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-[7px] text-indigo-200 cursor-pointer hover:border-yellow-400 origin-top">
+                  右小腿
+                </div>
+                <div id="jointRightFoot" class="joint-node w-7 h-4 bg-pink-500/40 border border-pink-400 rounded-r flex items-center justify-center text-[7px] text-pink-200 cursor-pointer hover:border-yellow-400">
+                  右腳掌
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom Floor Level Indicator -->
+          <div class="w-full flex justify-between items-center text-[9px] text-slate-500 border-t border-indigo-500/20 pt-1 z-10">
+            <span>地面基準線 (Y=0.0m)</span>
+            <span id="touchHintTag" class="text-pink-400">📱 手勢: 單指旋轉 / 雙指縮放與上下平移</span>
+          </div>
+
+          <!-- Floating In-Viewport Camera Quick Actions -->
+          <div class="absolute bottom-10 flex gap-1 z-20 bg-slate-950/80 backdrop-blur px-2 py-1 rounded-full border border-slate-700 text-[10px]">
+            <button id="btnQuickTop" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-600 text-slate-200">頭頂俯瞰</button>
+            <button id="btnQuickFace" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-600 text-slate-200">臉部半身</button>
+            <button id="btnQuickFull" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-600 text-slate-200">全身視角</button>
+            <button id="btnQuickFeet" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-pink-600 text-slate-200">腳底仰視</button>
+            <button id="btnQuickReset" class="px-2 py-0.5 rounded bg-pink-600/40 hover:bg-pink-600 text-pink-200 font-bold">重設</button>
+          </div>
+
+        </div>
+
+        <!-- Toolbar Simulation with New Snapshot and Pose Buttons -->
+        <div class="mt-4 flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-full px-4 py-1.5 shadow-xl text-xs">
+          <button title="語音" class="p-1.5 text-slate-400 hover:text-pink-400">🎤</button>
+          <button title="對話" class="p-1.5 text-slate-400 hover:text-pink-400">💬</button>
+          <button title="換裝" class="p-1.5 text-slate-400 hover:text-pink-400">👗</button>
+          <button title="標準動作" class="p-1.5 text-slate-400 hover:text-pink-400">💃</button>
+          <div class="w-px h-4 bg-slate-700"></div>
+          <!-- New: Pose Editor Toggle -->
+          <button id="btnPoseToggle" class="flex items-center gap-1 px-2.5 py-1 rounded-full bg-pink-600 text-white font-medium hover:bg-pink-500 shadow">
+            <span>🦴</span>
+            <span>骨架姿勢</span>
+          </button>
+          <!-- New: Snapshot Button -->
+          <button id="btnSnapshot" class="flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-600 text-white font-medium hover:bg-indigo-500 shadow">
+            <span>📸</span>
+            <span>拍照</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Column 2: Camera & Pose Editor Controls (4 cols) -->
+      <div class="lg:col-span-4 space-y-4">
+        
+        <!-- 1. Camera Control Panel -->
+        <div class="glass-panel rounded-2xl p-4 space-y-3 shadow-xl">
+          <div class="flex justify-between items-center border-b border-white/10 pb-2">
+            <h3 class="text-xs font-bold text-pink-400 flex items-center gap-1.5">
+              <span>🎥</span> 任意鏡頭與手勢自由控制
+            </h3>
+            <span class="text-[10px] text-slate-400">無死角視野</span>
+          </div>
+
+          <div class="space-y-2.5 text-xs">
+            <!-- Target Height (Pan Y) -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-slate-300">鏡頭注視高度 (Target Y: 腳底 ↔ 頭頂)</span>
+                <span id="sliderHeightVal" class="text-pink-400 font-mono">1.25m</span>
+              </div>
+              <input id="sliderHeight" type="range" min="0.0" max="1.8" step="0.05" value="1.25" class="w-full accent-pink-500 bg-slate-800 h-1.5 rounded-lg">
+              <div class="flex justify-between text-[9px] text-slate-500 mt-0.5">
+                <span>0.0m (腳底/鞋底)</span>
+                <span>0.8m (腰部)</span>
+                <span>1.45m (頭頂)</span>
+                <span>1.8m (頂視)</span>
+              </div>
+            </div>
+
+            <!-- Distance (Zoom) -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-slate-300">遠近縮放距離 (Distance: 超近 ↔ 超遠)</span>
+                <span id="sliderDistVal" class="text-indigo-400 font-mono">1.80m</span>
+              </div>
+              <input id="sliderDist" type="range" min="0.2" max="8.0" step="0.1" value="1.8" class="w-full accent-indigo-500 bg-slate-800 h-1.5 rounded-lg">
+              <div class="flex justify-between text-[9px] text-slate-500 mt-0.5">
+                <span>0.2m (微距特寫)</span>
+                <span>1.8m (半身)</span>
+                <span>3.6m (全身)</span>
+                <span>8.0m (超遠景)</span>
+              </div>
+            </div>
+
+            <!-- Elevation Angle (Phi) -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-slate-300">俯仰角 (仰視腳底 ↔ 俯瞰頭頂)</span>
+                <span id="sliderPhiVal" class="text-emerald-400 font-mono">0°</span>
+              </div>
+              <input id="sliderPhi" type="range" min="-85" max="85" step="1" value="0" class="w-full accent-emerald-500 bg-slate-800 h-1.5 rounded-lg">
+              <div class="flex justify-between text-[9px] text-slate-500 mt-0.5">
+                <span>-85° (由下往上仰視)</span>
+                <span>0° (平視)</span>
+                <span>+85° (由上往下俯視)</span>
+              </div>
+            </div>
+
+            <!-- Horizontal Rotation (Theta) -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-slate-300">水平環繞旋轉 (Orbit 360°)</span>
+                <span id="sliderThetaVal" class="text-purple-400 font-mono">0°</span>
+              </div>
+              <input id="sliderTheta" type="range" min="-180" max="180" step="5" value="0" class="w-full accent-purple-500 bg-slate-800 h-1.5 rounded-lg">
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Bone Joint Tuning Inspector -->
+        <div class="glass-panel rounded-2xl p-4 space-y-3 shadow-xl">
+          <div class="flex justify-between items-center border-b border-white/10 pb-2">
+            <h3 class="text-xs font-bold text-pink-400 flex items-center gap-1.5">
+              <span>🦴</span> 骨架關節微調 (Pose Inspector)
+            </h3>
+            <button id="btnResetJoint" class="text-[10px] text-slate-400 hover:text-white px-2 py-0.5 bg-slate-800 rounded">
+              重設此關節
+            </button>
+          </div>
+
+          <!-- Select Joint Dropdown -->
+          <div>
+            <label class="text-[11px] text-slate-300 block mb-1">選擇調整關節 (Bone Node):</label>
+            <select id="selectJoint" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500">
+              <optgroup label="頭頸部 (Head & Neck)">
+                <option value="head" selected>頭部 (Head)</option>
+                <option value="neck">頸部 (Neck)</option>
+              </optgroup>
+              <optgroup label="左上肢 (Left Arm)">
+                <option value="leftUpperArm">左上臂 (Left Upper Arm)</option>
+                <option value="leftLowerArm">左前臂 (Left Lower Arm)</option>
+                <option value="leftHand">左手掌 (Left Hand)</option>
+              </optgroup>
+              <optgroup label="右上肢 (Right Arm)">
+                <option value="rightUpperArm">右上臂 (Right Upper Arm)</option>
+                <option value="rightLowerArm">右前臂 (Right Lower Arm)</option>
+                <option value="rightHand">右手掌 (Right Hand)</option>
+              </optgroup>
+              <optgroup label="軀幹與重心 (Body & Hips)">
+                <option value="spine">脊椎 (Spine)</option>
+                <option value="chest">胸部 (Chest)</option>
+                <option value="hips">骨盆 (Hips)</option>
+              </optgroup>
+              <optgroup label="左下肢 (Left Leg)">
+                <option value="leftUpperLeg">左大腿 (Left Upper Leg)</option>
+                <option value="leftLowerLeg">左小腿 (Left Lower Leg)</option>
+                <option value="leftFoot">左腳掌 (Left Foot)</option>
+              </optgroup>
+              <optgroup label="右下肢 (Right Leg)">
+                <option value="rightUpperLeg">右大腿 (Right Upper Leg)</option>
+                <option value="rightLowerLeg">右小腿 (Right Lower Leg)</option>
+                <option value="rightFoot">右腳掌 (Right Foot)</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <!-- 3-Axis Sliders for Selected Joint -->
+          <div class="space-y-2 pt-1 text-xs">
+            <div>
+              <div class="flex justify-between text-[11px] mb-0.5">
+                <span class="text-rose-400">X 軸旋轉 (Pitch / 前後俯仰)</span>
+                <span id="valRotX" class="font-mono">0°</span>
+              </div>
+              <input id="sliderRotX" type="range" min="-90" max="90" step="1" value="0" class="w-full accent-rose-500 bg-slate-800 h-1.5 rounded-lg">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-0.5">
+                <span class="text-emerald-400">Y 軸旋轉 (Yaw / 水平扭轉)</span>
+                <span id="valRotY" class="font-mono">0°</span>
+              </div>
+              <input id="sliderRotY" type="range" min="-90" max="90" step="1" value="0" class="w-full accent-emerald-500 bg-slate-800 h-1.5 rounded-lg">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-0.5">
+                <span class="text-blue-400">Z 軸旋轉 (Roll / 左右擺動)</span>
+                <span id="valRotZ" class="font-mono">0°</span>
+              </div>
+              <input id="sliderRotZ" type="range" min="-90" max="90" step="1" value="0" class="w-full accent-blue-500 bg-slate-800 h-1.5 rounded-lg">
+            </div>
+          </div>
+
+          <!-- Save Custom Pose Section -->
+          <div class="pt-2 border-t border-slate-700/60 space-y-2">
+            <span class="text-[11px] font-semibold text-pink-300 block">儲存為自訂姿勢快捷鍵:</span>
+            <div class="flex gap-2">
+              <input id="inputPoseName" type="text" placeholder="例如: 剪刀手 / 模特站姿" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-pink-500" />
+              <button id="btnSavePose" class="px-3 py-1 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-xs font-semibold shadow">
+                儲存姿勢
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Column 3: Saved Poses, Slash Commands & Snapshot Gallery (3 cols) -->
+      <div class="lg:col-span-3 space-y-4">
+        
+        <!-- 1. Saved Custom Pose Shortcuts -->
+        <div class="glass-panel rounded-2xl p-4 space-y-3 shadow-xl">
+          <div class="flex justify-between items-center border-b border-white/10 pb-2">
+            <h3 class="text-xs font-bold text-pink-400 flex items-center gap-1.5">
+              <span>⚡</span> 姿勢快捷鍵 (Custom Poses)
+            </h3>
+            <span id="customPoseCountBadge" class="text-[10px] text-pink-300 px-1.5 py-0.2 rounded bg-pink-500/20">3 個姿勢</span>
+          </div>
+
+          <p class="text-[11px] text-slate-400">點擊隨時一鍵套用，或在對話中使用斜線指令：</p>
+
+          <div id="savedPoseList" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+            <!-- Preset items rendered by JS -->
+          </div>
+        </div>
+
+        <!-- 2. Chat & Slash Command Preview -->
+        <div class="glass-panel rounded-2xl p-4 space-y-3 shadow-xl">
+          <div class="flex justify-between items-center border-b border-white/10 pb-2">
+            <h3 class="text-xs font-bold text-pink-400 flex items-center gap-1.5">
+              <span>💬</span> 斜線指令 (Slash Commands)
+            </h3>
+            <span class="text-[10px] text-slate-400">對話視窗直接輸入</span>
+          </div>
+
+          <div class="bg-slate-900/90 rounded-xl p-2.5 border border-slate-800 text-xs font-mono space-y-1 text-slate-300">
+            <div class="text-pink-300">/pose &lt;姿勢名&gt; <span class="text-slate-500 font-sans text-[10px]">- 快速擺出指定姿勢</span></div>
+            <div class="text-indigo-300">/pose list <span class="text-slate-500 font-sans text-[10px]">- 列出所有已存姿勢</span></div>
+            <div class="text-emerald-300">/pose reset <span class="text-slate-500 font-sans text-[10px]">- 恢復待機標準自然站姿</span></div>
+            <div class="text-amber-300">/photo 或 /snapshot <span class="text-slate-500 font-sans text-[10px]">- 觸發快門拍照</span></div>
+          </div>
+
+          <div class="flex gap-2 pt-1">
+            <input id="inputSlashTest" type="text" value="/pose 剪刀手" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-pink-500 font-mono" />
+            <button id="btnExecuteSlash" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium">執行</button>
+          </div>
+        </div>
+
+        <!-- 3. Snapshot Options & Gallery -->
+        <div class="glass-panel rounded-2xl p-4 space-y-3 shadow-xl">
+          <div class="flex justify-between items-center border-b border-white/10 pb-2">
+            <h3 class="text-xs font-bold text-pink-400 flex items-center gap-1.5">
+              <span>📸</span> 拍照與相簿 (Snapshot Studio)
+            </h3>
+            <span class="text-[10px] text-emerald-400">PNG 支援透明背景</span>
+          </div>
+
+          <div class="flex items-center gap-2 text-xs">
+            <label class="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+              <input id="chkTransparentBg" type="checkbox" class="accent-pink-500" checked>
+              <span>透明去背背景 (無背景純角色)</span>
+            </label>
+          </div>
+
+          <button id="btnTakeBigPhoto" class="w-full py-2 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg transition flex items-center justify-center gap-2">
+            <span>📷</span>
+            <span>按下快門拍照 (自動儲存 PNG)</span>
+          </button>
+
+          <!-- Snapshot thumbnail preview -->
+          <div id="snapshotThumbContainer" class="hidden bg-slate-900/80 rounded-xl p-2 border border-pink-500/30 flex items-center gap-3">
+            <div id="snapshotThumb" class="w-12 h-16 rounded bg-slate-800 border border-slate-700 flex items-center justify-center text-xl overflow-hidden shadow">
+              🖼️
+            </div>
+            <div class="text-[11px] space-y-0.5">
+              <div class="text-emerald-400 font-semibold">✓ 照片儲存成功！</div>
+              <div id="snapshotFileName" class="text-slate-400 font-mono text-[9px]">aibff_snapshot.png</div>
+              <a id="snapshotDownloadLink" href="#" class="text-pink-400 hover:underline text-[10px] block">點此手動下載</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Mockup Interactive Logic
+    const state = {
+      camera: {
+        targetY: 1.25,
+        dist: 1.8,
+        phi: 0,
+        theta: 0
+      },
+      currentJoint: 'head',
+      jointRotations: {
+        head: { x: 0, y: 0, z: 0 },
+        neck: { x: 0, y: 0, z: 0 },
+        leftUpperArm: { x: 10, y: 0, z: 50 },
+        leftLowerArm: { x: 0, y: 0, z: 0 },
+        leftHand: { x: 0, y: 0, z: 0 },
+        rightUpperArm: { x: 10, y: 0, z: -50 },
+        rightLowerArm: { x: 0, y: 0, z: 0 },
+        rightHand: { x: 0, y: 0, z: 0 },
+        spine: { x: 0, y: 0, z: 0 },
+        chest: { x: 0, y: 0, z: 0 },
+        hips: { x: 0, y: 0, z: 0 },
+        leftUpperLeg: { x: 0, y: 0, z: 0 },
+        leftLowerLeg: { x: 0, y: 0, z: 0 },
+        leftFoot: { x: 0, y: 0, z: 0 },
+        rightUpperLeg: { x: 0, y: 0, z: 0 },
+        rightLowerLeg: { x: 0, y: 0, z: 0 },
+        rightFoot: { x: 0, y: 0, z: 0 }
+      },
+      savedPoses: [
+        {
+          name: '剪刀手 (Peace)',
+          data: {
+            rightUpperArm: { x: -30, y: 20, z: -80 },
+            rightLowerArm: { x: -80, y: 15, z: 0 },
+            rightHand: { x: 0, y: 0, z: 20 },
+            head: { x: 5, y: -10, z: 12 }
+          }
+        },
+        {
+          name: '單手插腰 (Hip Pose)',
+          data: {
+            leftUpperArm: { x: 10, y: -20, z: 40 },
+            leftLowerArm: { x: 70, y: 0, z: 20 },
+            head: { x: 0, y: 10, z: -5 }
+          }
+        },
+        {
+          name: '雙腿交叉模特步 (Cross Leg)',
+          data: {
+            leftUpperLeg: { x: 15, y: 0, z: -10 },
+            rightUpperLeg: { x: -10, y: 0, z: 5 },
+            spine: { x: 5, y: 0, z: -3 }
+          }
+        }
+      ]
+    };
+
+    // DOM Elements
+    const modelContainer = document.getElementById('modelContainer');
+    const simViewport = document.getElementById('simViewport');
+    const hudTargetY = document.getElementById('hudTargetY');
+    const hudDistance = document.getElementById('hudDistance');
+    const hudPhi = document.getElementById('hudPhi');
+
+    // Sliders
+    const sliderHeight = document.getElementById('sliderHeight');
+    const sliderDist = document.getElementById('sliderDist');
+    const sliderPhi = document.getElementById('sliderPhi');
+    const sliderTheta = document.getElementById('sliderTheta');
+    const sliderHeightVal = document.getElementById('sliderHeightVal');
+    const sliderDistVal = document.getElementById('sliderDistVal');
+    const sliderPhiVal = document.getElementById('sliderPhiVal');
+    const sliderThetaVal = document.getElementById('sliderThetaVal');
+
+    // Joint Sliders
+    const selectJoint = document.getElementById('selectJoint');
+    const sliderRotX = document.getElementById('sliderRotX');
+    const sliderRotY = document.getElementById('sliderRotY');
+    const sliderRotZ = document.getElementById('sliderRotZ');
+    const valRotX = document.getElementById('valRotX');
+    const valRotY = document.getElementById('valRotY');
+    const valRotZ = document.getElementById('valRotZ');
+
+    // Update 3D Model Visual Transform
+    function updateVisualTransform() {
+      // Calculate scale based on distance
+      const scale = 1.8 / Math.max(state.camera.dist, 0.4);
+      // Calculate translateY based on targetY & phi
+      const offsetY = (state.camera.targetY - 1.25) * 120 + (state.camera.phi * 0.8);
+      
+      modelContainer.style.transform = `translateY(${offsetY}px) scale(${scale})`;
+      
+      hudTargetY.innerText = `${state.camera.targetY.toFixed(2)}m`;
+      hudDistance.innerText = `${state.camera.dist.toFixed(2)}m`;
+      hudPhi.innerText = `${state.camera.phi}°`;
+
+      sliderHeight.value = state.camera.targetY;
+      sliderDist.value = state.camera.dist;
+      sliderPhi.value = state.camera.phi;
+      sliderTheta.value = state.camera.theta;
+
+      sliderHeightVal.innerText = `${state.camera.targetY.toFixed(2)}m`;
+      sliderDistVal.innerText = `${state.camera.dist.toFixed(2)}m`;
+      sliderPhiVal.innerText = `${state.camera.phi}°`;
+      sliderThetaVal.innerText = `${state.camera.theta}°`;
+    }
+
+    // Camera sliders events
+    sliderHeight.addEventListener('input', (e) => {
+      state.camera.targetY = parseFloat(e.target.value);
+      updateVisualTransform();
+    });
+    sliderDist.addEventListener('input', (e) => {
+      state.camera.dist = parseFloat(e.target.value);
+      updateVisualTransform();
+    });
+    sliderPhi.addEventListener('input', (e) => {
+      state.camera.phi = parseInt(e.target.value);
+      updateVisualTransform();
+    });
+    sliderTheta.addEventListener('input', (e) => {
+      state.camera.theta = parseInt(e.target.value);
+      updateVisualTransform();
+    });
+
+    // Quick Camera Presets
+    document.getElementById('btnQuickTop').addEventListener('click', () => {
+      state.camera.targetY = 1.6;
+      state.camera.dist = 1.0;
+      state.camera.phi = 65;
+      updateVisualTransform();
+    });
+    document.getElementById('btnQuickFace').addEventListener('click', () => {
+      state.camera.targetY = 1.35;
+      state.camera.dist = 1.1;
+      state.camera.phi = 0;
+      updateVisualTransform();
+    });
+    document.getElementById('btnQuickFull').addEventListener('click', () => {
+      state.camera.targetY = 0.75;
+      state.camera.dist = 3.6;
+      state.camera.phi = 0;
+      updateVisualTransform();
+    });
+    document.getElementById('btnQuickFeet').addEventListener('click', () => {
+      state.camera.targetY = 0.15;
+      state.camera.dist = 1.2;
+      state.camera.phi = -45;
+      updateVisualTransform();
+    });
+    document.getElementById('btnQuickReset').addEventListener('click', () => {
+      state.camera.targetY = 1.25;
+      state.camera.dist = 1.8;
+      state.camera.phi = 0;
+      state.camera.theta = 0;
+      updateVisualTransform();
+    });
+
+    // Touch Simulation for Viewport
+    let touchStartY = 0;
+    let touchStartDist = 0;
+    simViewport.addEventListener('pointerdown', (e) => {
+      touchStartY = e.clientY;
+      simViewport.setPointerCapture(e.pointerId);
+    });
+    simViewport.addEventListener('pointermove', (e) => {
+      if (e.buttons === 1) { // Left drag or touch drag
+        const deltaY = e.clientY - touchStartY;
+        touchStartY = e.clientY;
+        // If shift key or two-finger: Pan height
+        if (e.shiftKey) {
+          state.camera.targetY = Math.max(0.0, Math.min(2.0, state.camera.targetY - deltaY * 0.005));
+        } else {
+          // Adjust elevation phi
+          state.camera.phi = Math.max(-80, Math.min(80, state.camera.phi - deltaY * 0.3));
+        }
+        updateVisualTransform();
+      }
+    });
+
+    // Joint Selection & Rotation
+    selectJoint.addEventListener('change', (e) => {
+      state.currentJoint = e.target.value;
+      loadJointToSliders();
+      highlightJointNode(state.currentJoint);
+    });
+
+    function loadJointToSliders() {
+      const rot = state.jointRotations[state.currentJoint] || { x: 0, y: 0, z: 0 };
+      sliderRotX.value = rot.x;
+      sliderRotY.value = rot.y;
+      sliderRotZ.value = rot.z;
+      valRotX.innerText = `${rot.x}°`;
+      valRotY.innerText = `${rot.y}°`;
+      valRotZ.innerText = `${rot.z}°`;
+    }
+
+    function applyJointRotation() {
+      const rot = state.jointRotations[state.currentJoint];
+      rot.x = parseInt(sliderRotX.value);
+      rot.y = parseInt(sliderRotY.value);
+      rot.z = parseInt(sliderRotZ.value);
+      valRotX.innerText = `${rot.x}°`;
+      valRotY.innerText = `${rot.y}°`;
+      valRotZ.innerText = `${rot.z}°`;
+
+      // Apply CSS visual tilt on mockup node
+      const nodeMap = {
+        head: 'jointHead',
+        leftUpperArm: 'jointLeftUpperArm',
+        rightUpperArm: 'jointRightUpperArm',
+        leftLowerArm: 'jointLeftLowerArm',
+        rightLowerArm: 'jointRightLowerArm',
+        leftHand: 'jointLeftHand',
+        rightHand: 'jointRightHand',
+        leftUpperLeg: 'jointLeftUpperLeg',
+        rightUpperLeg: 'jointRightUpperLeg',
+        leftLowerLeg: 'jointLeftLowerLeg',
+        rightLowerLeg: 'jointRightLowerLeg',
+        spine: 'jointSpine',
+        hips: 'jointHips'
+      };
+      const id = nodeMap[state.currentJoint];
+      if (id) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.transform = `rotate(${rot.z}deg) skewX(${rot.y * 0.2}deg)`;
+        }
+      }
+    }
+
+    sliderRotX.addEventListener('input', applyJointRotation);
+    sliderRotY.addEventListener('input', applyJointRotation);
+    sliderRotZ.addEventListener('input', applyJointRotation);
+
+    document.getElementById('btnResetJoint').addEventListener('click', () => {
+      state.jointRotations[state.currentJoint] = { x: 0, y: 0, z: 0 };
+      loadJointToSliders();
+      applyJointRotation();
+    });
+
+    function highlightJointNode(jointKey) {
+      document.querySelectorAll('.joint-node').forEach(n => n.classList.remove('ring-2', 'ring-yellow-400', 'border-yellow-400'));
+      const nodeMap = {
+        head: 'jointHead',
+        leftUpperArm: 'jointLeftUpperArm',
+        rightUpperArm: 'jointRightUpperArm',
+        leftLowerArm: 'jointLeftLowerArm',
+        rightLowerArm: 'jointRightLowerArm',
+        leftHand: 'jointLeftHand',
+        rightHand: 'jointRightHand',
+        leftUpperLeg: 'jointLeftUpperLeg',
+        rightUpperLeg: 'jointRightUpperLeg',
+        leftLowerLeg: 'jointLeftLowerLeg',
+        rightLowerLeg: 'jointRightLowerLeg',
+        spine: 'jointSpine',
+        hips: 'jointHips'
+      };
+      const id = nodeMap[jointKey];
+      if (id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('ring-2', 'ring-yellow-400', 'border-yellow-400');
+      }
+    }
+
+    // Direct click on bone nodes
+    document.querySelectorAll('.joint-node').forEach(node => {
+      node.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const map = {
+          jointHead: 'head',
+          jointChest: 'chest',
+          jointSpine: 'spine',
+          jointHips: 'hips',
+          jointLeftUpperArm: 'leftUpperArm',
+          jointLeftLowerArm: 'leftLowerArm',
+          jointLeftHand: 'leftHand',
+          jointRightUpperArm: 'rightUpperArm',
+          jointRightLowerArm: 'rightLowerArm',
+          jointRightHand: 'rightHand',
+          jointLeftUpperLeg: 'leftUpperLeg',
+          jointLeftLowerLeg: 'leftLowerLeg',
+          jointLeftFoot: 'leftFoot',
+          jointRightUpperLeg: 'rightUpperLeg',
+          jointRightLowerLeg: 'rightLowerLeg',
+          jointRightFoot: 'rightFoot'
+        };
+        const key = map[node.id];
+        if (key) {
+          selectJoint.value = key;
+          state.currentJoint = key;
+          loadJointToSliders();
+          highlightJointNode(key);
+        }
+      });
+    });
+
+    // Render Saved Poses
+    const savedPoseList = document.getElementById('savedPoseList');
+    function renderSavedPoses() {
+      savedPoseList.innerHTML = '';
+      state.savedPoses.forEach((pose, idx) => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-pink-500/50 transition';
+        item.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="text-xs">💃</span>
+            <span class="text-xs font-medium text-slate-200">${pose.name}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button onclick="applyPose(${idx})" class="px-2 py-0.5 rounded bg-pink-600/30 text-pink-300 hover:bg-pink-600 hover:text-white text-[10px] font-medium transition">
+              套用
+            </button>
+            <span class="text-[9px] text-slate-500 font-mono">/pose ${pose.name.split(' ')[0]}</span>
+          </div>
+        `;
+        savedPoseList.appendChild(item);
+      });
+      document.getElementById('customPoseCountBadge').innerText = `${state.savedPoses.length} 個姿勢`;
+    }
+
+    window.applyPose = function(idx) {
+      const pose = state.savedPoses[idx];
+      if (!pose) return;
+      Object.keys(pose.data).forEach(joint => {
+        state.jointRotations[joint] = { ...pose.data[joint] };
+      });
+      loadJointToSliders();
+      Object.keys(pose.data).forEach(joint => {
+        const nodeMap = {
+          head: 'jointHead',
+          leftUpperArm: 'jointLeftUpperArm',
+          rightUpperArm: 'jointRightUpperArm',
+          leftLowerArm: 'jointLeftLowerArm',
+          rightLowerArm: 'jointRightLowerArm',
+          leftHand: 'jointLeftHand',
+          rightHand: 'jointRightHand',
+          leftUpperLeg: 'jointLeftUpperLeg',
+          rightUpperLeg: 'jointRightUpperLeg',
+          leftLowerLeg: 'jointLeftLowerLeg',
+          rightLowerLeg: 'jointRightLowerLeg',
+          spine: 'jointSpine',
+          hips: 'jointHips'
+        };
+        const id = nodeMap[joint];
+        if (id) {
+          const el = document.getElementById(id);
+          if (el) el.style.transform = `rotate(${pose.data[joint].z || 0}deg)`;
+        }
+      });
+      alert(`已成功套用姿勢快捷鍵: ${pose.name}`);
+    };
+
+    // Save New Pose
+    document.getElementById('btnSavePose').addEventListener('click', () => {
+      const name = document.getElementById('inputPoseName').value.trim();
+      if (!name) {
+        alert('請輸入姿勢名稱！');
+        return;
+      }
+      const dataCopy = JSON.parse(JSON.stringify(state.jointRotations));
+      state.savedPoses.push({ name, data: dataCopy });
+      document.getElementById('inputPoseName').value = '';
+      renderSavedPoses();
+      alert(`姿勢「${name}」已儲存！現在可以使用快捷鍵或輸入 /pose ${name} 快速呼叫。`);
+    });
+
+    // Slash Command Execution Simulation
+    document.getElementById('btnExecuteSlash').addEventListener('click', () => {
+      const cmd = document.getElementById('inputSlashTest').value.trim();
+      if (cmd.startsWith('/pose list')) {
+        alert('已存姿勢列表:\n' + state.savedPoses.map(p => `• ${p.name}`).join('\n'));
+      } else if (cmd.startsWith('/pose reset')) {
+        Object.keys(state.jointRotations).forEach(k => {
+          state.jointRotations[k] = { x: 0, y: 0, z: 0 };
+        });
+        loadJointToSliders();
+        document.querySelectorAll('.joint-node').forEach(el => el.style.transform = 'none');
+        alert('姿勢已重設回待機標準自然站姿。');
+      } else if (cmd.startsWith('/pose ')) {
+        const targetName = cmd.replace('/pose ', '').trim();
+        const foundIdx = state.savedPoses.findIndex(p => p.name.includes(targetName));
+        if (foundIdx !== -1) {
+          window.applyPose(foundIdx);
+        } else {
+          alert(`找不到姿勢「${targetName}」，請檢查名稱或使用 /pose list。`);
+        }
+      } else if (cmd === '/photo' || cmd === '/snapshot') {
+        triggerSnapshot();
+      }
+    });
+
+    // Snapshot Functionality
+    function triggerSnapshot() {
+      const shutter = document.getElementById('shutterOverlay');
+      shutter.classList.remove('shutter-effect');
+      void shutter.offsetWidth; // trigger reflow
+      shutter.classList.add('shutter-effect');
+
+      const isTransparent = document.getElementById('chkTransparentBg').checked;
+      const now = new Date();
+      const timestamp = now.getFullYear().toString() +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0') + '_' +
+        String(now.getHours()).padStart(2, '0') +
+        String(now.getMinutes()).padStart(2, '0') +
+        String(now.getSeconds()).padStart(2, '0');
+      const filename = `aibff_snapshot_${timestamp}.png`;
+
+      // Show thumb container
+      const thumbBox = document.getElementById('snapshotThumbContainer');
+      document.getElementById('snapshotFileName').innerText = `${filename} (${isTransparent ? '透明PNG' : '標準背景'})`;
+      thumbBox.classList.remove('hidden');
+
+      console.log(`[Snapshot] Captured frame ${filename}, transparent: ${isTransparent}`);
+    }
+
+    document.getElementById('btnSnapshot').addEventListener('click', triggerSnapshot);
+    document.getElementById('btnTakeBigPhoto').addEventListener('click', triggerSnapshot);
+
+    // Initial setups
+    updateVisualTransform();
+    loadJointToSliders();
+    highlightJointNode('head');
+    renderSavedPoses();
+  </script>
+</body>
+</html>

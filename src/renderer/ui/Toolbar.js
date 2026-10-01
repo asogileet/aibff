@@ -31,6 +31,14 @@ export class Toolbar {
         <span class="text-lg">💃</span>
         <span class="text-xs hidden md:inline">動作</span>
       </button>
+      <button id="btnPose" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="骨架關節微調與自訂姿勢">
+        <span class="text-lg">🦴</span>
+        <span class="text-xs hidden md:inline">姿勢</span>
+      </button>
+      <button id="btnSnapshot" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="拍下高畫質 3D 照片">
+        <span class="text-lg">📸</span>
+        <span class="text-xs hidden md:inline">拍照</span>
+      </button>
       <button id="btnView" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="切換視角 (半身特寫 / 全身視角)">
         <span class="text-lg">🧍</span>
         <span class="text-xs hidden md:inline">視角</span>
@@ -52,6 +60,8 @@ export class Toolbar {
     this.element.querySelector('#btnChat').addEventListener('click', () => this.handlers.onChat?.());
     this.element.querySelector('#btnCostume').addEventListener('click', () => this.handlers.onCostume?.());
     this.element.querySelector('#btnAction').addEventListener('click', () => this.handlers.onAction?.());
+    this.element.querySelector('#btnPose').addEventListener('click', () => this.handlers.onPose?.());
+    this.element.querySelector('#btnSnapshot').addEventListener('click', () => this.handlers.onSnapshot?.());
     this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
     this.element.querySelector('#btnLeave').addEventListener('click', () => this.handlers.onLeave?.());
     this.element.querySelector('#btnSettings').addEventListener('click', () => this.handlers.onSettings?.());
