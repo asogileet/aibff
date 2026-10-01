@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>真實手指偵測・人偶關節拉扯玩具互動 - 原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Optional MediaPipe CDN for real camera finger detection -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.4);
+      border-radius: 4px;
+    }
+    .transparent-pattern {
+      background-color: #0f172a;
+      background-image: linear-gradient(45deg, #1e293b 25%, transparent 25%), 
+                        linear-gradient(-45deg, #1e293b 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #1e293b 75%), 
+                        linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+    }
+    .video-mirror {
+      transform: scaleX(-1);
+    }
+    @keyframes pinchRing {
+      0% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.3); opacity: 0.4; }
+      100% { transform: scale(1); opacity: 0.8; }
+    }
+    .pinch-pulse {
+      animation: pinchRing 1.2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans select-none">
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>🤏</span> 手指偵測・人偶肢體拉扯物理互動・原型展示
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          如同實體關節人偶玩具，用手指捏取（Pinch）即可隨心所欲抓取手腕、腳踝或摸頭，體驗多段關節反向運動學 (IK) 拉扯
+        </p>
+      </div>
+      <div class="flex items-center flex-wrap gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">MediaPipe Hands</span>
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Two-Bone IK Solver</span>
+        <span class="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Pinch & Drag Physics</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">關節吸附與表情回饋</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Column 1: Interactive Puppet Stage (6 cols) -->
+      <div class="lg:col-span-6 glass-panel rounded-2xl p-5 flex flex-col items-center">
+        <div class="w-full flex justify-between items-center mb-3">
+          <div class="flex items-center gap-2">
+            <span id="puppetStateDot" class="w-2.5 h-2.5 rounded-full bg-pink-400 animate-pulse"></span>
+            <span id="puppetStateText" class="text-xs font-medium text-slate-300">關節玩具模式：等待手指抓取</span>
+          </div>
+          <span id="activeGrabbedJointBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">尚未抓取關節</span>
+        </div>
+
+        <!-- Simulated Window Stage Frame -->
+        <div class="relative w-[380px] h-[540px] rounded-3xl overflow-hidden border-2 border-slate-700 shadow-2xl transition-all duration-300 flex flex-col justify-end" id="puppetStage">
+          
+          <!-- Background: AR Video or Transparency Pattern -->
+          <div id="stagePatternBg" class="absolute inset-0 transparent-pattern"></div>
+          <video id="stageWebcam" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover hidden opacity-0 transition-opacity duration-300 video-mirror"></video>
+
+          <!-- Dialogue Bubble -->
+          <div id="stageDialogueBubble" class="absolute top-5 left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-3.5 py-2 rounded-2xl shadow-xl max-w-[320px] transition-all duration-300 border-pink-500/40 flex items-center space-x-2 z-20 pointer-events-none">
+            <span id="stageEmotion" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40">好奇</span>
+            <p id="stageDialogue" class="leading-relaxed text-[11px] truncate">伸出手指靠近我的手或腳，捏起來拉拉看吧！✨</p>
+          </div>
+
+          <!-- Interactive 2D Skeletal Puppet Canvas -->
+          <canvas id="puppetCanvas" width="380" height="540" class="absolute inset-0 z-10 cursor-crosshair"></canvas>
+
+          <!-- Finger Cursor / Tension indicator -->
+          <div id="fingerCursor" class="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30 hidden">
+            <div id="cursorRing" class="w-full h-full rounded-full border-2 border-cyan-400 bg-cyan-400/20 flex items-center justify-center transition-all duration-150">
+              <span id="cursorIcon" class="text-xs">🤏</span>
+            </div>
+          </div>
+
+          <!-- Bottom Control Bar -->
+          <div class="relative z-30 mb-3 px-3 flex justify-between items-center w-full">
+            <div class="glass-panel rounded-full px-3 py-1 flex items-center space-x-2 text-[11px] text-slate-300 border-slate-700">
+              <span>模式：</span>
+              <button id="btnToggleCamFeed" class="text-emerald-400 hover:underline">開啟視訊鏡頭</button>
+            </div>
+            <button id="btnResetPose" class="glass-panel rounded-full px-3 py-1 text-[11px] text-pink-300 hover:text-white border-pink-500/40 hover:bg-pink-500/20 transition">
+              🔄 恢復自然待機姿勢
+            </button>
+          </div>
+
+        </div>
+
+        <p class="text-[11px] text-slate-400 mt-3 text-center">
+          💡 <strong>操作方式</strong>：在人偶的「左手腕、右手腕、左腳踝、右腳踝、頭頂」按下滑鼠並拖曳（或開啟攝影機用手指捏合），人偶關節就會隨手指自然拉扯！
+        </p>
+      </div>
+
+      <!-- Column 2: Controls, Physics Parameters & Real Camera Mode (6 cols) -->
+      <div class="lg:col-span-6 space-y-6">
+
+        <!-- Tracking & Mode Selector -->
+        <div class="glass-panel rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h2 class="text-sm font-semibold text-emerald-400 flex items-center gap-2">
+              <span>🖐️</span> 手指輸入控制方式
+            </h2>
+            <div class="flex items-center gap-2">
+              <button id="btnModeMouse" class="px-2.5 py-1 rounded-lg bg-pink-600 text-white text-xs font-medium transition">
+                滑鼠/觸控模擬手指
+              </button>
+              <button id="btnModeWebcam" class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition">
+                啟用實體攝影機手勢
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <!-- Release Behavior -->
+            <div class="space-y-1.5">
+              <label class="text-slate-300 font-medium">鬆手後反應 (Release Mode)</label>
+              <select id="selectReleaseMode" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-pink-500">
+                <option value="spring">物理彈簧回彈 (自然放鬆回原位)</option>
+                <option value="hold">維持定格姿勢 (保持拉扯造型)</option>
+              </select>
+            </div>
+
+            <!-- Joint Snapping Tolerance -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between">
+                <label class="text-slate-300 font-medium">手指吸附靈敏半徑</label>
+                <span id="valSnappingRadius" class="text-slate-400">45 px</span>
+              </div>
+              <input id="sliderSnapping" type="range" min="20" max="80" value="45" class="w-full accent-pink-500">
+            </div>
+
+            <!-- Tension Stiffness -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between">
+                <label class="text-slate-300 font-medium">肢體彈性硬度 (Tension)</label>
+                <span id="valStiffness" class="text-slate-400">適中 (0.15)</span>
+              </div>
+              <input id="sliderStiffness" type="range" min="5" max="30" value="15" class="w-full accent-emerald-500">
+            </div>
+
+            <!-- Reaction Sound & Voice -->
+            <div class="space-y-1.5">
+              <label class="text-slate-300 font-medium">被拉扯時的語音反饋</label>
+              <div class="flex items-center gap-2 pt-1">
+                <input id="checkVoiceReaction" type="checkbox" checked class="accent-pink-500 w-4 h-4">
+                <label for="checkVoiceReaction" class="text-slate-300">開啟驚呼/撒嬌語音反應</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skeleton Joint Inspection Table -->
+        <div class="glass-panel rounded-2xl p-5 space-y-3">
+          <h2 class="text-sm font-semibold text-pink-400 flex items-center gap-2">
+            <span>🦴</span> 可抓取關節與反向運動學狀態
+          </h2>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs" id="jointChipsContainer">
+            <!-- Dynamically populated or static chips -->
+            <div id="chipHead" class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <span class="text-slate-300">頭部 (Head)</span>
+              <span class="text-[10px] text-slate-500">待機</span>
+            </div>
+            <div id="chipRightHand" class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <span class="text-slate-300">右手 (R-Hand)</span>
+              <span class="text-[10px] text-slate-500">待機</span>
+            </div>
+            <div id="chipLeftHand" class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <span class="text-slate-300">左手 (L-Hand)</span>
+              <span class="text-[10px] text-slate-500">待機</span>
+            </div>
+            <div id="chipRightFoot" class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <span class="text-slate-300">右腳 (R-Foot)</span>
+              <span class="text-[10px] text-slate-500">待機</span>
+            </div>
+            <div id="chipLeftFoot" class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <span class="text-slate-300">左腳 (L-Foot)</span>
+              <span class="text-[10px] text-slate-500">待機</span>
+            </div>
+            <div id="chipSpine" class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <span class="text-slate-300">脊椎重心 (Hips)</span>
+              <span class="text-[10px] text-slate-500">中心</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dialogues Log -->
+        <div class="glass-panel rounded-2xl p-5 space-y-3">
+          <h2 class="text-sm font-semibold text-cyan-400 flex items-center gap-2">
+            <span>💬</span> 互動對話紀錄
+          </h2>
+          <div id="interactionLog" class="h-32 overflow-y-auto space-y-1.5 pr-1 text-xs custom-scrollbar">
+            <div class="text-slate-400">[系統] 關節人偶互動系統已準備就緒，支援雙手與雙腳 Two-Bone IK 即時拉扯。</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // ----------------------------------------------------
+    // 2D Skeleton Puppet IK Simulator (Mimics 3D VRM IK)
+    // ----------------------------------------------------
+    const canvas = document.getElementById('puppetCanvas');
+    const ctx = canvas.getContext('2d');
+    const stageDialogue = document.getElementById('stageDialogue');
+    const stageEmotion = document.getElementById('stageEmotion');
+    const activeGrabbedJointBadge = document.getElementById('activeGrabbedJointBadge');
+    const puppetStateDot = document.getElementById('puppetStateDot');
+    const puppetStateText = document.getElementById('puppetStateText');
+    const fingerCursor = document.getElementById('fingerCursor');
+    const cursorRing = document.getElementById('cursorRing');
+    const cursorIcon = document.getElementById('cursorIcon');
+    const interactionLog = document.getElementById('interactionLog');
+
+    const selectReleaseMode = document.getElementById('selectReleaseMode');
+    const sliderSnapping = document.getElementById('sliderSnapping');
+    const valSnappingRadius = document.getElementById('valSnappingRadius');
+    const sliderStiffness = document.getElementById('sliderStiffness');
+    const valStiffness = document.getElementById('valStiffness');
+    const checkVoiceReaction = document.getElementById('checkVoiceReaction');
+    const btnResetPose = document.getElementById('btnResetPose');
+
+    let snappingRadius = 45;
+    let stiffness = 0.15;
+    let releaseMode = 'spring'; // 'spring' or 'hold'
+
+    // Bone lengths
+    const L_UPPER_ARM = 55;
+    const L_LOWER_ARM = 55;
+    const L_UPPER_LEG = 70;
+    const L_LOWER_LEG = 70;
+
+    // Base Rest Positions
+    const REST_SKELETON = {
+      hips: { x: 190, y: 310 },
+      spine: { x: 190, y: 240 },
+      neck: { x: 190, y: 190 },
+      head: { x: 190, y: 145 },
+
+      // Right Arm (Screen left from viewer perspective)
+      rightShoulder: { x: 155, y: 200 },
+      rightElbow: { x: 130, y: 245 },
+      rightHand: { x: 115, y: 295 },
+
+      // Left Arm (Screen right)
+      leftShoulder: { x: 225, y: 200 },
+      leftElbow: { x: 250, y: 245 },
+      leftHand: { x: 265, y: 295 },
+
+      // Right Leg
+      rightHip: { x: 170, y: 325 },
+      rightKnee: { x: 165, y: 395 },
+      rightFoot: { x: 160, y: 465 },
+
+      // Left Leg
+      leftHip: { x: 210, y: 325 },
+      leftKnee: { x: 215, y: 395 },
+      leftFoot: { x: 220, y: 465 }
+    };
+
+    // Current Working Skeleton
+    const skel = JSON.parse(JSON.stringify(REST_SKELETON));
+
+    // Interaction State
+    let grabbedJointKey = null; // 'rightHand', 'leftHand', 'rightFoot', 'leftFoot', 'head'
+    let hoveredJointKey = null;
+    let fingerPos = { x: 190, y: 250 };
+    let isPinching = false;
+    let isMouseMode = true;
+    let idleTime = 0;
+
+    // Two-Bone Inverse Kinematics (IK) Solver
+    function solveTwoBoneIK(root, target, l1, l2, bendDirection = 1) {
+      const dx = target.x - root.x;
+      const dy = target.y - root.y;
+      const dist = Math.min(Math.hypot(dx, dy), l1 + l2 - 0.5); // Prevent fully straight degeneracy
+
+      const angleToTarget = Math.atan2(dy, dx);
+      // Law of cosines for angle at root
+      const cosA1 = (dist * dist + l1 * l1 - l2 * l2) / (2 * dist * l1);
+      const angleA1 = Math.acos(Math.max(-1, Math.min(1, cosA1)));
+
+      const jointAngle = angleToTarget + angleA1 * bendDirection;
+      const jointX = root.x + Math.cos(jointAngle) * l1;
+      const jointY = root.y + Math.sin(jointAngle) * l1;
+
+      // End effector touches target
+      const endX = target.x;
+      const endY = target.y;
+
+      return {
+        joint: { x: jointX, y: jointY },
+        end: { x: endX, y: endY }
+      };
+    }
+
+    // Voice Dialogue reactions
+    const DIALOGUES = {
+      head: [
+        { emotion: '開心', text: '最喜歡主人摸摸頭了～好溫暖呀！🥰' },
+        { emotion: '害羞', text: '主人一直撫摸我的頭髮，心跳好快喔...❤️' }
+      ],
+      rightHand: [
+        { emotion: '調皮', text: '主人牽著我的右手，是要一起跳舞嗎～？💃' },
+        { emotion: '開心', text: '牽手成功！今天一整天都不准放開喔！✨' }
+      ],
+      leftHand: [
+        { emotion: '好奇', text: '哇！主人拉住我的左手了～要去哪裡呀？' },
+        { emotion: '幸福', text: '主人的手感覺好溫暖呢～💕' }
+      ],
+      rightFoot: [
+        { emotion: '驚訝', text: '呀！主人怎麼抓人家的腳啦～好害羞！😣' },
+        { emotion: '調皮', text: '看我一腳金雞獨立！主人快放我下來啦～😆' }
+      ],
+      leftFoot: [
+        { emotion: '害羞', text: '嗚嗚～不要隨便抓女孩子的腳踝啦！會癢～😂' },
+        { emotion: '撒嬌', text: '主人大壞蛋！快把我放回平地上～' }
+      ]
+    };
+
+    function triggerReaction(jointKey) {
+      if (!checkVoiceReaction.checked) return;
+      const list = DIALOGUES[jointKey];
+      if (list && list.length > 0) {
+        const item = list[Math.floor(Math.random() * list.length)];
+        stageEmotion.textContent = item.emotion;
+        stageDialogue.textContent = item.text;
+        logInteraction(`[${item.emotion}] ${item.text}`);
+      }
+    }
+
+    function logInteraction(msg) {
+      const div = document.createElement('div');
+      div.className = 'text-pink-300 py-0.5 border-b border-slate-900';
+      div.textContent = `${new Date().toLocaleTimeString()} ${msg}`;
+      interactionLog.prepend(div);
+    }
+
+    // Update Puppet Physics Loop
+    function updatePhysics() {
+      idleTime += 0.03;
+
+      // Idle breathing offset when not grabbed
+      const breathY = Math.sin(idleTime) * 3;
+
+      if (!grabbedJointKey) {
+        // Return to rest position gradually if in spring mode
+        if (releaseMode === 'spring') {
+          ['head', 'rightHand', 'leftHand', 'rightFoot', 'leftFoot'].forEach(k => {
+            skel[k].x += (REST_SKELETON[k].x - skel[k].x) * stiffness;
+            skel[k].y += (REST_SKELETON[k].y + breathY - skel[k].y) * stiffness;
+          });
+        }
+      } else {
+        // Drag grabbed joint directly towards finger with slight lerp
+        skel[grabbedJointKey].x += (fingerPos.x - skel[grabbedJointKey].x) * 0.45;
+        skel[grabbedJointKey].y += (fingerPos.y - skel[grabbedJointKey].y) * 0.45;
+      }
+
+      // Solve IK for Arms
+      const rArm = solveTwoBoneIK(skel.rightShoulder, skel.rightHand, L_UPPER_ARM, L_LOWER_ARM, -1);
+      skel.rightElbow = rArm.joint;
+
+      const lArm = solveTwoBoneIK(skel.leftShoulder, skel.leftHand, L_UPPER_ARM, L_LOWER_ARM, 1);
+      skel.leftElbow = lArm.joint;
+
+      // Solve IK for Legs
+      const rLeg = solveTwoBoneIK(skel.rightHip, skel.rightFoot, L_UPPER_LEG, L_LOWER_LEG, 1);
+      skel.rightKnee = rLeg.joint;
+
+      const lLeg = solveTwoBoneIK(skel.leftHip, skel.leftFoot, L_UPPER_LEG, L_LOWER_LEG, -1);
+      skel.leftKnee = lLeg.joint;
+
+      // Check Hovered Joint when not pinching
+      hoveredJointKey = null;
+      const targetJoints = ['head', 'rightHand', 'leftHand', 'rightFoot', 'leftFoot'];
+      for (const key of targetJoints) {
+        const d = Math.hypot(fingerPos.x - skel[key].x, fingerPos.y - skel[key].y);
+        if (d < snappingRadius) {
+          hoveredJointKey = key;
+          break;
+        }
+      }
+    }
+
+    // Render Puppet Canvas
+    function renderPuppet() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Draw Tension String if grabbed
+      if (grabbedJointKey && isPinching) {
+        ctx.strokeStyle = '#ec4899';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(fingerPos.x, fingerPos.y);
+        ctx.lineTo(skel[grabbedJointKey].x, skel[grabbedJointKey].y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Tension glow circles
+        ctx.fillStyle = 'rgba(236, 72, 153, 0.4)';
+        ctx.beginPath();
+        ctx.arc(skel[grabbedJointKey].x, skel[grabbedJointKey].y, 16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 2. Draw Bones & Limbs (Cute Stylized Anime Doll Aesthetic)
+      // Legs
+      drawBone(skel.rightHip, skel.rightKnee, '#fbcfe8', 12);
+      drawBone(skel.rightKnee, skel.rightFoot, '#fbcfe8', 10);
+      drawFoot(skel.rightFoot);
+
+      drawBone(skel.leftHip, skel.leftKnee, '#fbcfe8', 12);
+      drawBone(skel.leftKnee, skel.leftFoot, '#fbcfe8', 10);
+      drawFoot(skel.leftFoot);
+
+      // Torso / Dress
+      ctx.fillStyle = '#f472b6'; // Dress pink
+      ctx.beginPath();
+      ctx.moveTo(skel.rightShoulder.x - 5, skel.rightShoulder.y);
+      ctx.lineTo(skel.leftShoulder.x + 5, skel.leftShoulder.y);
+      ctx.lineTo(skel.leftHip.x + 25, skel.leftHip.y + 40);
+      ctx.lineTo(skel.rightHip.x - 25, skel.rightHip.y + 40);
+      ctx.closePath();
+      ctx.fill();
+
+      // Arms
+      drawBone(skel.rightShoulder, skel.rightElbow, '#ffedd5', 10);
+      drawBone(skel.rightElbow, skel.rightHand, '#ffedd5', 8);
+      drawHand(skel.rightHand, 'R');
+
+      drawBone(skel.leftShoulder, skel.leftElbow, '#ffedd5', 10);
+      drawBone(skel.leftElbow, skel.leftHand, '#ffedd5', 8);
+      drawHand(skel.leftHand, 'L');
+
+      // Head
+      drawHead(skel.head);
+
+      // 3. Highlight Grabbable Joint Points
+      const targets = [
+        { k: 'head', pt: skel.head, label: '摸頭' },
+        { k: 'rightHand', pt: skel.rightHand, label: '右手' },
+        { k: 'leftHand', pt: skel.leftHand, label: '左手' },
+        { k: 'rightFoot', pt: skel.rightFoot, label: '右腳' },
+        { k: 'leftFoot', pt: skel.leftFoot, label: '左腳' }
+      ];
+
+      targets.forEach(t => {
+        const isHovered = hoveredJointKey === t.k;
+        const isGrabbed = grabbedJointKey === t.k;
+
+        ctx.beginPath();
+        ctx.arc(t.pt.x, t.pt.y, isGrabbed ? 10 : (isHovered ? 8 : 5), 0, Math.PI * 2);
+        ctx.fillStyle = isGrabbed ? '#10b981' : (isHovered ? '#f472b6' : 'rgba(255,255,255,0.6)');
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        if (isHovered || isGrabbed) {
+          // Label tag
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+          ctx.fillRect(t.pt.x - 20, t.pt.y - 25, 40, 16);
+          ctx.fillStyle = '#fbcfe8';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(t.label, t.pt.x, t.pt.y - 13);
+        }
+      });
+    }
+
+    function drawBone(p1, p2, color, width) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
+
+    function drawHand(pt, side) {
+      ctx.fillStyle = '#ffedd5';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#f472b6';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    function drawFoot(pt) {
+      ctx.fillStyle = '#fda4af'; // Cute shoe
+      ctx.beginPath();
+      ctx.ellipse(pt.x, pt.y, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawHead(pt) {
+      // Hair Back
+      ctx.fillStyle = '#6366f1';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 36, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Face
+      ctx.fillStyle = '#ffedd5';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 30, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes
+      ctx.fillStyle = '#312e81';
+      ctx.beginPath();
+      ctx.arc(pt.x - 10, pt.y - 2, 4, 0, Math.PI * 2);
+      ctx.arc(pt.x + 10, pt.y - 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Blush
+      ctx.fillStyle = 'rgba(244, 114, 182, 0.6)';
+      ctx.beginPath();
+      ctx.arc(pt.x - 14, pt.y + 6, 5, 0, Math.PI * 2);
+      ctx.arc(pt.x + 14, pt.y + 6, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Smile
+      ctx.strokeStyle = '#e11d48';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y + 6, 6, 0.2 * Math.PI, 0.8 * Math.PI);
+      ctx.stroke();
+
+      // Hair Bangs
+      ctx.fillStyle = '#6366f1';
+      ctx.beginPath();
+      ctx.moveTo(pt.x - 30, pt.y - 10);
+      ctx.quadraticCurveTo(pt.x, pt.y + 5, pt.x + 30, pt.y - 10);
+      ctx.lineTo(pt.x + 25, pt.y - 32);
+      ctx.lineTo(pt.x - 25, pt.y - 32);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Animation Loop
+    function loop() {
+      updatePhysics();
+      renderPuppet();
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    // ----------------------------------------------------
+    // Mouse / Touch Event Simulation
+    // ----------------------------------------------------
+    canvas.addEventListener('mousemove', (e) => {
+      if (!isMouseMode) return;
+      const rect = canvas.getBoundingClientRect();
+      fingerPos.x = e.clientX - rect.left;
+      fingerPos.y = e.clientY - rect.top;
+
+      updateCursorVisual();
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (!isMouseMode) return;
+      isPinching = true;
+      if (hoveredJointKey) {
+        grabbedJointKey = hoveredJointKey;
+        activeGrabbedJointBadge.textContent = `已抓取：${getJointName(grabbedJointKey)}`;
+        activeGrabbedJointBadge.className = 'text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold';
+        puppetStateText.textContent = `正在拉扯：${getJointName(grabbedJointKey)}`;
+        puppetStateDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
+        triggerReaction(grabbedJointKey);
+      }
+      updateCursorVisual();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!isMouseMode) return;
+      if (grabbedJointKey) {
+        logInteraction(`鬆開關節：${getJointName(grabbedJointKey)}`);
+      }
+      isPinching = false;
+      grabbedJointKey = null;
+      activeGrabbedJointBadge.textContent = '尚未抓取關節';
+      activeGrabbedJointBadge.className = 'text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700';
+      puppetStateText.textContent = '關節玩具模式：等待手指抓取';
+      puppetStateDot.className = 'w-2.5 h-2.5 rounded-full bg-pink-400 animate-pulse';
+      updateCursorVisual();
+    });
+
+    function updateCursorVisual() {
+      fingerCursor.classList.remove('hidden');
+      fingerCursor.style.left = `${fingerPos.x}px`;
+      fingerCursor.style.top = `${fingerPos.y}px`;
+
+      if (isPinching) {
+        cursorRing.className = 'w-full h-full rounded-full border-2 border-emerald-400 bg-emerald-400/30 flex items-center justify-center scale-90';
+        cursorIcon.textContent = '✊';
+      } else if (hoveredJointKey) {
+        cursorRing.className = 'w-full h-full rounded-full border-2 border-pink-400 bg-pink-400/20 flex items-center justify-center pinch-pulse';
+        cursorIcon.textContent = '🤏';
+      } else {
+        cursorRing.className = 'w-full h-full rounded-full border-2 border-cyan-400 bg-cyan-400/20 flex items-center justify-center';
+        cursorIcon.textContent = '🖐️';
+      }
+    }
+
+    function getJointName(key) {
+      const map = {
+        head: '頭部 (摸頭)',
+        rightHand: '右手腕',
+        leftHand: '左手腕',
+        rightFoot: '右腳踝',
+        leftFoot: '左腳踝'
+      };
+      return map[key] || key;
+    }
+
+    // Reset Pose
+    btnResetPose.addEventListener('click', () => {
+      ['head', 'rightHand', 'leftHand', 'rightFoot', 'leftFoot'].forEach(k => {
+        skel[k].x = REST_SKELETON[k].x;
+        skel[k].y = REST_SKELETON[k].y;
+      });
+      stageEmotion.textContent = '開心';
+      stageDialogue.textContent = '骨架已恢復標準站姿囉！主人隨時可以再拉我玩～';
+      logInteraction('恢復標準站姿');
+    });
+
+    // Control parameters
+    sliderSnapping.addEventListener('input', (e) => {
+      snappingRadius = parseInt(e.target.value);
+      valSnappingRadius.textContent = `${snappingRadius} px`;
+    });
+
+    sliderStiffness.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      stiffness = val / 100;
+      valStiffness.textContent = val < 10 ? '柔軟緩慢' : (val > 20 ? '強韌快速' : '適中 (0.15)');
+    });
+
+    selectReleaseMode.addEventListener('change', (e) => {
+      releaseMode = e.target.value;
+      logInteraction(`切換放手模式為：${e.target.value === 'spring' ? '物理回彈' : '維持造型'}`);
+    });
+
+    // ----------------------------------------------------
+    // Optional Real Camera Finger Detection (MediaPipe Hands)
+    // ----------------------------------------------------
+    const btnToggleCamFeed = document.getElementById('btnToggleCamFeed');
+    const stageWebcam = document.getElementById('stageWebcam');
+    const stagePatternBg = document.getElementById('stagePatternBg');
+    const btnModeMouse = document.getElementById('btnModeMouse');
+    const btnModeWebcam = document.getElementById('btnModeWebcam');
+
+    let cameraInstance = null;
+    let handsInstance = null;
+    let isWebcamActive = false;
+
+    btnModeMouse.addEventListener('click', () => {
+      isMouseMode = true;
+      btnModeMouse.className = 'px-2.5 py-1 rounded-lg bg-pink-600 text-white text-xs font-medium transition';
+      btnModeWebcam.className = 'px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition';
+      logInteraction('已切換為：滑鼠/觸控手勢模擬模式');
+    });
+
+    btnModeWebcam.addEventListener('click', async () => {
+      isMouseMode = false;
+      btnModeWebcam.className = 'px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-medium transition';
+      btnModeMouse.className = 'px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition';
+      startMediaPipeHands();
+    });
+
+    btnToggleCamFeed.addEventListener('click', async () => {
+      if (isWebcamActive) {
+        stopWebcam();
+      } else {
+        await startMediaPipeHands();
+      }
+    });
+
+    async function startMediaPipeHands() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+        stageWebcam.srcObject = stream;
+        stageWebcam.classList.remove('hidden');
+        stageWebcam.classList.remove('opacity-0');
+        stagePatternBg.classList.add('opacity-0');
+        isWebcamActive = true;
+        btnToggleCamFeed.textContent = '關閉視訊鏡頭';
+
+        if (window.Hands && !handsInstance) {
+          handsInstance = new window.Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+          });
+          handsInstance.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+          });
+          handsInstance.onResults(onHandResults);
+
+          cameraInstance = new window.Camera(stageWebcam, {
+            onFrame: async () => {
+              await handsInstance.send({ image: stageWebcam });
+            },
+            width: 640,
+            height: 480
+          });
+          cameraInstance.start();
+          logInteraction('MediaPipe 手勢辨識模型已啟動！請在鏡頭前伸出手指');
+        }
+      } catch (e) {
+        alert('無法啟動相機或加載 MediaPipe 模型，已切換回滑鼠模擬模式。');
+        btnModeMouse.click();
+      }
+    }
+
+    function stopWebcam() {
+      if (stageWebcam.srcObject) {
+        stageWebcam.srcObject.getTracks().forEach(t => t.stop());
+        stageWebcam.srcObject = null;
+      }
+      stageWebcam.classList.add('hidden');
+      stageWebcam.classList.add('opacity-0');
+      stagePatternBg.classList.remove('opacity-0');
+      isWebcamActive = false;
+      btnToggleCamFeed.textContent = '開啟視訊鏡頭';
+    }
+
+    function onHandResults(results) {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        // Mirror coordinate: x = 1 - x
+        const thumbTip = landmarks[4];
+        const indexTip = landmarks[8];
+
+        const avgX = (1 - (thumbTip.x + indexTip.x) / 2) * canvas.width;
+        const avgY = ((thumbTip.y + indexTip.y) / 2) * canvas.height;
+
+        fingerPos.x = avgX;
+        fingerPos.y = avgY;
+
+        // Pinch detection: distance between thumb tip and index tip
+        const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+        const wasPinching = isPinching;
+        isPinching = pinchDist < 0.08;
+
+        if (isPinching && !wasPinching) {
+          if (hoveredJointKey) {
+            grabbedJointKey = hoveredJointKey;
+            activeGrabbedJointBadge.textContent = `已抓取：${getJointName(grabbedJointKey)}`;
+            triggerReaction(grabbedJointKey);
+          }
+        } else if (!isPinching && wasPinching) {
+          grabbedJointKey = null;
+          activeGrabbedJointBadge.textContent = '尚未抓取關節';
+        }
+
+        updateCursorVisual();
+      }
+    }
+  </script>
+</body>
+</html>

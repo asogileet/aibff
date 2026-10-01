@@ -1,6 +1,7 @@
 import { SceneManager } from './core/SceneManager.js';
 import { SnapshotService } from './core/SnapshotService.js';
 import { ARManager } from './core/ARManager.js';
+import { HandTracker } from './core/HandTracker.js';
 import { RaycastManager } from './core/RaycastManager.js';
 import { AvatarController } from './vrm/AvatarController.js';
 import { AnimationController } from './vrm/AnimationController.js';
@@ -9,12 +10,14 @@ import { LipSyncController } from './vrm/LipSyncController.js';
 import { EyeTrackingController } from './vrm/EyeTrackingController.js';
 import { ActionController } from './vrm/ActionController.js';
 import { PoseManager } from './vrm/PoseManager.js';
+import { PuppetController } from './vrm/PuppetController.js';
 
 import { Toolbar } from './ui/Toolbar.js';
 import { ChatBox } from './ui/ChatBox.js';
 import { CostumeSelector } from './ui/CostumeSelector.js';
 import { ActionSelector } from './ui/ActionSelector.js';
 import { PoseModal } from './ui/PoseModal.js';
+import { PuppetVisualizer } from './ui/PuppetVisualizer.js';
 import { HeartWidget } from './ui/HeartWidget.js';
 import { SettingsModal } from './ui/SettingsModal.js';
 
@@ -72,12 +75,64 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // 3. UI & Feature Modules
   let isResting = false;
+  let isPuppetMode = false;
+
+  const puppetController = new PuppetController(
+    avatarController,
+    animationController,
+    sceneManager,
+    {
+      onReaction: (jointKey, text, emotion) => {
+        showBubble(text, emotion);
+        conversationManager.speakText(text);
+      }
+    }
+  );
+  sceneManager.addUpdatable(puppetController);
+
+  const puppetVisualizer = new PuppetVisualizer(uiContainer, puppetController);
+  sceneManager.addUpdatable({
+    update: () => puppetVisualizer.render()
+  });
+
+  const handTracker = new HandTracker({
+    onHandUpdate: ({ x, y, isPinching }) => {
+      puppetController.updateFinger(x, y, isPinching);
+    }
+  });
 
   const arManager = new ARManager({
     onStateChange: (isActive) => {
       if (toolbar) toolbar.setARActive(isActive);
+      if (isPuppetMode) {
+        if (isActive && arManager.getVideoElement()) {
+          handTracker.startCameraTracking(arManager.getVideoElement());
+        } else {
+          handTracker.stopCameraTracking();
+        }
+      }
     }
   });
+
+  const togglePuppetMode = async (forceState = null) => {
+    isPuppetMode = forceState !== null ? forceState : !isPuppetMode;
+    puppetController.setEnabled(isPuppetMode);
+    puppetVisualizer.setVisible(isPuppetMode);
+    if (toolbar) toolbar.setPuppetActive(isPuppetMode);
+
+    if (isPuppetMode) {
+      if (arManager.isActive && arManager.getVideoElement()) {
+        await handTracker.startCameraTracking(arManager.getVideoElement());
+      }
+      showBubble('🤏 玩偶拉扯模式已開啟！可以用手指或滑鼠抓我的手腳喔～✨', 'happy');
+      chatBox.addAssistantMessage('🤏 已開啟人偶拉扯模式！伸出手指靠近手腕或腳踝捏合抓取，即可隨心所欲牽引拉動～');
+    } else {
+      handTracker.stopCameraTracking();
+      showBubble('已退出玩偶拉扯模式～', 'happy');
+      chatBox.addAssistantMessage('已關閉人偶拉扯模式，恢復自然互動狀態。');
+    }
+    return isPuppetMode;
+  };
 
   const snapshotService = new SnapshotService(sceneManager, arManager);
   const poseManager = new PoseManager(avatarController, animationController);
@@ -85,13 +140,27 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const handleSlashCommand = async (cmdText) => {
     const trimmed = cmdText.trim();
+    if (trimmed === '/puppet' || trimmed === '/puppet toggle') {
+      await togglePuppetMode();
+      return true;
+    }
+    if (trimmed === '/puppet on') {
+      await togglePuppetMode(true);
+      return true;
+    }
+    if (trimmed === '/puppet off') {
+      await togglePuppetMode(false);
+      return true;
+    }
     if (trimmed === '/ar' || trimmed === '/ar toggle') {
       try {
         const active = await arManager.toggle();
         if (active) {
-          showBubble('📷 視訊 AR 模式已啟動！我就在你的房間裡喔～✨', 'happy');
-          chatBox.addAssistantMessage('📷 筆電鏡頭已開啟！現在是 AR 視訊模式，我就站在你的房間裡～');
+          await togglePuppetMode(true);
+          showBubble('📷 視訊 AR 與手指拉扯模式已啟動！我就在你的房間裡，伸手捏捏看我吧～✨', 'happy');
+          chatBox.addAssistantMessage('📷 筆電鏡頭與手指玩偶模式已同步開啟！伸出手指靠近手腕、腰部捏合即可拉扯移動～');
         } else {
+          await togglePuppetMode(false);
           showBubble('已回到透明桌面模式～', 'happy');
           chatBox.addAssistantMessage('已關閉筆電鏡頭，回到透明桌面模式囉～');
         }
@@ -104,8 +173,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (trimmed === '/ar on') {
       try {
         await arManager.start();
-        showBubble('📷 視訊 AR 模式已啟動！我就在你的房間裡喔～✨', 'happy');
-        chatBox.addAssistantMessage('📷 筆電鏡頭已開啟！現在是 AR 視訊模式～');
+        await togglePuppetMode(true);
+        showBubble('📷 視訊 AR 與手指拉扯模式已啟動！伸手捏捏看我吧～✨', 'happy');
+        chatBox.addAssistantMessage('📷 筆電鏡頭與手指玩偶模式已開啟～');
       } catch (err) {
         showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
         chatBox.addAssistantMessage('⚠️ 無法存取視訊攝影機，請確認筆電鏡頭權限是否已開啟。');
@@ -114,6 +184,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     if (trimmed === '/ar off') {
       arManager.stop();
+      await togglePuppetMode(false);
       showBubble('已回到透明桌面模式～', 'happy');
       chatBox.addAssistantMessage('已關閉筆電鏡頭，回到透明桌面模式囉～');
       return true;
@@ -257,13 +328,18 @@ window.addEventListener('DOMContentLoaded', async () => {
       try {
         const active = await arManager.toggle();
         if (active) {
-          showBubble('📷 視訊 AR 模式已啟動！我就在你的房間裡喔～✨', 'happy');
+          await togglePuppetMode(true);
+          showBubble('📷 視訊 AR 與手指拉扯模式已啟動！我就在你的房間裡，伸手捏捏看我吧～✨', 'happy');
         } else {
+          await togglePuppetMode(false);
           showBubble('已回到透明桌面模式～', 'happy');
         }
       } catch (err) {
         showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
       }
+    },
+    onPuppet: () => {
+      togglePuppetMode();
     },
     onViewToggle: () => {
       sceneManager.setCameraPreset('toggle');
@@ -298,6 +374,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     {
       onLeave: () => {
         isResting = true;
+        if (isPuppetMode) {
+          togglePuppetMode(false);
+        }
         if (arManager.isActive) {
           arManager.stop();
         }

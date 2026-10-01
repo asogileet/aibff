@@ -43,6 +43,10 @@ export class Toolbar {
         <span class="text-lg">📷</span>
         <span class="text-xs hidden md:inline">AR</span>
       </button>
+      <button id="btnPuppet" class="flex items-center space-x-1 text-slate-300 hover:text-cyan-400 p-2 rounded-full hover:bg-white/5 transition" title="開關手指人偶肢體拉扯互動">
+        <span class="text-lg">🤏</span>
+        <span class="text-xs hidden md:inline">玩偶</span>
+      </button>
       <button id="btnView" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="切換視角 (半身特寫 / 全身視角)">
         <span class="text-lg">🧍</span>
         <span class="text-xs hidden md:inline">視角</span>
@@ -67,6 +71,7 @@ export class Toolbar {
     this.element.querySelector('#btnPose').addEventListener('click', () => this.handlers.onPose?.());
     this.element.querySelector('#btnSnapshot').addEventListener('click', () => this.handlers.onSnapshot?.());
     this.element.querySelector('#btnAR').addEventListener('click', () => this.handlers.onAR?.());
+    this.element.querySelector('#btnPuppet').addEventListener('click', () => this.handlers.onPuppet?.());
     this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
     this.element.querySelector('#btnLeave').addEventListener('click', () => this.handlers.onLeave?.());
     this.element.querySelector('#btnSettings').addEventListener('click', () => this.handlers.onSettings?.());
@@ -120,6 +125,18 @@ export class Toolbar {
     } else {
       btn.classList.remove('text-emerald-300', 'bg-emerald-500/30', 'ring-2', 'ring-emerald-400/60', 'animate-pulse');
       btn.title = '一鍵開關筆電視訊鏡頭 AR 模式';
+    }
+  }
+
+  setPuppetActive(active) {
+    const btn = this.element.querySelector('#btnPuppet');
+    if (!btn) return;
+    if (active) {
+      btn.classList.add('text-cyan-300', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60', 'animate-pulse');
+      btn.title = '人偶手指拉扯互動中 (點擊關閉)';
+    } else {
+      btn.classList.remove('text-cyan-300', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60', 'animate-pulse');
+      btn.title = '開關手指人偶肢體拉扯互動';
     }
   }
 }
