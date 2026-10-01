@@ -31,6 +31,12 @@ export class ActionController {
       jump: { text: "嘿咻——！跳得很高吧？小櫻今天活力滿滿呢！", emotion: "happy" },
       squat: { text: "蹲在地上抬頭看主人，視角好特別呢～", emotion: "happy" },
       kneel: { text: "正襟跪坐……主人有什麼重要的事要吩咐小櫻嗎？", emotion: "caring" },
+      frog_sit: { text: "主人～這個是青蛙坐姿哦！像不像一隻可愛的小青蛙呢？呱呱～🐸", emotion: "shy" },
+      animal_crawl: { text: "喵～！汪汪～！小櫻現在變成小動物啦，四肢著地頭抬高高看著主人哦🐾", emotion: "happy" },
+      prone: { text: "哈啊～直接趴在地上好舒服哦……主人也想一起趴下放鬆發呆嗎？💤", emotion: "caring" },
+      supine: { text: "望著天花板放空～小櫻躺平囉！主人工作累了也要好好休息呢～✨", emotion: "happy" },
+      jumping_jacks: { text: "一、二、一、二！開合跳運動開始！主人跟小櫻一起保持健康活力～💪", emotion: "happy" },
+      dance: { text: "啦啦啦～🎵 小櫻為主人跳一支專屬元氣舞蹈！希望主人每天都開開心心！💃✨", emotion: "happy" },
       stand: { text: "小櫻站好囉！主人還有什麼想看的動作嗎？", emotion: "happy" }
     };
   }
@@ -143,6 +149,32 @@ export class ActionController {
 
       case 'kneel':
         this.animationController.playKneel();
+        break;
+
+      case 'frog_sit':
+        this.animationController.playFrogSit();
+        break;
+
+      case 'animal_crawl':
+        this.animationController.playAnimalCrawl();
+        break;
+
+      case 'prone':
+        this.animationController.playProne();
+        break;
+
+      case 'supine':
+        this.animationController.playSupine();
+        break;
+
+      case 'jumping_jacks':
+        this.sceneManager.spawnHeartParticles(6);
+        this.animationController.playJumpingJacks();
+        break;
+
+      case 'dance':
+        this.sceneManager.spawnHeartParticles(10);
+        this.animationController.playDance();
         break;
 
       case 'wave':

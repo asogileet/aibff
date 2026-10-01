@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新增 6 大動作庫擴充原型 (青蛙坐姿/學動物四肢著地/趴下/躺下/開合跳/跳舞)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    .bone-indicator {
+      box-shadow: 0 0 10px rgba(244, 114, 182, 0.5);
+    }
+    @keyframes jumpingJacksMotion {
+      0%, 100% {
+        transform: translateY(0) scale(1);
+      }
+      25% {
+        transform: translateY(-40px) scale(1.05, 0.95);
+      }
+      50% {
+        transform: translateY(0) scale(0.98, 1.02);
+      }
+      75% {
+        transform: translateY(-40px) scale(1.05, 0.95);
+      }
+    }
+    @keyframes danceMotion {
+      0%, 100% {
+        transform: translateY(0) rotate(0deg) scale(1);
+      }
+      25% {
+        transform: translateY(-12px) rotate(4deg) scale(1.02);
+      }
+      50% {
+        transform: translateY(-4px) rotate(0deg) scale(0.98);
+      }
+      75% {
+        transform: translateY(-12px) rotate(-4deg) scale(1.02);
+      }
+    }
+    @keyframes frogSitMotion {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(70px) scale(1.15, 0.7); }
+    }
+    @keyframes crawlMotion {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(58px) rotate(8deg) scale(1.2, 0.65); }
+    }
+    @keyframes proneMotion {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(85px) rotate(15deg) scale(1.3, 0.45); }
+    }
+    @keyframes supineMotion {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(85px) rotate(-15deg) scale(1.3, 0.45); }
+    }
+    .anim-jumping_jacks { animation: jumpingJacksMotion 1.2s ease-in-out infinite; }
+    .anim-dance { animation: danceMotion 1.6s ease-in-out infinite; }
+    .anim-frog_sit { animation: frogSitMotion 0.6s ease-out forwards; }
+    .anim-animal_crawl { animation: crawlMotion 0.6s ease-out forwards; }
+    .anim-prone { animation: proneMotion 0.6s ease-out forwards; }
+    .anim-supine { animation: supineMotion 0.6s ease-out forwards; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-5 font-sans">
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-2xl">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>✨</span> 3D VRM 6 大動作擴充互動原型 (HTML Mockup)
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          涵蓋地面姿勢、動物爬行擬態、平躺臥姿與高動態韻律：青蛙坐姿、四肢著地抬頭、趴下、躺下、開合跳、跳舞
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Total 21 Actions</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Three.js VRM Humanoid</span>
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Kinematic Simulation</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left Panel: Interactive Visualizer & 3D Skeleton Wireframe (5 cols) -->
+      <div class="lg:col-span-5 glass-panel rounded-2xl p-5 flex flex-col items-center justify-between">
+        <div class="w-full flex justify-between items-center mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <h2 class="text-xs font-semibold text-slate-300">動作骨骼運動學即時模擬</h2>
+          </div>
+          <span id="currentStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40">
+            青蛙坐姿 (frog_sit)
+          </span>
+        </div>
+
+        <!-- 300x480 Preview Box -->
+        <div class="relative w-[320px] h-[460px] bg-slate-900/90 rounded-2xl border-2 border-indigo-500/40 overflow-hidden shadow-2xl flex flex-col justify-between items-center p-3">
+          
+          <!-- Dialogue Speech Bubble -->
+          <div id="previewBubble" class="w-full glass-panel rounded-xl p-3 text-xs text-pink-200 border-pink-500/40 flex items-start gap-2 shadow-lg transition-all duration-300 z-20">
+            <span id="previewEmoji" class="text-xl">🐸</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-1.5 mb-1">
+                <span id="previewCategory" class="text-[9px] px-1.5 py-0.2 rounded bg-pink-500/30 text-pink-200 font-medium">地面特殊坐姿</span>
+                <span id="previewActionKey" class="text-[10px] text-slate-400 font-mono">frog_sit</span>
+              </div>
+              <p id="previewQuote" class="text-[11px] leading-relaxed">
+                主人～這個是青蛙坐姿哦！像不像一隻可愛的小青蛙呢？呱呱～🐸
+              </p>
+            </div>
+          </div>
+
+          <!-- Dynamic Avatar Kinematic Box -->
+          <div class="my-auto flex flex-col items-center justify-center relative w-full h-64">
+            
+            <!-- SVG Humanoid Kinematic Wireframe -->
+            <svg id="skeletonSvg" class="w-48 h-56 transition-all duration-500" viewBox="0 0 200 240">
+              <!-- Grid Floor -->
+              <line x1="10" y1="210" x2="190" y2="210" stroke="#6366f1" stroke-width="2" stroke-dasharray="4" opacity="0.6"/>
+              <text x="12" y="225" fill="#818cf8" font-size="9" font-family="monospace">地面 Y=0.0m</text>
+
+              <!-- Skeleton Bones Container (Manipulated by JS) -->
+              <g id="boneGroup" transform="translate(100, 110)">
+                <!-- Spine & Torso -->
+                <line id="spineLine" x1="0" y1="0" x2="0" y2="-55" stroke="#f472b6" stroke-width="4" stroke-linecap="round"/>
+                <!-- Head -->
+                <circle id="headCircle" cx="0" cy="-68" r="14" fill="#fbcfe8" stroke="#ec4899" stroke-width="2.5"/>
+                <!-- Face feature -->
+                <circle id="headEye" cx="3" cy="-70" r="2.5" fill="#4f46e5"/>
+                
+                <!-- Arms -->
+                <line id="armLeft" x1="0" y1="-45" x2="-35" y2="-15" stroke="#ec4899" stroke-width="3" stroke-linecap="round"/>
+                <line id="armRight" x1="0" y1="-45" x2="35" y2="-15" stroke="#ec4899" stroke-width="3" stroke-linecap="round"/>
+                <line id="forearmLeft" x1="-35" y1="-15" x2="-45" y2="15" stroke="#fb7185" stroke-width="2.5" stroke-linecap="round"/>
+                <line id="forearmRight" x1="35" y1="-15" x2="45" y2="15" stroke="#fb7185" stroke-width="2.5" stroke-linecap="round"/>
+
+                <!-- Pelvis / Hips Center -->
+                <circle id="hipsPoint" cx="0" cy="0" r="5" fill="#818cf8"/>
+
+                <!-- Legs -->
+                <line id="thighLeft" x1="-5" y1="0" x2="-40" y2="45" stroke="#60a5fa" stroke-width="3.5" stroke-linecap="round"/>
+                <line id="thighRight" x1="5" y1="0" x2="40" y2="45" stroke="#60a5fa" stroke-width="3.5" stroke-linecap="round"/>
+                <line id="shinLeft" x1="-40" y1="45" x2="-55" y2="90" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+                <line id="shinRight" x1="40" y1="45" x2="55" y2="90" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+              </g>
+            </svg>
+
+            <!-- Dynamic Icon Overlay -->
+            <div id="poseIconOverlay" class="absolute bottom-2 right-4 text-4xl filter drop-shadow-[0_0_12px_rgba(244,114,182,0.8)] pointer-events-none">
+              🐸
+            </div>
+          </div>
+
+          <!-- Bottom Floor Status Info -->
+          <div class="w-full flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-800 pt-2">
+            <span id="hipsHeightLabel">Hips Y: -0.48m (接地)</span>
+            <span id="cadenceLabel">模式: 長效保持姿態</span>
+          </div>
+        </div>
+
+        <!-- Animation Timeline / Cycle Playback Controls -->
+        <div class="w-full mt-4 flex items-center justify-between text-xs glass-panel rounded-xl p-2.5">
+          <div class="flex items-center gap-2">
+            <button id="btnPlayPause" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-500 rounded text-white text-[11px] font-medium transition">
+              暫停模擬
+            </button>
+            <span class="text-slate-400 text-[10px]" id="animProgressText">Kinematics Loop: Active</span>
+          </div>
+          <button id="btnResetToStand" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 text-[11px] transition">
+            恢復站姿待機
+          </button>
+        </div>
+      </div>
+
+      <!-- Right Panel: New Action Grid & Kinematics Specs (7 cols) -->
+      <div class="lg:col-span-7 space-y-4">
+
+        <!-- Action Selection Cards (6 New Actions + Standby) -->
+        <div class="glass-panel rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-pink-300 mb-3 flex items-center justify-between">
+            <span>✨ 點擊動作卡片切換即時預覽 (新增 6 項動作)</span>
+            <span class="text-[11px] text-slate-400 font-normal">支援語音觸發與選單快捷鍵</span>
+          </h2>
+
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+
+            <!-- 1. 青蛙坐姿 -->
+            <button onclick="selectAction('frog_sit')" class="action-card text-left p-3 rounded-xl border border-pink-500/40 bg-pink-950/30 hover:bg-pink-900/40 transition group relative overflow-hidden" id="card-frog_sit">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl group-hover:scale-110 transition-transform">🐸</span>
+                <div>
+                  <div class="text-xs font-bold text-slate-200">青蛙坐姿</div>
+                  <div class="text-[10px] text-pink-400 font-mono">frog_sit</div>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                雙腿大幅外展、膝蓋深彎、小腿貼地，雙手置於膝間支撐地面。
+              </p>
+              <div class="mt-2 flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300">常態保持</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">地面坐姿</span>
+              </div>
+            </button>
+
+            <!-- 2. 學動物四肢著地 -->
+            <button onclick="selectAction('animal_crawl')" class="action-card text-left p-3 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-pink-950/20 transition group relative overflow-hidden" id="card-animal_crawl">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl group-hover:scale-110 transition-transform">🐾</span>
+                <div>
+                  <div class="text-xs font-bold text-slate-200">學動物 (四肢著地)</div>
+                  <div class="text-[10px] text-pink-400 font-mono">animal_crawl</div>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                四肢雙手雙膝著地，脊椎前傾水平，頭部高高抬起面向前方。
+              </p>
+              <div class="mt-2 flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300">常態保持</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">動物擬態</span>
+              </div>
+            </button>
+
+            <!-- 3. 趴下 -->
+            <button onclick="selectAction('prone')" class="action-card text-left p-3 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-pink-950/20 transition group relative overflow-hidden" id="card-prone">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl group-hover:scale-110 transition-transform">🙇‍♀️</span>
+                <div>
+                  <div class="text-xs font-bold text-slate-200">趴下放鬆</div>
+                  <div class="text-[10px] text-pink-400 font-mono">prone</div>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                胸腹貼近地面趴下，雙肘前彎托腮微抬頭，極具慵懶感。
+              </p>
+              <div class="mt-2 flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300">常態保持</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">臥姿休憩</span>
+              </div>
+            </button>
+
+            <!-- 4. 躺下 -->
+            <button onclick="selectAction('supine')" class="action-card text-left p-3 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-pink-950/20 transition group relative overflow-hidden" id="card-supine">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl group-hover:scale-110 transition-transform">🛏️</span>
+                <div>
+                  <div class="text-xs font-bold text-slate-200">平靜躺下</div>
+                  <div class="text-[10px] text-pink-400 font-mono">supine</div>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                身體仰躺，背部著地，雙臂隨性擺放，全身放鬆仰視天空。
+              </p>
+              <div class="mt-2 flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300">常態保持</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">仰臥躺平</span>
+              </div>
+            </button>
+
+            <!-- 5. 開合跳 -->
+            <button onclick="selectAction('jumping_jacks')" class="action-card text-left p-3 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-pink-950/20 transition group relative overflow-hidden" id="card-jumping_jacks">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl group-hover:scale-110 transition-transform">🤸‍♀️</span>
+                <div>
+                  <div class="text-xs font-bold text-slate-200">開合跳健身</div>
+                  <div class="text-[10px] text-pink-400 font-mono">jumping_jacks</div>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                雙腿躍起開合、雙臂高舉於頭頂擊掌開合之連續活力週期運動。
+              </p>
+              <div class="mt-2 flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">週期循環</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">有氧運動</span>
+              </div>
+            </button>
+
+            <!-- 6. 跳舞 -->
+            <button onclick="selectAction('dance')" class="action-card text-left p-3 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-pink-950/20 transition group relative overflow-hidden" id="card-dance">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl group-hover:scale-110 transition-transform">💃</span>
+                <div>
+                  <div class="text-xs font-bold text-slate-200">活力元氣舞</div>
+                  <div class="text-[10px] text-pink-400 font-mono">dance</div>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                律動搖擺、節奏踏步、雙手揮舞比劃，滿滿愛心氛圍特效。
+              </p>
+              <div class="mt-2 flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">週期循環</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">偶像舞蹈</span>
+              </div>
+            </button>
+
+          </div>
+        </div>
+
+        <!-- Kinematics Parameters Table -->
+        <div class="glass-panel rounded-2xl p-5">
+          <h3 class="text-xs font-bold text-slate-300 mb-3 flex items-center gap-2">
+            <span>⚙️</span> 3D VRM 骨骼旋轉與位移參數 (Bone Transforms & Kinematics)
+          </h3>
+
+          <div class="overflow-x-auto text-[11px]">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-700 text-slate-400 font-mono text-[10px]">
+                  <th class="py-1.5 px-2">骨骼節點 (VRM Humanoid)</th>
+                  <th class="py-1.5 px-2">X 旋轉 / 位移</th>
+                  <th class="py-1.5 px-2">Y 旋轉 / 位移</th>
+                  <th class="py-1.5 px-2">Z 旋轉 / 位移</th>
+                  <th class="py-1.5 px-2">動態說明</th>
+                </tr>
+              </thead>
+              <tbody id="kinematicsTableBody" class="font-mono text-slate-300 divide-y divide-slate-800/60">
+                <!-- Injected by JS based on selected action -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Keyword Trigger & Dialogue Config -->
+        <div class="glass-panel rounded-2xl p-4 flex flex-col md:flex-row gap-4 justify-between items-center text-xs">
+          <div>
+            <div class="font-semibold text-pink-300 mb-1">語音與 LLM 關鍵字識別</div>
+            <div id="keywordsList" class="text-slate-400 text-[11px] leading-relaxed">
+              「青蛙坐」、「青蛙坐姿」、「青蛙跳」、「學青蛙」
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="text-[10px] text-slate-500">對話情感設定:</span>
+            <span id="emotionBadgeDetail" class="px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 text-[10px]">
+              shy (害羞/賣萌)
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Kinematic & Pose Definitions for the 6 new actions
+    const ACTION_SPECS = {
+      frog_sit: {
+        name: "青蛙坐姿 (Frog Sit)",
+        category: "地面特殊坐姿",
+        emoji: "🐸",
+        status: "常態保持姿勢 (需指令恢復)",
+        quote: "主人～這個是青蛙坐姿哦！像不像一隻可愛的小青蛙呢？呱呱～🐸",
+        emotion: "shy",
+        hipsY: "-0.54m (坐地)",
+        cadence: "常態保持 (Persistent Posture)",
+        keywords: "「青蛙坐」、「青蛙坐姿」、「青蛙趴」、「學青蛙」",
+        svgState: {
+          hipsY: 70,
+          spineRot: 12,
+          headRot: -5,
+          thighSpread: 65,
+          shinSpread: 45,
+          armSpread: 15
+        },
+        bones: [
+          { bone: "hips", x: "0.0 rad", y: "base - 0.54m", z: "0.10m", desc: "臀部穩坐在地面中央" },
+          { bone: "leftUpperLeg", x: "1.25 rad", y: "0.10 rad", z: "0.75 rad (大幅外展)", desc: "大腿向上抬起並大角度向外開展成 M 字兩側" },
+          { bone: "rightUpperLeg", x: "1.25 rad", y: "-0.10 rad", z: "-0.75 rad (大幅外展)", desc: "大腿向上抬起並大角度向外開展成 M 字兩側" },
+          { bone: "leftLowerLeg", x: "-1.15 rad", y: "0.0 rad", z: "0.0 rad", desc: "雙膝高高弓起呈 M 字頂峰，小腿下折" },
+          { bone: "rightLowerLeg", x: "-1.15 rad", y: "0.0 rad", z: "0.0 rad", desc: "雙膝高高弓起呈 M 字頂峰，小腿下折" },
+          { bone: "leftFoot", x: "0.35 rad", y: "0.0 rad", z: "0.0 rad", desc: "腳掌踩在地面兩側" },
+          { bone: "rightFoot", x: "0.35 rad", y: "0.0 rad", z: "0.0 rad", desc: "腳掌踩在地面兩側" },
+          { bone: "leftUpperArm", x: "0.55 rad", y: "0.0 rad", z: "0.18 rad", desc: "雙臂前傾垂於兩膝中央地面" },
+          { bone: "rightUpperArm", x: "0.55 rad", y: "0.0 rad", z: "-0.18 rad", desc: "雙臂前傾垂於兩膝中央地面" },
+          { bone: "leftHand", x: "-0.45 rad", y: "0.0 rad", z: "0.0 rad", desc: "手掌平貼在地面上支撐身體" },
+          { bone: "rightHand", x: "-0.45 rad", y: "0.0 rad", z: "0.0 rad", desc: "手掌平貼在地面上支撐身體" }
+        ]
+      },
+      animal_crawl: {
+        name: "學動物四肢著地 (Animal Quadruped)",
+        category: "動物擬態姿態",
+        emoji: "🐾",
+        status: "常態保持姿勢 (需指令恢復)",
+        quote: "喵～！汪汪～！小櫻現在變成小動物啦，四肢著地頭抬高高看著主人哦🐾",
+        emotion: "happy",
+        hipsY: "-0.40m",
+        cadence: "常態保持 (Persistent Posture)",
+        keywords: "「四肢著地」、「學動物」、「學狗狗」、「學貓咪」、「動物爬」、「頭抬向前」",
+        svgState: {
+          hipsY: 55,
+          spineRot: 78,
+          headRot: -50,
+          thighSpread: 35,
+          shinSpread: 45,
+          armSpread: 25
+        },
+        bones: [
+          { bone: "hips", x: "0.0 rad", y: "base - 0.40m", z: "0.0 rad", desc: "骨盆降至四足跪立高度" },
+          { bone: "spine", x: "1.35 rad (~78°)", y: "0.0 rad", z: "0.0 rad", desc: "軀幹與背部水平俯向地面" },
+          { bone: "head", x: "-0.95 rad (~-55°)", y: "0.0 rad", z: "0.0 rad", desc: "頸部與頭部強力仰起，向前直視主人" },
+          { bone: "leftUpperArm", x: "1.30 rad", y: "0.0 rad", z: "0.15 rad", desc: "雙臂垂直向前向下支撐地面" },
+          { bone: "rightUpperArm", x: "1.30 rad", y: "0.0 rad", z: "-0.15 rad", desc: "雙臂垂直向前向下支撐地面" },
+          { bone: "leftLowerArm", x: "0.35 rad", y: "0.0 rad", z: "0.0 rad", desc: "手腕著地支撐" },
+          { bone: "rightLowerArm", x: "0.35 rad", y: "0.0 rad", z: "0.0 rad", desc: "手腕著地支撐" },
+          { bone: "leftUpperLeg", x: "0.45 rad", y: "0.0 rad", z: "0.12 rad", desc: "大腿向下垂直" },
+          { bone: "rightUpperLeg", x: "0.45 rad", y: "0.0 rad", z: "-0.12 rad", desc: "大腿向下垂直" },
+          { bone: "leftLowerLeg", x: "-1.85 rad", y: "0.0 rad", z: "0.0 rad", desc: "膝蓋著地，小腿後伸" },
+          { bone: "rightLowerLeg", x: "-1.85 rad", y: "0.0 rad", z: "0.0 rad", desc: "膝蓋著地，小腿後伸" }
+        ]
+      },
+      prone: {
+        name: "趴下放鬆 (Lie Prone)",
+        category: "地面臥姿",
+        emoji: "🙇‍♀️",
+        status: "常態保持姿勢 (需指令恢復)",
+        quote: "哈啊～直接趴在地上好舒服哦……主人也想一起趴下放鬆發呆嗎？💤",
+        emotion: "caring",
+        hipsY: "-0.72m (全身水平臥倒)",
+        cadence: "常態保持 (Persistent Posture)",
+        keywords: "「趴下」、「趴著」、「趴在地上」、「趴在桌上」",
+        svgState: {
+          hipsY: 90,
+          spineRot: 88,
+          headRot: -50,
+          thighSpread: 15,
+          shinSpread: 20,
+          armSpread: 40
+        },
+        bones: [
+          { bone: "hips", x: "1.51 rad (86°)", y: "base - 0.72m", z: "0.20m", desc: "全身根節點向前平倒貼地，非單折脊椎" },
+          { bone: "spine", x: "-0.15 rad", y: "0.0 rad", z: "0.0 rad", desc: "胸部微後仰托起，避免穿入地板" },
+          { bone: "head", x: "-0.85 rad", y: "0.0 rad", z: "0.0 rad", desc: "頸部後仰，頭部抬起直視前方主人" },
+          { bone: "leftUpperArm", x: "0.35 rad", y: "0.40 rad", z: "0.45 rad", desc: "手肘置於胸前貼地支撐" },
+          { bone: "rightUpperArm", x: "0.35 rad", y: "-0.40 rad", z: "-0.45 rad", desc: "手肘置於胸前貼地支撐" },
+          { bone: "leftLowerArm", x: "0.0 rad", y: "1.10 rad", z: "0.0 rad", desc: "小臂沿 Y 軸向前內側彎折托腮" },
+          { bone: "rightLowerArm", x: "0.0 rad", y: "-1.10 rad", z: "0.0 rad", desc: "小臂沿 Y 軸向前內側彎折托腮" },
+          { bone: "leftUpperLeg", x: "0.05 rad", y: "0.0 rad", z: "0.12 rad", desc: "雙腿自然向後微展平放" },
+          { bone: "rightUpperLeg", x: "0.05 rad", y: "0.0 rad", z: "-0.12 rad", desc: "雙腿自然向後微展平放" }
+        ]
+      },
+      supine: {
+        name: "平靜躺下 (Lie Supine)",
+        category: "地面臥姿",
+        emoji: "🛏️",
+        status: "常態保持姿勢 (需指令恢復)",
+        quote: "望著天花板放空～小櫻躺平囉！主人工作累了也要好好休息呢～✨",
+        emotion: "happy",
+        hipsY: "-0.72m (全身水平仰躺)",
+        cadence: "常態保持 (Persistent Posture)",
+        keywords: "「躺下」、「躺著」、「躺平」、「躺在地上」、「仰躺」",
+        svgState: {
+          hipsY: 90,
+          spineRot: -88,
+          headRot: 20,
+          thighSpread: 15,
+          shinSpread: 15,
+          armSpread: 35
+        },
+        bones: [
+          { bone: "hips", x: "-1.51 rad (-86°)", y: "base - 0.72m", z: "-0.20m", desc: "全身根節點向後平倒平躺，非下腰" },
+          { bone: "spine", x: "0.05 rad", y: "0.0 rad", z: "0.0 rad", desc: "背部平貼地面仰面朝上" },
+          { bone: "head", x: "0.30 rad", y: "0.0 rad", z: "0.0 rad", desc: "頭部枕地自然仰望天空" },
+          { bone: "leftUpperArm", x: "0.0 rad", y: "0.0 rad", z: "0.45 rad", desc: "手臂平攤於身側兩旁放鬆" },
+          { bone: "rightUpperArm", x: "0.0 rad", y: "0.0 rad", z: "-0.45 rad", desc: "手臂平攤於身側兩旁放鬆" },
+          { bone: "leftUpperLeg", x: "0.0 rad", y: "0.0 rad", z: "0.10 rad", desc: "雙腿平放放鬆" },
+          { bone: "rightUpperLeg", x: "0.0 rad", y: "0.0 rad", z: "-0.10 rad", desc: "雙腿平放放鬆" }
+        ]
+      },
+      jumping_jacks: {
+        name: "開合跳健身 (Jumping Jacks)",
+        category: "全身週期運動",
+        emoji: "🤸‍♀️",
+        status: "連續週期跳躍循環",
+        quote: "一、二、一、二！開合跳運動開始！主人跟小櫻一起保持健康活力～💪",
+        emotion: "happy",
+        hipsY: "+0.22m (騰空) ~ 0m",
+        cadence: "1.0s / 週期 (全幅平滑震盪)",
+        keywords: "「開合跳」、「跳開合」、「一起跳躍運動」、「開合跳運動」",
+        svgState: {
+          hipsY: -20,
+          spineRot: 0,
+          headRot: 0,
+          thighSpread: 55,
+          shinSpread: 50,
+          armSpread: 85
+        },
+        bones: [
+          { bone: "hips", x: "0.0 rad", y: "base + t * 0.22m", z: "0.0 rad", desc: "跳起騰空躍起，落地微屈緩衝吸震" },
+          { bone: "leftUpperArm", x: "0.08 rad", y: "0.0 rad", z: "lerp(+1.19, -1.75, t)", desc: "跳起時雙手向上合攏擊掌，落地回身側" },
+          { bone: "rightUpperArm", x: "0.08 rad", y: "0.0 rad", z: "lerp(-1.19, +1.75, t)", desc: "跳起時雙手向上合攏擊掌，落地回身側" },
+          { bone: "leftUpperLeg", x: "0.05 rad", y: "0.0 rad", z: "+0.45 rad * t", desc: "跳起時雙腿向外側開展，落地收合" },
+          { bone: "rightUpperLeg", x: "0.05 rad", y: "0.0 rad", z: "-0.45 rad * t", desc: "跳起時雙腿向外側開展，落地收合" },
+          { bone: "leftLowerLeg", x: "-cushion * 0.35", y: "0.0 rad", z: "0.0 rad", desc: "落地瞬間雙膝微曲緩衝" },
+          { bone: "rightLowerLeg", x: "-cushion * 0.35", y: "0.0 rad", z: "0.0 rad", desc: "落地瞬間雙膝微曲緩衝" }
+        ]
+      },
+      dance: {
+        name: "活力元氣舞 (Dance)",
+        category: "偶像律動舞蹈",
+        emoji: "💃",
+        status: "節奏旋律舞動循環",
+        quote: "啦啦啦～🎵 小櫻為主人跳一支專屬元氣舞蹈！希望主人每天都開開心心！💃✨",
+        emotion: "happy",
+        hipsY: "±0.06m 擺跨踏步",
+        cadence: "1.4s / 旋律週期 (Cadence)",
+        keywords: "「跳舞」、「跳個舞」、「跳一支舞」、「跳元氣舞」、「舞蹈」",
+        svgState: {
+          hipsY: 5,
+          spineRot: -12,
+          headRot: 15,
+          thighSpread: 30,
+          shinSpread: 35,
+          armSpread: 60
+        },
+        bones: [
+          { bone: "hips", x: "0.0 rad", y: "base + bounce * 0.03m", z: "sway * 0.12 rad", desc: "骨盆隨拍子左右流暢擺胯與起伏" },
+          { bone: "spine", x: "0.05 rad", y: "0.0 rad", z: "-sway * 0.10 rad", desc: "腰部隨律動左右傾斜扭動" },
+          { bone: "head", x: "0.0 rad", y: "-sway * 0.12 rad", z: "sway * 0.15 rad", desc: "頭部微偏向節拍反方向俏皮賣萌" },
+          { bone: "leftUpperArm", x: "0.30 + cos(4t)*0.25", y: "0.0 rad", z: "+1.0 + sin(4t)*0.35 rad", desc: "左手臂隨拍子上下波浪舞動" },
+          { bone: "rightUpperArm", x: "0.30 - cos(4t)*0.25", y: "0.0 rad", z: "-1.0 - sin(4t)*0.35 rad", desc: "右手臂隨拍子對稱波浪舞動" },
+          { bone: "leftLowerArm", x: "0.0 rad", y: "+0.75 + sin(8t)*0.25", z: "0.0 rad", desc: "手肘 Y 軸向前自然彎曲律動" },
+          { bone: "rightLowerArm", x: "0.0 rad", y: "-0.75 - sin(8t)*0.25", z: "0.0 rad", desc: "手肘 Y 軸向前自然彎曲律動" }
+        ]
+      }
+    };
+
+    let currentActionKey = "frog_sit";
+    let isPlaying = true;
+    let animTimer = 0;
+
+    function selectAction(key) {
+      currentActionKey = key;
+      const data = ACTION_SPECS[key];
+      if (!data) return;
+
+      // Update card UI highlights
+      document.querySelectorAll(".action-card").forEach(c => {
+        c.classList.remove("border-pink-500/40", "bg-pink-950/30");
+        c.classList.add("border-slate-700", "bg-slate-900/50");
+      });
+      const activeCard = document.getElementById("card-" + key);
+      if (activeCard) {
+        activeCard.classList.remove("border-slate-700", "bg-slate-900/50");
+        activeCard.classList.add("border-pink-500/40", "bg-pink-950/30");
+      }
+
+      // Update Preview Information
+      document.getElementById("currentStatusBadge").textContent = `${data.name}`;
+      document.getElementById("previewEmoji").textContent = data.emoji;
+      document.getElementById("previewCategory").textContent = data.category;
+      document.getElementById("previewActionKey").textContent = key;
+      document.getElementById("previewQuote").textContent = data.quote;
+      document.getElementById("poseIconOverlay").textContent = data.emoji;
+      document.getElementById("hipsHeightLabel").textContent = `Hips Y: ${data.hipsY}`;
+      document.getElementById("cadenceLabel").textContent = `模式: ${data.cadence}`;
+      document.getElementById("keywordsList").textContent = data.keywords;
+      document.getElementById("emotionBadgeDetail").textContent = `${data.emotion}`;
+
+      // Update Kinematics Table
+      const tbody = document.getElementById("kinematicsTableBody");
+      tbody.innerHTML = "";
+      for (const b of data.bones) {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-800/40";
+        tr.innerHTML = `
+          <td class="py-1.5 px-2 text-pink-300 font-semibold">${b.bone}</td>
+          <td class="py-1.5 px-2 text-indigo-300">${b.x}</td>
+          <td class="py-1.5 px-2 text-indigo-300">${b.y}</td>
+          <td class="py-1.5 px-2 text-indigo-300">${b.z}</td>
+          <td class="py-1.5 px-2 text-slate-400 font-sans text-[10px]">${b.desc}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      applySvgPose(data.svgState);
+    }
+
+    function applySvgPose(state) {
+      const g = document.getElementById("boneGroup");
+      const spine = document.getElementById("spineLine");
+      const head = document.getElementById("headCircle");
+      const eye = document.getElementById("headEye");
+      const armL = document.getElementById("armLeft");
+      const armR = document.getElementById("armRight");
+      const foreL = document.getElementById("forearmLeft");
+      const foreR = document.getElementById("forearmRight");
+      const thighL = document.getElementById("thighLeft");
+      const thighR = document.getElementById("thighRight");
+      const shinL = document.getElementById("shinLeft");
+      const shinR = document.getElementById("shinRight");
+
+      // Set group Y (Hips position)
+      g.setAttribute("transform", `translate(100, ${110 + state.hipsY})`);
+
+      // Spine rotation / orientation
+      const spineAngle = (state.spineRot * Math.PI) / 180;
+      const spineEndX = Math.sin(spineAngle) * 55;
+      const spineEndY = -Math.cos(spineAngle) * 55;
+      spine.setAttribute("x2", spineEndX);
+      spine.setAttribute("y2", spineEndY);
+
+      // Head position
+      const headAngle = ((state.spineRot + state.headRot) * Math.PI) / 180;
+      const headX = spineEndX + Math.sin(headAngle) * 20;
+      const headY = spineEndY - Math.cos(headAngle) * 20;
+      head.setAttribute("cx", headX);
+      head.setAttribute("cy", headY);
+      eye.setAttribute("cx", headX + 3);
+      eye.setAttribute("cy", headY - 2);
+
+      // Thighs
+      thighL.setAttribute("x2", -state.thighSpread);
+      thighR.setAttribute("x2", state.thighSpread);
+      shinL.setAttribute("x1", -state.thighSpread);
+      shinL.setAttribute("x2", -state.shinSpread);
+      shinR.setAttribute("x1", state.thighSpread);
+      shinR.setAttribute("x2", state.shinSpread);
+
+      // Arms
+      const shoulderX = spineEndX * 0.7;
+      const shoulderY = spineEndY * 0.7;
+      armL.setAttribute("x1", shoulderX);
+      armL.setAttribute("y1", shoulderY);
+      armR.setAttribute("x1", shoulderX);
+      armR.setAttribute("y1", shoulderY);
+      armL.setAttribute("x2", shoulderX - state.armSpread);
+      armR.setAttribute("x2", shoulderX + state.armSpread);
+      foreL.setAttribute("x1", shoulderX - state.armSpread);
+      foreL.setAttribute("x2", shoulderX - state.armSpread - 10);
+      foreR.setAttribute("x1", shoulderX + state.armSpread);
+      foreR.setAttribute("x2", shoulderX + state.armSpread + 10);
+    }
+
+    // Animation Loop for Cycle Motions (jumping_jacks, dance)
+    function loop() {
+      if (isPlaying) {
+        animTimer += 0.03;
+        if (currentActionKey === "jumping_jacks") {
+          const t = Math.sin(animTimer * 5);
+          const jumpT = Math.max(0, t);
+          const g = document.getElementById("boneGroup");
+          g.setAttribute("transform", `translate(100, ${100 - jumpT * 35})`);
+          
+          const spread = 20 + jumpT * 50;
+          const armSp = 25 + jumpT * 70;
+          document.getElementById("thighLeft").setAttribute("x2", -spread);
+          document.getElementById("thighRight").setAttribute("x2", spread);
+          document.getElementById("shinLeft").setAttribute("x1", -spread);
+          document.getElementById("shinLeft").setAttribute("x2", -spread - 10);
+          document.getElementById("shinRight").setAttribute("x1", spread);
+          document.getElementById("shinRight").setAttribute("x2", spread + 10);
+
+          document.getElementById("armLeft").setAttribute("x2", -armSp);
+          document.getElementById("armRight").setAttribute("x2", armSp);
+          document.getElementById("armLeft").setAttribute("y2", -45 - jumpT * 30);
+          document.getElementById("armRight").setAttribute("y2", -45 - jumpT * 30);
+        } else if (currentActionKey === "dance") {
+          const sway = Math.sin(animTimer * 3.5);
+          const g = document.getElementById("boneGroup");
+          g.setAttribute("transform", `translate(${100 + sway * 12}, ${115 + Math.abs(sway) * 4})`);
+          
+          document.getElementById("spineLine").setAttribute("x2", sway * 15);
+          document.getElementById("headCircle").setAttribute("cx", sway * 18);
+          document.getElementById("headEye").setAttribute("cx", sway * 18 + 3);
+          document.getElementById("armLeft").setAttribute("y2", -15 + sway * 15);
+          document.getElementById("armRight").setAttribute("y2", -15 - sway * 15);
+        }
+      }
+      requestAnimationFrame(loop);
+    }
+
+    document.getElementById("btnPlayPause").addEventListener("click", () => {
+      isPlaying = !isPlaying;
+      document.getElementById("btnPlayPause").textContent = isPlaying ? "暫停模擬" : "繼續模擬";
+      document.getElementById("animProgressText").textContent = isPlaying ? "Kinematics Loop: Active" : "Kinematics Loop: Paused";
+    });
+
+    document.getElementById("btnResetToStand").addEventListener("click", () => {
+      selectAction("frog_sit");
+    });
+
+    // Initialize with frog_sit
+    selectAction("frog_sit");
+    loop();
+  </script>
+</body>
+</html>

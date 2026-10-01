@@ -561,6 +561,17 @@ window.addEventListener('DOMContentLoaded', async () => {
   raycastManager.setPuppetController(puppetController);
   toolbar.setPuppetActive(false);
 
+  // Expose controllers for testing and inspection
+  window.appControllers = {
+    avatarManager,
+    avatarController,
+    animationController,
+    actionController,
+    emotionController,
+    sceneManager,
+    poseManager
+  };
+
   // 6. Services
   const conversationManager = new ConversationManager(actionController, chatBox);
   const wsClient = new WebSocketClient('ws://127.0.0.1:8765/ws', conversationManager, (connected) => {

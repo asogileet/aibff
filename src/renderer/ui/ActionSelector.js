@@ -20,7 +20,13 @@ export class ActionSelector {
       { id: 'run', name: '原地跑步', icon: '🏃', desc: '運動慢跑' },
       { id: 'jump', name: '開心跳躍', icon: '🦘', desc: '騰空跳起' },
       { id: 'squat', name: '萌萌蹲下', icon: '🧘', desc: '蹲地仰望' },
-      { id: 'kneel', name: '正襟跪坐', icon: '🙇', desc: '日式正座' }
+      { id: 'kneel', name: '正襟跪坐', icon: '🙇', desc: '日式正座' },
+      { id: 'frog_sit', name: '青蛙坐姿', icon: '🐸', desc: '青蛙蹲坐' },
+      { id: 'animal_crawl', name: '學小動物', icon: '🐾', desc: '四肢著地抬頭' },
+      { id: 'prone', name: '趴下放鬆', icon: '🙇‍♀️', desc: '平趴地面' },
+      { id: 'supine', name: '平靜躺下', icon: '🛏️', desc: '仰臥平躺' },
+      { id: 'jumping_jacks', name: '開合跳躍', icon: '🤸‍♀️', desc: '有氧跳躍' },
+      { id: 'dance', name: '元氣跳舞', icon: '💃', desc: '偶像舞蹈' }
     ];
 
     this._render();
@@ -46,7 +52,7 @@ export class ActionSelector {
 
     this.element.innerHTML = `
       <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-        <span class="text-xs font-semibold text-pink-300">💃 15 大動作庫 (互動與全身)</span>
+        <span class="text-xs font-semibold text-pink-300">💃 21 大動作庫 (互動與全身)</span>
         <button id="btnCloseAction" class="text-slate-400 hover:text-white text-xs">✕</button>
       </div>
       <div class="grid grid-cols-2 gap-2 text-xs">

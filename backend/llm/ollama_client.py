@@ -149,7 +149,7 @@ class OllamaLLMClient:
                         action = "wave"
                     elif raw_action in ["heart", "love"]:
                         action = "heart_pose"
-                    elif raw_action in ["idle", "wave", "bow", "clap", "tilt_head", "stretch", "cheer", "nod", "shake_head", "pout", "sit", "run", "jump", "squat", "kneel", "stand", "leave", "heart_pose", "change_costume"]:
+                    elif raw_action in ["idle", "wave", "bow", "clap", "tilt_head", "stretch", "cheer", "nod", "shake_head", "pout", "sit", "run", "jump", "squat", "kneel", "frog_sit", "animal_crawl", "prone", "supine", "jumping_jacks", "dance", "stand", "leave", "heart_pose", "change_costume"]:
                         action = raw_action
 
                     if parsed.get("costume") in ["casual", "school", "stylish", "gothic", "seed", "ayame", "mint"]:
@@ -204,7 +204,25 @@ class OllamaLLMClient:
             elif any(w in raw_lower for w in ["跪下", "跪坐", "跪著", "正座", "道歉跪"]):
                 emotion = "caring"
                 action = "kneel"
-            elif any(w in raw_lower for w in ["站起來", "起來", "站好", "站著", "停下來", "不要坐了", "不要跪了", "不要蹲了", "停止跑步"]):
+            elif any(w in raw_lower for w in ["青蛙坐", "青蛙坐姿", "學青蛙", "青蛙趴"]):
+                emotion = "shy"
+                action = "frog_sit"
+            elif any(w in raw_lower for w in ["四肢著地", "學動物", "學狗", "學貓", "頭抬向前", "爬行", "動物爬"]):
+                emotion = "happy"
+                action = "animal_crawl"
+            elif any(w in raw_lower for w in ["趴下", "趴著", "趴在地上", "趴在桌上"]):
+                emotion = "caring"
+                action = "prone"
+            elif any(w in raw_lower for w in ["躺下", "躺著", "躺平", "躺在地上", "仰躺"]):
+                emotion = "happy"
+                action = "supine"
+            elif any(w in raw_lower for w in ["開合跳", "跳開合", "開合跳運動"]):
+                emotion = "happy"
+                action = "jumping_jacks"
+            elif any(w in raw_lower for w in ["跳舞", "跳一支舞", "跳個舞", "舞蹈", "跳元氣舞"]):
+                emotion = "happy"
+                action = "dance"
+            elif any(w in raw_lower for w in ["站起來", "起來", "站好", "站著", "停下來", "不要坐了", "不要跪了", "不要蹲了", "不要趴了", "不要躺了", "不要跳了", "停止跳舞", "停止跑步", "停止開合跳"]):
                 emotion = "happy"
                 action = "stand"
             elif any(w in raw_lower for w in ["早安", "你好", "回來", "嗨", "揮手"]):
