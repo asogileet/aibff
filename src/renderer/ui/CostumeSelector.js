@@ -37,7 +37,7 @@ export class CostumeSelector {
 
     this.element.innerHTML = `
       <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-        <span class="text-xs font-semibold text-indigo-300">👗 角色與外觀快速切換</span>
+        <span class="text-xs font-semibold text-indigo-300" id="costumeTargetTitle">👗 角色與外觀快速切換</span>
         <button id="btnCloseCostume" class="text-slate-400 hover:text-white p-1 text-sm cursor-pointer">✕</button>
       </div>
       <div class="grid grid-cols-2 gap-2 text-xs">
@@ -76,4 +76,12 @@ export class CostumeSelector {
       this.element.classList.add('hidden');
     }
   }
+
+  setTargetAvatarTitle(title) {
+    const titleEl = this.element?.querySelector('#costumeTargetTitle');
+    if (titleEl) {
+      titleEl.innerText = title ? `👗 為「${title}」更換外觀` : '👗 角色與外觀快速切換';
+    }
+  }
 }
+

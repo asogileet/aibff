@@ -104,15 +104,47 @@ export class RaycastManager {
     this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
     this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
-    const vrm = this.avatarController ? this.avatarController.getCurrentVRM() : null;
 
+    const slots = this.avatarController?.getAllSlots ? this.avatarController.getAllSlots() : null;
+
+    if (slots && slots.length > 0) {
+      let closestHit = null;
+      let hitSlotIndex = -1;
+
+      slots.forEach((slot, idx) => {
+        if (!slot.vrm?.scene) return;
+        const intersects = this.raycaster.intersectObjects(slot.vrm.scene.children, true);
+        if (intersects.length > 0) {
+          if (!closestHit || intersects[0].distance < closestHit.distance) {
+            closestHit = intersects[0];
+            hitSlotIndex = idx;
+          }
+        }
+      });
+
+      if (closestHit && hitSlotIndex !== -1) {
+        // Switch active selection if clicked avatar is not currently selected
+        if (this.avatarController.activeIndex !== hitSlotIndex) {
+          this.avatarController.selectAvatar(hitSlotIndex);
+        }
+
+        // Check if clicked point is in upper head region (y >= 1.25)
+        if (closestHit.point.y >= 1.25) {
+          if (typeof this.onHeadPat === 'function') {
+            this.onHeadPat(closestHit.point);
+          }
+        }
+      }
+      return;
+    }
+
+    // Fallback for single avatar controller
+    const vrm = this.avatarController ? this.avatarController.getCurrentVRM() : null;
     if (!vrm) return;
 
-    // Check intersection with avatar meshes
     const intersects = this.raycaster.intersectObjects(vrm.scene.children, true);
     if (intersects.length > 0) {
       const hit = intersects[0];
-      // Check if clicked point is in upper head region (y >= 1.25)
       if (hit.point.y >= 1.25) {
         if (typeof this.onHeadPat === 'function') {
           this.onHeadPat(hit.point);
@@ -121,3 +153,4 @@ export class RaycastManager {
     }
   }
 }
+
