@@ -14,7 +14,7 @@ export class PuppetController {
     this.onReaction = options.onReaction || null;
     this.onPoseUpdated = options.onPoseUpdated || null;
 
-    this.isEnabled = true; // Enabled by default for direct mouse puppet play
+    this.isEnabled = false; // Disabled by default, toggled via toolbar button
     this.keepPoseOnRelease = true; // Hold sculpted pose instead of auto-recovering
     this.grabbedJointKey = null; // 'head', 'hips', 'rightHand', 'leftHand', 'rightFoot', 'leftFoot'
     this.hoveredJointKey = null;
@@ -373,10 +373,13 @@ export class PuppetController {
       const baseUpper = this.startBoneRots.rightUpperArm || { x: 0.08, y: 0, z: -Math.PI * 0.38 };
       const baseLower = this.startBoneRots.rightLowerArm || { x: 0, y: 0, z: 0 };
       if (upperArm && lowerArm) {
-        upperArm.rotation.z = baseUpper.z - (dy * 0.005) - (dx * 0.005);
-        upperArm.rotation.x = baseUpper.x + (dy * 0.003);
-        upperArm.rotation.y = baseUpper.y - (dx * 0.003);
-        lowerArm.rotation.x = Math.max(-Math.PI * 0.8, Math.min(0, baseLower.x - Math.abs(dx * 0.004) - (dy * 0.003)));
+        // Dragging UP (dy < 0) raises right arm (becomes more negative Z); dragging LEFT (dx < 0, outward) raises arm towards horizontal
+        upperArm.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dy * 0.006) + (dx * 0.004), -2.4, -0.15);
+        // Dragging UP (dy < 0) raises arm forward (+X)
+        upperArm.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.004), -0.5, 1.6);
+        upperArm.rotation.y = THREE.MathUtils.clamp(baseUpper.y - (dx * 0.003), -1.2, 1.2);
+        // Elbow bends forward naturally (+X in VRM humanoid space)
+        lowerArm.rotation.x = THREE.MathUtils.clamp(baseLower.x - (dy * 0.005) + Math.abs(dx * 0.003), 0, Math.PI * 0.85);
       }
       return;
     }
@@ -387,10 +390,13 @@ export class PuppetController {
       const baseUpper = this.startBoneRots.leftUpperArm || { x: 0.08, y: 0, z: Math.PI * 0.38 };
       const baseLower = this.startBoneRots.leftLowerArm || { x: 0, y: 0, z: 0 };
       if (upperArm && lowerArm) {
-        upperArm.rotation.z = baseUpper.z + (dy * 0.005) - (dx * 0.005);
-        upperArm.rotation.x = baseUpper.x + (dy * 0.003);
-        upperArm.rotation.y = baseUpper.y + (dx * 0.003);
-        lowerArm.rotation.x = Math.max(-Math.PI * 0.8, Math.min(0, baseLower.x - Math.abs(dx * 0.004) - (dy * 0.003)));
+        // Dragging UP (dy < 0) raises left arm (becomes more positive Z); dragging RIGHT (dx > 0, outward) raises arm towards horizontal
+        upperArm.rotation.z = THREE.MathUtils.clamp(baseUpper.z - (dy * 0.006) + (dx * 0.004), 0.15, 2.4);
+        // Dragging UP (dy < 0) raises arm forward (+X)
+        upperArm.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.004), -0.5, 1.6);
+        upperArm.rotation.y = THREE.MathUtils.clamp(baseUpper.y + (dx * 0.003), -1.2, 1.2);
+        // Elbow bends forward naturally (+X in VRM humanoid space)
+        lowerArm.rotation.x = THREE.MathUtils.clamp(baseLower.x - (dy * 0.005) + Math.abs(dx * 0.003), 0, Math.PI * 0.85);
       }
       return;
     }
@@ -398,20 +404,34 @@ export class PuppetController {
     // Direct Elbow Control (Hands on hips, cat paws, salute)
     if (jointKey === 'rightLowerArm') {
       const lowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+      const upperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
       const baseLower = this.startBoneRots.rightLowerArm || { x: 0, y: 0, z: 0 };
+      const baseUpper = this.startBoneRots.rightUpperArm || { x: 0.08, y: 0, z: -Math.PI * 0.38 };
       if (lowerArm) {
-        lowerArm.rotation.x = Math.max(-Math.PI * 0.85, Math.min(0, baseLower.x - Math.abs(dy * 0.006) + (dx * 0.004)));
-        lowerArm.rotation.y = baseLower.y - (dx * 0.004);
+        // Elbow bends forward (+X)
+        lowerArm.rotation.x = THREE.MathUtils.clamp(baseLower.x - (dy * 0.006) + Math.abs(dx * 0.003), 0, Math.PI * 0.85);
+        lowerArm.rotation.y = THREE.MathUtils.clamp(baseLower.y - (dx * 0.004), -1.2, 1.2);
+      }
+      if (upperArm) {
+        // Dragging elbow influences shoulder position
+        upperArm.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dy * 0.004) + (dx * 0.004), -2.2, -0.15);
       }
       return;
     }
 
     if (jointKey === 'leftLowerArm') {
       const lowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+      const upperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
       const baseLower = this.startBoneRots.leftLowerArm || { x: 0, y: 0, z: 0 };
+      const baseUpper = this.startBoneRots.leftUpperArm || { x: 0.08, y: 0, z: Math.PI * 0.38 };
       if (lowerArm) {
-        lowerArm.rotation.x = Math.max(-Math.PI * 0.85, Math.min(0, baseLower.x - Math.abs(dy * 0.006) - (dx * 0.004)));
-        lowerArm.rotation.y = baseLower.y + (dx * 0.004);
+        // Elbow bends forward (+X)
+        lowerArm.rotation.x = THREE.MathUtils.clamp(baseLower.x - (dy * 0.006) + Math.abs(dx * 0.003), 0, Math.PI * 0.85);
+        lowerArm.rotation.y = THREE.MathUtils.clamp(baseLower.y + (dx * 0.004), -1.2, 1.2);
+      }
+      if (upperArm) {
+        // Dragging elbow influences shoulder position
+        upperArm.rotation.z = THREE.MathUtils.clamp(baseUpper.z - (dy * 0.004) + (dx * 0.004), 0.15, 2.2);
       }
       return;
     }
@@ -423,10 +443,12 @@ export class PuppetController {
       const baseLower = this.startBoneRots.rightLowerLeg || { x: 0, y: 0, z: 0 };
       const baseUpper = this.startBoneRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
       if (lowerLeg) {
-        lowerLeg.rotation.x = Math.max(0, Math.min(Math.PI * 0.85, baseLower.x - (dy * 0.007)));
+        // Human knees bend backward (-X in VRM humanoid space)
+        lowerLeg.rotation.x = THREE.MathUtils.clamp(baseLower.x + (dy * 0.007), -Math.PI * 0.85, 0);
       }
       if (upperLeg) {
-        upperLeg.rotation.x = baseUpper.x + (dy * 0.003);
+        // Lifting knee raises thigh forward (+X)
+        upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.005), -0.5, Math.PI * 0.65);
       }
       return;
     }
@@ -437,10 +459,12 @@ export class PuppetController {
       const baseLower = this.startBoneRots.leftLowerLeg || { x: 0, y: 0, z: 0 };
       const baseUpper = this.startBoneRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
       if (lowerLeg) {
-        lowerLeg.rotation.x = Math.max(0, Math.min(Math.PI * 0.85, baseLower.x - (dy * 0.007)));
+        // Human knees bend backward (-X in VRM humanoid space)
+        lowerLeg.rotation.x = THREE.MathUtils.clamp(baseLower.x + (dy * 0.007), -Math.PI * 0.85, 0);
       }
       if (upperLeg) {
-        upperLeg.rotation.x = baseUpper.x + (dy * 0.003);
+        // Lifting knee raises thigh forward (+X)
+        upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.005), -0.5, Math.PI * 0.65);
       }
       return;
     }
@@ -451,9 +475,11 @@ export class PuppetController {
       const baseUpper = this.startBoneRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
       const baseLower = this.startBoneRots.rightLowerLeg || { x: 0, y: 0, z: 0 };
       if (upperLeg && lowerLeg) {
-        upperLeg.rotation.x = baseUpper.x - (dy * 0.006);
-        upperLeg.rotation.z = baseUpper.z - (dx * 0.004);
-        lowerLeg.rotation.x = Math.max(0, Math.min(Math.PI * 0.8, baseLower.x + Math.abs(dy * 0.008)));
+        // Pulling foot up raises thigh forward (+X) and opens leg outward (-Z)
+        upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.006), -0.5, Math.PI * 0.65);
+        upperLeg.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dx * 0.004), -0.9, 0.4);
+        // Knee bends naturally backward (-X)
+        lowerLeg.rotation.x = THREE.MathUtils.clamp(baseLower.x - Math.abs(dy * 0.008), -Math.PI * 0.85, 0);
       }
       return;
     }
@@ -464,9 +490,11 @@ export class PuppetController {
       const baseUpper = this.startBoneRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
       const baseLower = this.startBoneRots.leftLowerLeg || { x: 0, y: 0, z: 0 };
       if (upperLeg && lowerLeg) {
-        upperLeg.rotation.x = baseUpper.x - (dy * 0.006);
-        upperLeg.rotation.z = baseUpper.z - (dx * 0.004);
-        lowerLeg.rotation.x = Math.max(0, Math.min(Math.PI * 0.8, baseLower.x + Math.abs(dy * 0.008)));
+        // Pulling foot up raises thigh forward (+X) and opens leg outward (+Z)
+        upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.006), -0.5, Math.PI * 0.65);
+        upperLeg.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dx * 0.004), -0.4, 0.9);
+        // Knee bends naturally backward (-X)
+        lowerLeg.rotation.x = THREE.MathUtils.clamp(baseLower.x - Math.abs(dy * 0.008), -Math.PI * 0.85, 0);
       }
       return;
     }
@@ -475,8 +503,8 @@ export class PuppetController {
       const upperLeg = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
       const baseUpper = this.startBoneRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
       if (upperLeg) {
-        upperLeg.rotation.x = baseUpper.x - (dy * 0.006);
-        upperLeg.rotation.z = baseUpper.z - (dx * 0.005);
+        upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.006), -0.5, Math.PI * 0.65);
+        upperLeg.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dx * 0.005), -0.9, 0.4);
       }
       return;
     }
@@ -485,8 +513,8 @@ export class PuppetController {
       const upperLeg = vrm.humanoid.getNormalizedBoneNode('leftUpperLeg');
       const baseUpper = this.startBoneRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
       if (upperLeg) {
-        upperLeg.rotation.x = baseUpper.x - (dy * 0.006);
-        upperLeg.rotation.z = baseUpper.z - (dx * 0.005);
+        upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.006), -0.5, Math.PI * 0.65);
+        upperLeg.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dx * 0.005), -0.4, 0.9);
       }
       return;
     }

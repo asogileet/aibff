@@ -101,16 +101,12 @@ export class SceneManager {
         const deltaY = e.clientY - this.lastMousePos.y;
         this.lastMousePos = { x: e.clientX, y: e.clientY };
 
-        const isFullscreen = window.innerWidth > 600;
-        if (isFullscreen && !e.altKey) {
-          // In full-screen mode, right-click drag pans the avatar across the screen
+        if (e.shiftKey) {
+          // Shift + Right drag: Pan camera target (both X and Y)
           const panFactor = this.currentCameraDist * 0.0016;
           this.setCameraPan(this.targetPanX - deltaX * panFactor, this.targetPanY + deltaY * panFactor);
-        } else if (e.shiftKey) {
-          // Shift + Right drag: Pan target height (head to feet)
-          this.setCameraTargetY(this.targetPanY + deltaY * 0.005);
         } else {
-          // Orbit around avatar
+          // Standard Right drag: Orbit around avatar
           this.targetOrbitTheta -= deltaX * 0.008;
           this.targetOrbitPhi += deltaY * 0.006;
           this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
@@ -237,24 +233,28 @@ export class SceneManager {
       this.targetCameraDist = 1.8;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 0.0;
+      this.targetPanX = 0.0;
       this.targetPanY = 1.25;
       this.isCustomTargetY = false;
     } else if (mode === 'full') {
       this.targetCameraDist = 3.6;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 0.0;
+      this.targetPanX = 0.0;
       this.targetPanY = 0.75;
       this.isCustomTargetY = false;
     } else if (mode === 'top') {
       this.targetCameraDist = 1.1;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 1.35; // Looking directly down onto head top
+      this.targetPanX = 0.0;
       this.targetPanY = 1.45;
       this.isCustomTargetY = true;
     } else if (mode === 'feet') {
       this.targetCameraDist = 1.2;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = -1.25; // Looking upward at feet from ground
+      this.targetPanX = 0.0;
       this.targetPanY = 0.1;
       this.isCustomTargetY = true;
     } else if (mode === 'toggle') {

@@ -88,7 +88,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // 3. UI & Feature Modules
   let isResting = false;
-  let isPuppetMode = true; // Enabled by default for direct mouse puppet interaction
+  let isPuppetMode = false;
 
   const puppetController = new PuppetController(
     avatarController,
@@ -453,7 +453,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
   raycastManager.setPuppetController(puppetController);
-  toolbar.setPuppetActive(true);
+  toolbar.setPuppetActive(false);
 
   // 6. Services
   const conversationManager = new ConversationManager(actionController, chatBox);

@@ -27,20 +27,19 @@ export class RaycastManager {
     const dom = this.sceneManager.renderer.domElement;
 
     dom.addEventListener('mousedown', (e) => {
-      // In puppet mode, lock window dragging completely on left-click so pulling puppet limbs is never interrupted
+      if (e.button !== 0) return; // Left click only; right-click and middle-click belong strictly to camera controls
+
+      // When puppet mode is active, ordinary left-click pulls joints; Alt + Left-click allows window moving
       if (this.puppetController && this.puppetController.isEnabled) {
-        if (e.button === 2) {
-          // In small desktop window mode (<=600px), right-click moves the window.
-          // In full-screen mode, let SceneManager handle right-click to pan avatar across the screen!
-          if (window.innerWidth <= 600) {
-            this.isMouseDown = true;
-            this.isDragging = false;
-            this.startPos = { x: e.screenX, y: e.screenY };
-          }
+        if (e.altKey && window.innerWidth <= 600) {
+          this.isMouseDown = true;
+          this.isDragging = false;
+          this.startPos = { x: e.screenX, y: e.screenY };
+          this.startTime = Date.now();
         }
         return;
       }
-      if (e.button !== 0) return; // Left click only
+
       this.isMouseDown = true;
       this.isDragging = false;
       this.startPos = { x: e.screenX, y: e.screenY };
@@ -48,9 +47,6 @@ export class RaycastManager {
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (this.puppetController && this.puppetController.isEnabled && !this.isMouseDown) {
-        return;
-      }
       if (!this.isMouseDown) return;
 
       const deltaX = e.screenX - this.startPos.x;

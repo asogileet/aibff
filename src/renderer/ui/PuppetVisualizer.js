@@ -9,7 +9,7 @@ export class PuppetVisualizer {
     this.puppetController = puppetController;
     this.canvas = null;
     this.ctx = null;
-    this.isVisible = true;
+    this.isVisible = false;
 
     this._initCanvas();
   }
@@ -17,7 +17,7 @@ export class PuppetVisualizer {
   _initCanvas() {
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'puppetVisualizerCanvas';
-    this.canvas.className = 'fixed inset-0 w-screen h-screen pointer-events-none z-40';
+    this.canvas.className = 'hidden fixed inset-0 w-screen h-screen pointer-events-none z-40';
     this.container.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
 

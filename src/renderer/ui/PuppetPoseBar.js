@@ -13,7 +13,7 @@ export class PuppetPoseBar {
     this.sceneManager = sceneManager;
 
     this.element = null;
-    this.isVisible = true;
+    this.isVisible = false;
 
     this._render();
     this._bindEvents();
@@ -23,7 +23,7 @@ export class PuppetPoseBar {
   _render() {
     this.element = document.createElement('div');
     this.element.id = 'puppetPoseBar';
-    this.element.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto glass-panel rounded-full px-3 py-1.5 flex items-center space-x-2 shadow-2xl border border-pink-500/40 text-xs text-slate-200 transition-all duration-300 backdrop-blur-md bg-slate-950/80';
+    this.element.className = 'hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto glass-panel rounded-full px-3 py-1.5 flex items-center space-x-2 shadow-2xl border border-pink-500/40 text-xs text-slate-200 transition-all duration-300 backdrop-blur-md bg-slate-950/80';
 
     this.element.innerHTML = `
       <div class="flex items-center space-x-1 pl-1 pr-2 border-r border-white/10 font-bold text-pink-300 select-none">
@@ -38,7 +38,7 @@ export class PuppetPoseBar {
       </button>
 
       <!-- Fullscreen Canvas Toggle Button -->
-      <button id="btnToggleFullscreen" class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-cyan-600/25 text-cyan-300 hover:bg-cyan-600/40 border border-cyan-500/40 transition font-semibold text-[11px]" title="切換全螢幕透明畫布 / 桌面小視窗 (F11)。按住滑鼠右鍵可隨意拖動平移人偶位置！">
+      <button id="btnToggleFullscreen" class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-cyan-600/25 text-cyan-300 hover:bg-cyan-600/40 border border-cyan-500/40 transition font-semibold text-[11px]" title="切換全螢幕透明畫布 / 桌面小視窗 (F11)。按住右鍵旋轉視角，按住 Shift+右鍵或中鍵可平移人偶位置！">
         <span id="iconFullscreen">🖥️</span>
         <span id="textFullscreen">全螢幕</span>
       </button>
@@ -83,7 +83,7 @@ export class PuppetPoseBar {
         const isFull = await window.electronAPI.toggleFullscreen();
         this.setFullscreenState(isFull);
         if (isFull) {
-          this.onShowBubble?.('🖥️ 已切換為全螢幕透明畫布！整個螢幕都是活動空間～✨（按住右鍵可隨意平移人偶）', 'happy');
+          this.onShowBubble?.('🖥️ 已切換為全螢幕透明畫布！整個螢幕都是活動空間～✨（按住右鍵旋轉，Shift+右鍵或中鍵可平移）', 'happy');
         } else {
           this.onShowBubble?.('已切換回桌面懸浮小視窗～', 'happy');
         }
