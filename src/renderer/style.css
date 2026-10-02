@@ -73,3 +73,26 @@ body.in-browser {
   top: 4.5rem !important;
 }
 
+/* Scrollbar removal utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Dynamic positioning for dialogue bubble avoiding top toolbars */
+#dialogueBubble.bubble-offset-stacked,
+#btnRestoreBubble.bubble-offset-stacked {
+  top: 7.8rem !important;
+}
+#dialogueBubble.bubble-offset-single,
+#btnRestoreBubble.bubble-offset-single {
+  top: 4.8rem !important;
+}
+#dialogueBubble.bubble-offset-top,
+#btnRestoreBubble.bubble-offset-top {
+  top: 1.5rem !important;
+}
+

@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工具列捲軸消除與上下對話框收折/全展開 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Clean custom scrollbar & no-scrollbar utility */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.3);
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(244, 114, 182, 0.6);
+    }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    @keyframes pulseSoft {
+      0%, 100% { opacity: 0.9; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.02); }
+    }
+    .animate-soft {
+      animation: pulseSoft 3s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans select-none overflow-x-hidden p-4">
+
+  <!-- Header -->
+  <header class="max-w-6xl mx-auto mb-4 bg-slate-900/90 border border-slate-700/60 rounded-xl p-3 flex flex-wrap items-center justify-between shadow-lg">
+    <div class="flex items-center space-x-3">
+      <span class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></span>
+      <h1 class="text-base font-semibold text-cyan-300">✨ 工具列無捲軸 & 上下對話框收折/全展開原型</h1>
+    </div>
+    <div class="flex items-center space-x-2 text-xs">
+      <a href="index.html" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">← 回 Mockup 首頁</a>
+      <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">無捲軸保證</span>
+      <span class="px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40">智慧避讓定位</span>
+    </div>
+  </header>
+
+  <!-- Interactive Sandbox -->
+  <main class="max-w-6xl mx-auto relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-gradient-to-b from-slate-900 via-indigo-950/30 to-slate-950" style="height: 680px;">
+    
+    <!-- Background Desktop Simulation -->
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950/80 to-slate-950 pointer-events-none"></div>
+    <div class="absolute top-3 left-4 text-[11px] text-slate-400 flex items-center space-x-2 z-10 pointer-events-none">
+      <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+      <span>透明桌面圖層模擬 (Transparent Desktop Canvas)</span>
+    </div>
+
+    <!-- Center Avatar Visual Representation -->
+    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+      <div class="relative flex flex-col items-center animate-soft">
+        <!-- Avatar SVG Silhouette -->
+        <svg class="w-44 h-72 text-pink-300/80 filter drop-shadow(0 0 20px rgba(244,114,182,0.3))" viewBox="0 0 100 200" fill="currentColor">
+          <circle cx="50" cy="30" r="14" />
+          <path d="M40 45 C35 48, 25 58, 25 75 C35 75, 45 65, 45 60 L45 95 L55 95 L55 60 C55 65, 65 75, 75 75 C75 58, 65 48, 60 45 Z" />
+          <path d="M43 95 L40 160 L46 160 L48 100 L52 100 L54 160 L60 160 L57 95 Z" />
+        </svg>
+        <div class="w-32 h-6 bg-cyan-400/20 rounded-full blur-md -mt-2"></div>
+        <span class="text-[11px] text-slate-400 font-mono mt-1">3D 主角人偶 (站在畫面正中央)</span>
+      </div>
+    </div>
+
+    <!-- TOP TOOLBAR: MultiAvatarBar (No Scrollbar + Hide/Fold Button) -->
+    <div id="multiAvatarBar" class="fixed-placeholder absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto glass-panel rounded-full px-3 py-1.5 flex items-center space-x-2 shadow-2xl border border-cyan-500/40 text-xs text-slate-200 transition-all duration-300 backdrop-blur-md bg-slate-950/85">
+      <div class="flex items-center space-x-1 pl-1 pr-2 border-r border-white/10 font-bold text-cyan-300 select-none">
+        <span class="text-sm">👥</span>
+        <span class="text-[11px]">影分身</span>
+      </div>
+
+      <!-- Slot List with no-scrollbar -->
+      <div id="cloneSlotsContainer" class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar max-w-[220px] sm:max-w-xs py-0.5">
+        <button class="flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-500/30 text-cyan-200 border-2 border-cyan-400 shadow-md whitespace-nowrap">
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+          <span>人偶①(主身) (0.5x)</span>
+        </button>
+        <button class="flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-900/90 text-slate-400 hover:text-slate-200 border border-slate-700/80 hover:bg-slate-800 whitespace-nowrap">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+          <span>人偶② (1.0x)</span>
+        </button>
+      </div>
+
+      <!-- Scale Controls -->
+      <div class="flex items-center space-x-1 px-1.5 border-l border-white/10 select-none">
+        <button class="w-4 h-4 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[10px]">-</button>
+        <span class="font-mono text-cyan-300 text-[11px] min-w-[26px] text-center">0.5x</span>
+        <button class="w-4 h-4 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[10px]">+</button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-1 pl-1 border-l border-white/10">
+        <button class="px-2 py-1 rounded-full bg-slate-800 text-emerald-300 border border-emerald-500/30 text-[11px]">🏃 巡邏</button>
+        <button class="px-2 py-1 rounded-full bg-slate-800 text-indigo-300 border border-indigo-500/30 text-[11px]">🪂 拋落</button>
+        <button class="px-2.5 py-1 rounded-full bg-pink-600 text-white font-medium text-[11px]">✨ 召喚</button>
+        <button class="px-2 py-1 rounded-full bg-slate-800 text-rose-300 border border-rose-500/30 text-[11px]">✕ 移除</button>
+      </div>
+
+      <!-- Top Toolbar Hide/Fold Button -->
+      <div class="pl-1.5 border-l border-white/15">
+        <button id="btnHideTopBar" class="p-1 rounded-full bg-slate-800 hover:bg-rose-500/30 text-slate-400 hover:text-rose-300 transition text-[11px] flex items-center justify-center w-5 h-5" title="收起/隱藏上方控制列 (也可隨時從下方分身按鈕喚回)">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Mini Floating Capsule when Top Bar is hidden -->
+    <button id="btnRestoreTopBar" class="hidden absolute top-3 left-1/2 -translate-x-1/2 z-40 glass-panel px-3 py-1 rounded-full border border-cyan-500/40 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/20 transition shadow-lg flex items-center space-x-1 animate-pulse">
+      <span>👥 影分身控制列已收起 (點擊展開)</span>
+      <span class="text-xs">▾</span>
+    </button>
+
+    <!-- TOP DIALOGUE BUBBLE: Smart Dynamic Offset + Collapse / Expand -->
+    <div id="dialogueBubble" class="absolute left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-4 py-2.5 rounded-2xl shadow-xl max-w-sm transition-all duration-300 border-pink-500/30 flex items-start space-x-2 z-30 pointer-events-auto" style="top: 4.8rem;">
+      <span id="dialogueEmotionTag" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40">開心</span>
+      
+      <!-- Dialogue Content Area -->
+      <div id="dialogueBody" class="flex-1">
+        <p id="dialogueMessage" class="leading-relaxed line-clamp-2 transition-all">主人好！今天有什麼我可以陪你的嗎？主人可以在這裡測試文字過長時自動折疊，點擊右上方全展開按鈕即可查看完整訊息！</p>
+      </div>
+
+      <!-- Bubble Interactive Action Controls -->
+      <div class="flex items-center space-x-1 pl-1 border-l border-white/10 text-slate-400">
+        <!-- Collapse into Tiny Pill -->
+        <button id="btnCollapseBubble" class="hover:text-pink-300 px-1 py-0.5 rounded text-[10px]" title="收起對話框為小膠囊">─</button>
+        <!-- Full Expand Toggle -->
+        <button id="btnExpandBubble" class="hover:text-pink-300 px-1 py-0.5 rounded text-[10px]" title="全展開/收回長訊息">⤢</button>
+        <!-- Close Bubble -->
+        <button id="btnCloseBubble" class="hover:text-rose-400 px-1 py-0.5 rounded text-[10px]" title="關閉氣泡">✕</button>
+      </div>
+    </div>
+
+    <!-- Mini Collapsed Dialogue Pill -->
+    <button id="btnRestoreBubble" class="hidden absolute left-1/2 -translate-x-1/2 z-30 glass-panel px-2.5 py-1 rounded-full border border-pink-500/40 text-pink-300 text-xs hover:bg-pink-500/20 transition shadow-lg flex items-center space-x-1.5" style="top: 4.8rem;">
+      <span>💖</span>
+      <span class="text-[11px]">有新訊息 (點擊展開)</span>
+    </button>
+
+    <!-- BOTTOM DIALOGUE / CHATBOX: Fold, Maximize, and Smart Docking -->
+    <div id="chatModal" class="absolute bottom-20 left-1/2 -translate-x-1/2 w-[92vw] max-w-sm glass-panel rounded-2xl p-4 shadow-2xl border border-pink-500/30 z-50 pointer-events-auto transition-all duration-300">
+      
+      <!-- Chat Header with Tri-state window buttons -->
+      <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-xs font-semibold text-pink-300">💬 AI 即時文字對話</span>
+          <button id="btnDockChat" class="text-[10px] text-slate-400 hover:text-cyan-300 px-1.5 py-0.5 rounded bg-slate-800/80 border border-slate-700" title="切換停靠位置 (置中 / 靠右避免擋到人偶)">
+            📍 靠右停靠
+          </button>
+        </div>
+        <div class="flex items-center space-x-1.5 text-slate-400">
+          <!-- Minimize / Fold -->
+          <button id="btnMinimizeChat" class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-slate-300 hover:text-white text-xs" title="收起為精簡單行輸入">─</button>
+          <!-- Maximize / Full Expand -->
+          <button id="btnMaximizeChat" class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-slate-300 hover:text-white text-[11px]" title="全展開大視窗 / 還原">⛶</button>
+          <!-- Close -->
+          <button id="btnCloseChat" class="w-5 h-5 flex items-center justify-center rounded hover:bg-rose-500/30 text-slate-300 hover:text-rose-300 text-xs" title="關閉聊天視窗">✕</button>
+        </div>
+      </div>
+
+      <!-- Chat History -->
+      <div id="chatHistory" class="h-44 overflow-y-auto space-y-2 pr-1 text-xs mb-3 custom-scrollbar transition-all duration-300">
+        <div class="flex justify-start">
+          <div class="bg-pink-950/60 border border-pink-500/30 rounded-xl px-3 py-1.5 text-pink-200 max-w-[85%]">
+            主人好呀！我是你的專屬 3D 桌面女友，試試右上角的「靠右停靠」或「全展開」功能吧～
+          </div>
+        </div>
+        <div class="flex justify-end">
+          <div class="bg-indigo-600/70 border border-indigo-400/40 rounded-xl px-3 py-1.5 text-white max-w-[85%]">
+            對話框不會再擋在人偶正前方了，還能全展開看長對話紀錄！
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="flex space-x-2">
+        <input id="chatInput" type="text" placeholder="輸入訊息... (Enter 發送)" class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500" />
+        <button id="btnSendChat" class="bg-pink-600 hover:bg-pink-500 text-white text-xs px-3.5 py-1.5 rounded-lg transition font-medium">發送</button>
+      </div>
+    </div>
+
+    <!-- Mini Minimized Chat Floating Bar -->
+    <div id="minimizedChatBar" class="hidden absolute bottom-20 right-6 z-50 glass-panel rounded-full px-3 py-1.5 border border-pink-500/40 flex items-center space-x-2 shadow-2xl text-xs text-pink-300 hover:border-pink-400 transition cursor-pointer">
+      <span class="animate-pulse">💬</span>
+      <span class="text-[11px] font-medium">聊天視窗已最小化收起 (點擊還原)</span>
+      <span class="text-slate-400 hover:text-white text-xs">▲</span>
+    </div>
+
+    <!-- BOTTOM TOOLBAR: Toolbar with no-scrollbar -->
+    <div id="bottomToolbar" class="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-auto glass-panel rounded-full px-3 sm:px-5 py-1.5 sm:py-2 flex items-center space-x-1 sm:space-x-3 shadow-2xl border border-slate-700/60 max-w-[95vw] overflow-x-auto no-scrollbar">
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">🎤</span><span class="text-xs">語音</span></button>
+      <button id="tbChatBtn" class="flex items-center space-x-1 text-pink-400 bg-pink-500/20 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">💬</span><span class="text-xs">對話</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">👗</span><span class="text-xs">換裝</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">💃</span><span class="text-xs">動作</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">🦴</span><span class="text-xs">姿勢</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">📸</span><span class="text-xs">拍照</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-emerald-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">📷</span><span class="text-xs">AR</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-cyan-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">🤏</span><span class="text-xs">玩偶</span></button>
+      <button id="tbCloneBtn" class="flex items-center space-x-1 text-cyan-200 bg-cyan-500/30 ring-2 ring-cyan-400/60 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">👥</span><span class="text-xs">分身</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">🧍</span><span class="text-xs">視角</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">👋</span><span class="text-xs">休息</span></button>
+      <button class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition"><span class="text-base">⚙️</span><span class="text-xs">設定</span></button>
+    </div>
+
+  </main>
+
+  <!-- Control Testing Panel -->
+  <section class="max-w-6xl mx-auto mt-4 p-4 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="space-y-2">
+      <h3 class="font-bold text-cyan-400 text-sm">1. 上下工具列無捲軸測試</h3>
+      <p class="text-slate-400 text-[11px]">已全域套用 <code>.no-scrollbar</code>，Windows 引擎下絕不長出原生灰白粗捲軸。</p>
+      <div class="flex gap-2">
+        <button id="btnAddLotsOfAvatars" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">模擬超多槽位 (測試滾動)</button>
+      </div>
+    </div>
+
+    <div class="space-y-2">
+      <h3 class="font-bold text-pink-400 text-sm">2. 上方對話氣泡動態避讓</h3>
+      <p class="text-slate-400 text-[11px]">上方工具列隱藏時，氣泡平滑靠頂（top-4）；工具列展開時，氣泡避讓至 top-18。</p>
+      <div class="flex gap-2">
+        <button id="btnTriggerLongBubble" class="px-2.5 py-1 rounded bg-pink-600/30 text-pink-300 border border-pink-500/40 hover:bg-pink-600/50">觸發長文字訊息</button>
+      </div>
+    </div>
+
+    <div class="space-y-2">
+      <h3 class="font-bold text-indigo-400 text-sm">3. 下方對話框收折與全展開</h3>
+      <p class="text-slate-400 text-[11px]">支援「─ 收起最小化」、「⛶ 全展開大畫面」與「📍 靠右停靠避開人偶」。</p>
+      <div class="flex gap-2">
+        <button id="btnToggleChatOpen" class="px-2.5 py-1 rounded bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-600/50">開關聊天面板</button>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const multiAvatarBar = document.getElementById('multiAvatarBar');
+    const btnHideTopBar = document.getElementById('btnHideTopBar');
+    const btnRestoreTopBar = document.getElementById('btnRestoreTopBar');
+    const tbCloneBtn = document.getElementById('tbCloneBtn');
+
+    const dialogueBubble = document.getElementById('dialogueBubble');
+    const dialogueMessage = document.getElementById('dialogueMessage');
+    const btnCollapseBubble = document.getElementById('btnCollapseBubble');
+    const btnExpandBubble = document.getElementById('btnExpandBubble');
+    const btnCloseBubble = document.getElementById('btnCloseBubble');
+    const btnRestoreBubble = document.getElementById('btnRestoreBubble');
+
+    const chatModal = document.getElementById('chatModal');
+    const chatHistory = document.getElementById('chatHistory');
+    const btnDockChat = document.getElementById('btnDockChat');
+    const btnMinimizeChat = document.getElementById('btnMinimizeChat');
+    const btnMaximizeChat = document.getElementById('btnMaximizeChat');
+    const btnCloseChat = document.getElementById('btnCloseChat');
+    const minimizedChatBar = document.getElementById('minimizedChatBar');
+    const tbChatBtn = document.getElementById('tbChatBtn');
+
+    let isTopBarVisible = true;
+    let isChatMaximized = false;
+    let isChatDockedRight = false;
+
+    // Helper: update dialogue bubble dynamic position to avoid overlapping top toolbar
+    function updateBubblePosition() {
+      if (isTopBarVisible) {
+        dialogueBubble.style.top = '4.8rem';
+        btnRestoreBubble.style.top = '4.8rem';
+      } else {
+        dialogueBubble.style.top = '1.2rem';
+        btnRestoreBubble.style.top = '1.2rem';
+      }
+    }
+
+    // 1. Top Bar Visibility Controls
+    function setTopBarVisible(visible) {
+      isTopBarVisible = visible;
+      if (visible) {
+        multiAvatarBar.classList.remove('hidden');
+        btnRestoreTopBar.classList.add('hidden');
+        tbCloneBtn.classList.add('text-cyan-200', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60');
+      } else {
+        multiAvatarBar.classList.add('hidden');
+        btnRestoreTopBar.classList.remove('hidden');
+        tbCloneBtn.classList.remove('text-cyan-200', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60');
+      }
+      updateBubblePosition();
+    }
+
+    btnHideTopBar.addEventListener('click', () => setTopBarVisible(false));
+    btnRestoreTopBar.addEventListener('click', () => setTopBarVisible(true));
+    tbCloneBtn.addEventListener('click', () => setTopBarVisible(!isTopBarVisible));
+
+    // 2. Dialogue Bubble Controls
+    btnCollapseBubble.addEventListener('click', () => {
+      dialogueBubble.classList.add('hidden');
+      btnRestoreBubble.classList.remove('hidden');
+    });
+
+    btnRestoreBubble.addEventListener('click', () => {
+      dialogueBubble.classList.remove('hidden');
+      btnRestoreBubble.classList.add('hidden');
+    });
+
+    btnCloseBubble.addEventListener('click', () => {
+      dialogueBubble.classList.add('hidden');
+      btnRestoreBubble.classList.add('hidden');
+    });
+
+    let isBubbleExpanded = false;
+    btnExpandBubble.addEventListener('click', () => {
+      isBubbleExpanded = !isBubbleExpanded;
+      if (isBubbleExpanded) {
+        dialogueMessage.classList.remove('line-clamp-2');
+        dialogueBubble.classList.add('max-w-md');
+        btnExpandBubble.textContent = '⤡';
+      } else {
+        dialogueMessage.classList.add('line-clamp-2');
+        dialogueBubble.classList.remove('max-w-md');
+        btnExpandBubble.textContent = '⤢';
+      }
+    });
+
+    document.getElementById('btnTriggerLongBubble').addEventListener('click', () => {
+      dialogueBubble.classList.remove('hidden');
+      btnRestoreBubble.classList.add('hidden');
+      dialogueMessage.textContent = '主人好！小櫻正在為主人讀取長訊息：在 3D 桌面互動中，上方的工具列與對話框現在具備智慧避讓機制，當影分身工具列顯示時，氣泡會自動下移避讓，絕不重疊互擋；長訊息也可以直接展開閱讀全文！';
+    });
+
+    // 3. ChatModal Controls
+    btnDockChat.addEventListener('click', () => {
+      isChatDockedRight = !isChatDockedRight;
+      if (isChatDockedRight) {
+        chatModal.classList.remove('left-1/2', '-translate-x-1/2');
+        chatModal.classList.add('right-6');
+        btnDockChat.textContent = '📍 置中停靠';
+      } else {
+        chatModal.classList.add('left-1/2', '-translate-x-1/2');
+        chatModal.classList.remove('right-6');
+        btnDockChat.textContent = '📍 靠右停靠';
+      }
+    });
+
+    btnMinimizeChat.addEventListener('click', () => {
+      chatModal.classList.add('hidden');
+      minimizedChatBar.classList.remove('hidden');
+    });
+
+    minimizedChatBar.addEventListener('click', () => {
+      chatModal.classList.remove('hidden');
+      minimizedChatBar.classList.add('hidden');
+    });
+
+    btnMaximizeChat.addEventListener('click', () => {
+      isChatMaximized = !isChatMaximized;
+      if (isChatMaximized) {
+        chatModal.classList.remove('max-w-sm');
+        chatModal.classList.add('max-w-2xl', 'w-[90vw]');
+        chatHistory.classList.remove('h-44');
+        chatHistory.classList.add('h-96');
+        btnMaximizeChat.textContent = '❐';
+      } else {
+        chatModal.classList.remove('max-w-2xl', 'w-[90vw]');
+        chatModal.classList.add('max-w-sm');
+        chatHistory.classList.remove('h-96');
+        chatHistory.classList.add('h-44');
+        btnMaximizeChat.textContent = '⛶';
+      }
+    });
+
+    btnCloseChat.addEventListener('click', () => {
+      chatModal.classList.add('hidden');
+      minimizedChatBar.classList.add('hidden');
+      tbChatBtn.classList.remove('text-pink-400', 'bg-pink-500/20');
+    });
+
+    tbChatBtn.addEventListener('click', () => {
+      const isClosed = chatModal.classList.contains('hidden') && minimizedChatBar.classList.contains('hidden');
+      if (isClosed) {
+        chatModal.classList.remove('hidden');
+        tbChatBtn.classList.add('text-pink-400', 'bg-pink-500/20');
+      } else {
+        chatModal.classList.add('hidden');
+        minimizedChatBar.classList.add('hidden');
+        tbChatBtn.classList.remove('text-pink-400', 'bg-pink-500/20');
+      }
+    });
+
+    document.getElementById('btnToggleChatOpen').addEventListener('click', () => {
+      tbChatBtn.click();
+    });
+
+    // 4. Slots overflow test
+    document.getElementById('btnAddLotsOfAvatars').addEventListener('click', () => {
+      const container = document.getElementById('cloneSlotsContainer');
+      const count = container.children.length + 1;
+      const btn = document.createElement('button');
+      btn.className = 'flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-900/90 text-slate-400 hover:text-slate-200 border border-slate-700/80 hover:bg-slate-800 whitespace-nowrap';
+      btn.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span><span>人偶${count} (1.0x)</span>`;
+      container.appendChild(btn);
+    });
+  </script>
+</body>
+</html>

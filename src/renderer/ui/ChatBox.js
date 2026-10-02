@@ -4,8 +4,12 @@ export class ChatBox {
     this.onSendMessage = onSendMessage;
     this.onSlashCommand = onSlashCommand;
     this.element = null;
+    this.miniElement = null;
     this.historyEl = null;
     this.inputEl = null;
+    this.isMaximized = false;
+    this.isDockedRight = false;
+    this.onStateChanged = null;
 
     this._render();
   }
@@ -13,14 +17,23 @@ export class ChatBox {
   _render() {
     this.element = document.createElement('div');
     this.element.id = 'chatModal';
-    this.element.className = 'hidden fixed bottom-20 left-1/2 -translate-x-1/2 w-[92vw] max-w-sm glass-panel rounded-2xl p-4 shadow-2xl border border-pink-500/30 z-50 pointer-events-auto';
+    this.element.className = 'hidden fixed bottom-20 left-1/2 -translate-x-1/2 w-[92vw] max-w-sm glass-panel rounded-2xl p-4 shadow-2xl border border-pink-500/30 z-50 pointer-events-auto transition-all duration-300';
 
     this.element.innerHTML = `
-      <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-        <span class="text-xs font-semibold text-pink-300">💬 AI 女友即時文字對話</span>
-        <button id="btnCloseChat" class="text-slate-400 hover:text-white text-xs">✕</button>
+      <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10 select-none">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-xs font-semibold text-pink-300">💬 AI 女友即時文字對話</span>
+          <button id="btnDockChat" class="text-[10px] text-slate-400 hover:text-cyan-300 px-1.5 py-0.5 rounded bg-slate-800/80 border border-slate-700 transition active:scale-95" title="切換停靠位置 (置中 / 靠右避免擋到人偶)">
+            📍 靠右
+          </button>
+        </div>
+        <div class="flex items-center space-x-1 text-slate-400">
+          <button id="btnMinimizeChat" class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-slate-300 hover:text-white text-xs transition" title="收起為精簡浮動標籤">─</button>
+          <button id="btnMaximizeChat" class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-slate-300 hover:text-white text-[11px] transition" title="全展開放大 / 還原視窗">⛶</button>
+          <button id="btnCloseChat" class="w-5 h-5 flex items-center justify-center rounded hover:bg-rose-500/30 text-slate-300 hover:text-rose-300 text-xs transition" title="關閉文字聊天">✕</button>
+        </div>
       </div>
-      <div id="chatHistory" class="h-44 overflow-y-auto space-y-2 pr-1 text-xs mb-3 custom-scrollbar">
+      <div id="chatHistory" class="h-44 overflow-y-auto space-y-2 pr-1 text-xs mb-3 custom-scrollbar transition-all duration-300">
         <div class="flex justify-start">
           <div class="bg-pink-950/60 border border-pink-500/30 rounded-xl px-3 py-1.5 text-pink-200 max-w-[85%]">
             主人好呀！我是你的專屬 3D 桌面女友，今天想聊些什麼呢？
@@ -29,30 +42,115 @@ export class ChatBox {
       </div>
       <div class="flex space-x-2">
         <input id="chatInput" type="text" placeholder="輸入訊息... 或 /puppet /ar /pose /photo (Enter 發送)" class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500" />
-        <button id="btnSendChat" class="bg-pink-600 hover:bg-pink-500 text-white text-xs px-3.5 py-1.5 rounded-lg transition font-medium">發送</button>
+        <button id="btnSendChat" class="bg-pink-600 hover:bg-pink-500 text-white text-xs px-3.5 py-1.5 rounded-lg transition font-medium active:scale-95">發送</button>
       </div>
     `;
 
     this.container.appendChild(this.element);
 
+    // Minimized floating capsule
+    this.miniElement = document.createElement('div');
+    this.miniElement.id = 'minimizedChatBar';
+    this.miniElement.className = 'hidden fixed bottom-20 right-6 z-50 glass-panel rounded-full px-3 py-1.5 border border-pink-500/40 flex items-center space-x-2 shadow-2xl text-xs text-pink-300 hover:border-pink-400 transition-all cursor-pointer pointer-events-auto select-none';
+    this.miniElement.innerHTML = `
+      <span class="animate-pulse">💬</span>
+      <span class="text-[11px] font-medium">對話已收起</span>
+      <span class="text-slate-400 hover:text-white text-xs">▲</span>
+    `;
+    this.container.appendChild(this.miniElement);
+
     this.historyEl = this.element.querySelector('#chatHistory');
     this.inputEl = this.element.querySelector('#chatInput');
 
+    this._bindEvents();
+  }
+
+  _bindEvents() {
     this.element.querySelector('#btnCloseChat').addEventListener('click', () => this.toggle(false));
+    this.element.querySelector('#btnMinimizeChat').addEventListener('click', () => this.minimize());
+    this.element.querySelector('#btnMaximizeChat').addEventListener('click', () => this.toggleMaximize());
+    this.element.querySelector('#btnDockChat').addEventListener('click', () => this.toggleDock());
     this.element.querySelector('#btnSendChat').addEventListener('click', () => this._send());
+    this.miniElement.addEventListener('click', () => this.restore());
+
     this.inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this._send();
     });
   }
 
+  toggleDock() {
+    this.isDockedRight = !this.isDockedRight;
+    const btnDock = this.element.querySelector('#btnDockChat');
+    if (this.isDockedRight) {
+      this.element.classList.remove('left-1/2', '-translate-x-1/2');
+      this.element.classList.add('right-6');
+      if (btnDock) btnDock.textContent = '📍 置中';
+    } else {
+      this.element.classList.add('left-1/2', '-translate-x-1/2');
+      this.element.classList.remove('right-6');
+      if (btnDock) btnDock.textContent = '📍 靠右';
+    }
+  }
+
+  toggleMaximize() {
+    this.isMaximized = !this.isMaximized;
+    const btnMax = this.element.querySelector('#btnMaximizeChat');
+    if (this.isMaximized) {
+      this.element.classList.remove('max-w-sm');
+      this.element.classList.add('max-w-2xl', 'w-[90vw]');
+      this.historyEl.classList.remove('h-44');
+      this.historyEl.classList.add('h-96');
+      if (btnMax) {
+        btnMax.textContent = '❐';
+        btnMax.title = '還原一般視窗大小';
+      }
+    } else {
+      this.element.classList.remove('max-w-2xl', 'w-[90vw]');
+      this.element.classList.add('max-w-sm');
+      this.historyEl.classList.remove('h-96');
+      this.historyEl.classList.add('h-44');
+      if (btnMax) {
+        btnMax.textContent = '⛶';
+        btnMax.title = '全展開放大視窗';
+      }
+    }
+  }
+
+  minimize() {
+    this.element.classList.add('hidden');
+    this.miniElement.classList.remove('hidden');
+    this.onStateChanged?.({ isVisible: true, isMinimized: true });
+  }
+
+  restore() {
+    this.element.classList.remove('hidden');
+    this.miniElement.classList.add('hidden');
+    this.inputEl.focus();
+    this.onStateChanged?.({ isVisible: true, isMinimized: false });
+  }
+
   toggle(visible = null) {
     if (visible === null) {
-      this.element.classList.toggle('hidden');
+      const isCurrentlyOpen = !this.element.classList.contains('hidden') || !this.miniElement.classList.contains('hidden');
+      if (isCurrentlyOpen) {
+        this.element.classList.add('hidden');
+        this.miniElement.classList.add('hidden');
+        this.onStateChanged?.({ isVisible: false, isMinimized: false });
+      } else {
+        this.element.classList.remove('hidden');
+        this.miniElement.classList.add('hidden');
+        this.inputEl.focus();
+        this.onStateChanged?.({ isVisible: true, isMinimized: false });
+      }
     } else if (visible) {
       this.element.classList.remove('hidden');
+      this.miniElement.classList.add('hidden');
       this.inputEl.focus();
+      this.onStateChanged?.({ isVisible: true, isMinimized: false });
     } else {
       this.element.classList.add('hidden');
+      this.miniElement.classList.add('hidden');
+      this.onStateChanged?.({ isVisible: false, isMinimized: false });
     }
   }
 

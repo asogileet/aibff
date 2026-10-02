@@ -39,18 +39,97 @@ window.addEventListener('DOMContentLoaded', async () => {
   const dialogueBubble = document.getElementById('dialogueBubble');
   const dialogueMessage = document.getElementById('dialogueMessage');
   const dialogueEmotionTag = document.getElementById('dialogueEmotionTag');
+  const btnCollapseBubble = document.getElementById('btnCollapseBubble');
+  const btnExpandBubble = document.getElementById('btnExpandBubble');
+  const btnCloseBubble = document.getElementById('btnCloseBubble');
+  const btnRestoreBubble = document.getElementById('btnRestoreBubble');
 
   let bubbleTimeout = null;
+  let isBubbleExpanded = false;
+
+  function updateBubbleOffset() {
+    const isMultiVisible = typeof multiAvatarBar !== 'undefined' && multiAvatarBar?.isVisible;
+    const isPuppetVisible = typeof isPuppetMode !== 'undefined' && isPuppetMode;
+
+    const targetClass = (isMultiVisible && isPuppetVisible)
+      ? 'bubble-offset-stacked'
+      : (isMultiVisible || isPuppetVisible)
+        ? 'bubble-offset-single'
+        : 'bubble-offset-top';
+
+    [dialogueBubble, btnRestoreBubble].forEach(el => {
+      if (!el) return;
+      el.classList.remove('bubble-offset-stacked', 'bubble-offset-single', 'bubble-offset-top');
+      el.classList.add(targetClass);
+    });
+  }
+
+  function setBubbleExpanded(expanded) {
+    isBubbleExpanded = expanded;
+    if (expanded) {
+      dialogueMessage.classList.remove('line-clamp-3');
+      dialogueBubble.classList.add('max-w-md');
+      if (btnExpandBubble) btnExpandBubble.textContent = '⤡';
+    } else {
+      dialogueMessage.classList.add('line-clamp-3');
+      dialogueBubble.classList.remove('max-w-md');
+      if (btnExpandBubble) btnExpandBubble.textContent = '⤢';
+    }
+  }
 
   function showBubble(text, emotion = 'happy') {
     clearTimeout(bubbleTimeout);
     dialogueMessage.innerText = text;
     dialogueEmotionTag.innerText = emotion;
+    updateBubbleOffset();
+    btnRestoreBubble?.classList.add('hidden');
     dialogueBubble.classList.remove('hidden');
+
+    bubbleTimeout = setTimeout(() => {
+      dialogueBubble.classList.add('hidden');
+      if (isBubbleExpanded) {
+        setBubbleExpanded(false);
+      }
+    }, 5000);
+  }
+
+  btnCollapseBubble?.addEventListener('click', () => {
+    clearTimeout(bubbleTimeout);
+    dialogueBubble.classList.add('hidden');
+    btnRestoreBubble?.classList.remove('hidden');
+  });
+
+  btnRestoreBubble?.addEventListener('click', () => {
+    btnRestoreBubble.classList.add('hidden');
+    dialogueBubble.classList.remove('hidden');
+    clearTimeout(bubbleTimeout);
     bubbleTimeout = setTimeout(() => {
       dialogueBubble.classList.add('hidden');
     }, 4500);
-  }
+  });
+
+  btnExpandBubble?.addEventListener('click', () => {
+    clearTimeout(bubbleTimeout);
+    setBubbleExpanded(!isBubbleExpanded);
+  });
+
+  btnCloseBubble?.addEventListener('click', () => {
+    clearTimeout(bubbleTimeout);
+    dialogueBubble.classList.add('hidden');
+    btnRestoreBubble?.classList.add('hidden');
+  });
+
+  // Pause fadeout when user hovers dialogue bubble
+  dialogueBubble?.addEventListener('mouseenter', () => {
+    clearTimeout(bubbleTimeout);
+  });
+  dialogueBubble?.addEventListener('mouseleave', () => {
+    if (!dialogueBubble.classList.contains('hidden')) {
+      bubbleTimeout = setTimeout(() => {
+        dialogueBubble.classList.add('hidden');
+      }, 3000);
+    }
+  });
 
   // 1. Initialize 3D Engine & Scene
   const sceneManager = new SceneManager(canvasContainer);
@@ -172,6 +251,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (multiAvatarBar?.element) {
       multiAvatarBar.element.classList.toggle('stacked-offset', isPuppetMode);
     }
+    updateBubbleOffset();
 
     if (isPuppetMode) {
       if (arManager.isActive && arManager.getVideoElement()) {
@@ -206,6 +286,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     avatarManager,
     (text, emotion) => showBubble(text, emotion)
   );
+  multiAvatarBar.onVisibilityChanged = (visible) => {
+    toolbar?.setCloneActive(visible);
+    updateBubbleOffset();
+  };
 
   const handleSlashCommand = async (cmdText) => {
     const trimmed = cmdText.trim();
@@ -322,16 +406,19 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (trimmed === '/clone' || trimmed === '/clone toggle') {
       const isVis = multiAvatarBar.toggle();
       toolbar.setCloneActive(isVis);
+      updateBubbleOffset();
       return true;
     }
     if (trimmed === '/clone on') {
       multiAvatarBar.setVisible(true);
       toolbar.setCloneActive(true);
+      updateBubbleOffset();
       return true;
     }
     if (trimmed === '/clone off') {
       multiAvatarBar.setVisible(false);
       toolbar.setCloneActive(false);
+      updateBubbleOffset();
       return true;
     }
     if (trimmed === '/clone add' || trimmed === '/clone spawn') {
@@ -574,6 +661,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     onClone: () => {
       const isVis = multiAvatarBar.toggle();
       toolbar.setCloneActive(isVis);
+      updateBubbleOffset();
     },
     onViewToggle: () => {
       sceneManager.setCameraPreset('toggle');
@@ -593,10 +681,40 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // Synchronize clone bar active state with bottom toolbar
+  toolbar.setCloneActive(multiAvatarBar.isVisible);
+
+  // Synchronize chat open state with toolbar button highlight
+  chatBox.onStateChanged = ({ isVisible, isMinimized }) => {
+    const btn = toolbar.element?.querySelector('#btnChat');
+    if (btn) {
+      if (isVisible && !isMinimized) {
+        btn.classList.add('text-pink-400', 'bg-pink-500/20');
+      } else {
+        btn.classList.remove('text-pink-400', 'bg-pink-500/20');
+      }
+    }
+  };
+
   // Enable pointer events for active UI children
-  [toolbar.element, chatBox.element, costumeSelector.element, actionSelector.element, poseModal.element, heartWidget.element, settingsModal.element, puppetPoseBar.element, multiAvatarBar.element].forEach(el => {
+  [
+    toolbar.element,
+    chatBox.element,
+    chatBox.miniElement,
+    costumeSelector.element,
+    actionSelector.element,
+    poseModal.element,
+    heartWidget.element,
+    settingsModal.element,
+    puppetPoseBar.element,
+    multiAvatarBar.element,
+    multiAvatarBar.miniElement
+  ].forEach(el => {
     if (el) el.style.pointerEvents = 'auto';
   });
+
+  // Calculate initial bubble offset
+  updateBubbleOffset();
 
   // 4. Action Controller Dispatcher
   const actionController = new ActionController(
@@ -671,7 +789,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     puppetPoseBar,
     puppetController,
     handTracker,
-    arManager
+    arManager,
+    multiAvatarBar,
+    toolbar,
+    chatBox,
+    updateBubbleOffset,
+    showBubble
   };
 
   // 6. Services

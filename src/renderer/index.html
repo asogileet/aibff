@@ -23,10 +23,23 @@
   <div id="canvas-container"></div>
 
   <!-- Realtime Dialogue Bubble -->
-  <div id="dialogueBubble" class="hidden absolute top-8 left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-4 py-2.5 rounded-2xl shadow-xl max-w-xs transition-all duration-300 border-pink-500/30 flex items-start space-x-2 z-30 pointer-events-none">
-    <span id="dialogueEmotionTag" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40">開心</span>
-    <p id="dialogueMessage" class="leading-relaxed flex-1">主人好！今天有什麼我可以陪你的嗎？</p>
+  <div id="dialogueBubble" class="hidden absolute bubble-offset-single left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-3.5 py-2 rounded-2xl shadow-xl max-w-sm transition-all duration-300 border-pink-500/30 flex items-start space-x-2 z-30 pointer-events-auto">
+    <span id="dialogueEmotionTag" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40 select-none">開心</span>
+    <div class="flex-1 min-w-0 pr-1">
+      <p id="dialogueMessage" class="leading-relaxed break-words line-clamp-3 transition-all">主人好！今天有什麼我可以陪你的嗎？</p>
+    </div>
+    <div class="flex items-center space-x-1 pl-1 border-l border-white/10 text-slate-400 select-none">
+      <button id="btnCollapseBubble" class="hover:text-pink-300 px-1 py-0.5 rounded text-[10px] transition" title="收起對話氣泡">─</button>
+      <button id="btnExpandBubble" class="hover:text-pink-300 px-1 py-0.5 rounded text-[10px] transition" title="全展開/收回長訊息">⤢</button>
+      <button id="btnCloseBubble" class="hover:text-rose-400 px-1 py-0.5 rounded text-[10px] transition" title="關閉氣泡">✕</button>
+    </div>
   </div>
+
+  <!-- Collapsed Bubble Pill -->
+  <button id="btnRestoreBubble" class="hidden absolute bubble-offset-single left-1/2 -translate-x-1/2 z-30 glass-panel px-2.5 py-1 rounded-full border border-pink-500/40 text-pink-300 text-xs hover:bg-pink-500/20 transition-all shadow-lg flex items-center space-x-1.5 pointer-events-auto">
+    <span>💖</span>
+    <span class="text-[11px]">有新訊息 (點擊展開)</span>
+  </button>
 
   <!-- UI Components Layer -->
   <div id="ui-container" class="absolute inset-0 pointer-events-none">

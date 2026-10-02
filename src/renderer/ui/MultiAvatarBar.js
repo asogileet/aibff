@@ -11,7 +11,9 @@ export class MultiAvatarBar {
     this.onShowBubble = onShowBubble;
 
     this.element = null;
+    this.miniElement = null;
     this.isVisible = true;
+    this.onVisibilityChanged = null;
 
     this._render();
     this._bindEvents();
@@ -26,7 +28,7 @@ export class MultiAvatarBar {
   _render() {
     this.element = document.createElement('div');
     this.element.id = 'multiAvatarBar';
-    this.element.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto glass-panel rounded-full px-3 py-1.5 flex items-center space-x-2 shadow-2xl border border-cyan-500/40 text-xs text-slate-200 transition-all duration-300 backdrop-blur-md bg-slate-950/85';
+    this.element.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto glass-panel rounded-full px-3 py-1.5 flex items-center space-x-2 shadow-2xl border border-cyan-500/40 text-xs text-slate-200 transition-all duration-300 backdrop-blur-md bg-slate-950/85 no-scrollbar';
 
     this.element.innerHTML = `
       <div class="flex items-center space-x-1 pl-1 pr-2 border-r border-white/10 font-bold text-cyan-300 select-none">
@@ -35,7 +37,7 @@ export class MultiAvatarBar {
       </div>
 
       <!-- Avatar Slot Buttons List -->
-      <div id="cloneSlotsContainer" class="flex items-center space-x-1.5 overflow-x-auto max-w-[220px] sm:max-w-xs py-0.5">
+      <div id="cloneSlotsContainer" class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar max-w-[220px] sm:max-w-xs py-0.5">
         <!-- Rendered dynamically -->
       </div>
 
@@ -85,9 +87,23 @@ export class MultiAvatarBar {
           <span class="hidden lg:inline">同步</span>
         </button>
       </div>
+
+      <!-- Hide/Collapse Top Bar Button -->
+      <div class="pl-1.5 border-l border-white/10 select-none">
+        <button id="btnHideCloneBar" class="w-5 h-5 flex items-center justify-center rounded-full bg-slate-800/90 hover:bg-rose-500/30 text-slate-400 hover:text-rose-300 transition text-[11px] active:scale-95 border border-slate-700/60" title="收起/隱藏上方控制列 (也可隨時從下方分身按鈕喚回)">
+          ✕
+        </button>
+      </div>
     `;
 
     this.container.appendChild(this.element);
+
+    // Mini floating restore button shown when top bar is collapsed
+    this.miniElement = document.createElement('button');
+    this.miniElement.id = 'miniAvatarRestoreBar';
+    this.miniElement.className = 'hidden fixed top-3 left-1/2 -translate-x-1/2 z-40 glass-panel px-3 py-1 rounded-full border border-cyan-500/40 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/20 transition-all shadow-lg flex items-center space-x-1.5 pointer-events-auto animate-pulse';
+    this.miniElement.innerHTML = `<span>👥</span><span class="text-[11px]">影分身控制列已收起</span><span class="text-xs">▾</span>`;
+    this.container.appendChild(this.miniElement);
   }
 
   _bindEvents() {
@@ -99,6 +115,15 @@ export class MultiAvatarBar {
     const btnDrop = this.element.querySelector('#btnDropFromHigh');
     const btnScaleDown = this.element.querySelector('#btnScaleDown');
     const btnScaleUp = this.element.querySelector('#btnScaleUp');
+    const btnHide = this.element.querySelector('#btnHideCloneBar');
+
+    btnHide?.addEventListener('click', () => {
+      this.setVisible(false, true);
+    });
+
+    this.miniElement?.addEventListener('click', () => {
+      this.setVisible(true, true);
+    });
 
     btnScaleDown.addEventListener('click', () => {
       const activeIdx = this.avatarManager.activeIndex;
@@ -247,15 +272,21 @@ export class MultiAvatarBar {
     btnRemove.classList.toggle('cursor-not-allowed', isSingle);
   }
 
-  setVisible(visible) {
+  setVisible(visible, triggerEvent = true) {
     this.isVisible = visible;
     if (this.element) {
       this.element.classList.toggle('hidden', !visible);
     }
+    if (this.miniElement) {
+      this.miniElement.classList.toggle('hidden', visible);
+    }
+    if (triggerEvent && typeof this.onVisibilityChanged === 'function') {
+      this.onVisibilityChanged(visible);
+    }
   }
 
   toggle() {
-    this.setVisible(!this.isVisible);
+    this.setVisible(!this.isVisible, true);
     return this.isVisible;
   }
 }
