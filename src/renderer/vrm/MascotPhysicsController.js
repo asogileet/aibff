@@ -100,6 +100,10 @@ export class MascotPhysicsController {
     } else {
       slot.physicsState = 'patrol';
       slot.velocity.set(0, 0, 0);
+      if (slot.vrm?.scene) {
+        const base = this.avatarManager.getFrontRotation(slot.costumeKey);
+        slot.vrm.scene.rotation.y = base + (slot.patrolDir || 1) * 0.2;
+      }
       return true;
     }
   }
@@ -257,11 +261,11 @@ export class MascotPhysicsController {
     if (scenePos.x >= maxX) {
       scenePos.x = maxX;
       slot.patrolDir = -1;
-      slot.vrm.scene.rotation.y = baseFacing - Math.PI * 0.35;
+      slot.vrm.scene.rotation.y = baseFacing - 0.2;
     } else if (scenePos.x <= minX) {
       scenePos.x = minX;
       slot.patrolDir = 1;
-      slot.vrm.scene.rotation.y = baseFacing + Math.PI * 0.35;
+      slot.vrm.scene.rotation.y = baseFacing + 0.2;
     }
 
     this.avatarManager.updateSelectionRing();

@@ -117,7 +117,7 @@ app.whenReady().then(async () => {
           slot.velocity.set(-6.0, 0.0, 0.0);
           slot.physicsState = 'falling';
 
-          for (let i = 0; i < 24; i++) {
+          for (let i = 0; i < 45; i++) {
             physics.update(0.016);
           }
 

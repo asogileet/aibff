@@ -237,7 +237,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         puppetPoseBar.setFullscreenState(isFull);
       }
       if (isFull) {
-        if (sceneManager) sceneManager.setCameraPreset('full');
+        if (sceneManager) sceneManager.setCameraPreset('full', true);
         if (window.electronAPI?.getDisplayLayout) {
           try {
             const layout = await window.electronAPI.getDisplayLayout();
@@ -248,7 +248,7 @@ window.addEventListener('DOMContentLoaded', async () => {
           } catch (_) {}
         }
       } else {
-        if (sceneManager) sceneManager.setCameraPreset('bust');
+        if (sceneManager) sceneManager.setCameraPreset('bust', true);
         if (mascotPhysicsController) {
           mascotPhysicsController.setDisplayLayout(null);
         }
@@ -275,9 +275,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         mascotPhysicsController.setDisplayLayout(layout);
       }
       if (layout && sceneManager) {
-        sceneManager.setCameraPreset('full');
+        sceneManager.setCameraPreset('full', true);
       } else if (!layout && sceneManager) {
-        sceneManager.setCameraPreset('bust');
+        sceneManager.setCameraPreset('bust', true);
       }
     });
   }

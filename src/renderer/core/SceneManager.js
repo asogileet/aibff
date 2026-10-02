@@ -261,6 +261,10 @@ export class SceneManager {
       this.targetPanX = 0.0;
       this.targetPanY = this.fullBodyTargetY;
       this.isCustomTargetY = false;
+      this.vpOffsetX = 0.0;
+      this.vpOffsetY = 0.0;
+      this.targetVpOffsetX = 0.0;
+      this.targetVpOffsetY = 0.0;
     } else if (mode === 'top') {
       this.targetCameraDist = 1.1;
       this.targetOrbitTheta = 0.0;
@@ -284,18 +288,34 @@ export class SceneManager {
       return;
     }
 
-    if (snap) {
+    if (snap || mode === 'full') {
       this.currentCameraDist = this.targetCameraDist;
       this.currentPanX = this.targetPanX;
       this.currentPanY = this.targetPanY;
-      this.orbitTheta = this.targetOrbitTheta;
-      this.orbitPhi = this.targetOrbitPhi;
+      this.orbitTheta = 0.0;
+      this.orbitPhi = 0.0;
+      this.targetOrbitTheta = 0.0;
+      this.targetOrbitPhi = 0.0;
+      this.camera?.clearViewOffset();
+      this.camera?.updateProjectionMatrix();
     }
   }
 
   resetCamera() {
     this.targetPanX = 0.0;
-    this.setCameraPreset('bust');
+    this.currentPanX = 0.0;
+    this.orbitTheta = 0.0;
+    this.orbitPhi = 0.0;
+    this.targetOrbitTheta = 0.0;
+    this.targetOrbitPhi = 0.0;
+    this.vpOffsetX = 0.0;
+    this.vpOffsetY = 0.0;
+    this.targetVpOffsetX = 0.0;
+    this.targetVpOffsetY = 0.0;
+    this.camera?.clearViewOffset();
+    this.camera?.updateProjectionMatrix();
+    const isFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
+    this.setCameraPreset(isFullscreen ? 'full' : 'bust', true);
   }
 
   /**
