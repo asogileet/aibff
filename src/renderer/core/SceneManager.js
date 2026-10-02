@@ -114,6 +114,7 @@ export class SceneManager {
     });
 
     window.addEventListener('mousemove', (e) => {
+      const isFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
       if (this.isRightDragging) {
         const deltaX = e.clientX - this.lastMousePos.x;
         const deltaY = e.clientY - this.lastMousePos.y;
@@ -123,8 +124,8 @@ export class SceneManager {
           // Shift + Right drag: Pan camera target (both X and Y)
           const panFactor = this.currentCameraDist * 0.0016;
           this.setCameraPan(this.targetPanX - deltaX * panFactor, this.targetPanY + deltaY * panFactor);
-        } else {
-          // Standard Right drag: Orbit around avatar
+        } else if (!isFullscreen) {
+          // Standard Right drag: Orbit around avatar (strictly disabled in multi-monitor fullscreen to preserve perpendicular projection)
           this.targetOrbitTheta -= deltaX * 0.008;
           this.targetOrbitPhi += deltaY * 0.006;
           this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
@@ -162,14 +163,17 @@ export class SceneManager {
     }, { passive: true });
 
     dom.addEventListener('touchmove', (e) => {
+      const isFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
       if (e.touches.length === 1 && this.lastTouchPos) {
         const deltaX = e.touches[0].clientX - this.lastTouchPos.x;
         const deltaY = e.touches[0].clientY - this.lastTouchPos.y;
         this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 
-        this.targetOrbitTheta -= deltaX * 0.008;
-        this.targetOrbitPhi += deltaY * 0.006;
-        this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
+        if (!isFullscreen) {
+          this.targetOrbitTheta -= deltaX * 0.008;
+          this.targetOrbitPhi += deltaY * 0.006;
+          this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
+        }
       } else if (e.touches.length === 2 && this.touchStartDist) {
         // Pinch-to-zoom distance
         const currentDist = Math.hypot(
@@ -207,6 +211,19 @@ export class SceneManager {
         lastTapTime = now;
       }
     }, { passive: true });
+
+    // 4. Double-click on canvas background to instantly reset camera & view
+    dom.addEventListener('dblclick', (e) => {
+      if (e.target?.closest?.('button, input, select, textarea, .ui-panel, #dialogueBubble')) return;
+      this.resetCamera();
+    });
+
+    // 5. Global 'R' key to instantly reset camera and view
+    window.addEventListener('keydown', (e) => {
+      if ((e.key === 'r' || e.key === 'R') && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+        this.resetCamera();
+      }
+    });
   }
 
   setCameraTargetY(y) {
@@ -254,6 +271,10 @@ export class SceneManager {
       this.targetPanX = 0.0;
       this.targetPanY = this.bustTargetY;
       this.isCustomTargetY = false;
+      this.vpOffsetX = 0.0;
+      this.vpOffsetY = 0.0;
+      this.targetVpOffsetX = 0.0;
+      this.targetVpOffsetY = 0.0;
     } else if (mode === 'full') {
       this.targetCameraDist = 3.3;
       this.targetOrbitTheta = 0.0;
@@ -288,7 +309,7 @@ export class SceneManager {
       return;
     }
 
-    if (snap || mode === 'full') {
+    if (snap || mode === 'full' || mode === 'bust') {
       this.currentCameraDist = this.targetCameraDist;
       this.currentPanX = this.targetPanX;
       this.currentPanY = this.targetPanY;
@@ -316,6 +337,9 @@ export class SceneManager {
     this.camera?.updateProjectionMatrix();
     const isFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
     this.setCameraPreset(isFullscreen ? 'full' : 'bust', true);
+    if (typeof this.onCameraReset === 'function') {
+      this.onCameraReset();
+    }
   }
 
   /**

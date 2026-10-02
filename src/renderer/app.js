@@ -188,6 +188,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     }).catch(() => {});
   }
 
+  // Hook camera reset to instantly rescue any lost or out-of-bounds avatars
+  sceneManager.onCameraReset = () => {
+    if (mascotPhysicsController) {
+      mascotPhysicsController.rescueAllAvatars();
+    }
+  };
+
   // Mobile Web Audio autoplay policy unlock on first user gesture
   const unlockAudio = () => {
     if (lipSyncController.audioContext && lipSyncController.audioContext.state === 'suspended') {
@@ -479,6 +486,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         chatBox.addAssistantMessage(`已切換鏡頭至：${camPreset}`);
         return true;
       }
+    }
+    if (trimmed === '/reset' || trimmed === '/rescue') {
+      sceneManager.resetCamera();
+      showBubble('✨ 視角與人偶已全面歸位中央地面！', 'happy');
+      chatBox.addAssistantMessage('✨ 視角與所有桌寵人偶已成功重置回到主螢幕中央！');
+      return true;
     }
     if (trimmed === '/clone' || trimmed === '/clone toggle') {
       const isVis = multiAvatarBar.toggle();

@@ -104,7 +104,7 @@ export class PuppetPoseBar {
         const isFull = await window.electronAPI.toggleFullscreen();
         this.setFullscreenState(isFull);
         if (isFull) {
-          this.onShowBubble?.('🖥️ 已切換為多螢幕全域透明畫布！全部螢幕都是活動空間～✨（按住右鍵旋轉，Shift+右鍵或中鍵可平移）', 'happy');
+          this.onShowBubble?.('🖥️ 已切換為多螢幕全域透明畫布！全部螢幕都是活動空間～✨（雙擊畫面空白處或按 R 可重置鏡頭）', 'happy');
         } else {
           this.onShowBubble?.('已切換回桌面懸浮小視窗～', 'happy');
         }
@@ -121,8 +121,8 @@ export class PuppetPoseBar {
     });
 
     btnDockCenter?.addEventListener('click', () => {
-      this.sceneManager?.setCameraPanPreset('center');
-      this.onShowBubble?.('人偶已回到畫面中央～', 'happy');
+      this.sceneManager?.resetCamera();
+      this.onShowBubble?.('鏡頭與人偶已回到畫面正中央～✨', 'happy');
     });
 
     btnDockRight?.addEventListener('click', () => {

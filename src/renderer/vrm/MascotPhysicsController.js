@@ -221,7 +221,53 @@ export class MascotPhysicsController {
           this.avatarManager.updateSelectionRing();
         }
       }
+
+      // Safety Clamp & Out-of-bounds rescue: Guarantee avatar stays within visible and floor limits
+      if (slot.physicsState !== 'grabbed') {
+        const curFloor = this.getFloorYAt(scenePos.x);
+        if (scenePos.y < curFloor - 0.25 || isNaN(scenePos.y)) {
+          scenePos.y = curFloor;
+          slot.position.y = curFloor;
+          slot.velocity.y = Math.max(0, slot.velocity.y);
+        }
+        if (cam) {
+          const dist = Math.abs(cam.position.z - (scenePos.z || 0));
+          const vFov = (cam.fov * Math.PI) / 180;
+          const visibleH = 2 * Math.tan(vFov / 2) * dist;
+          const visibleW = visibleH * cam.aspect;
+          const halfW = visibleW / 2;
+          if (Math.abs(scenePos.x - cam.position.x) > halfW + 0.6 || isNaN(scenePos.x)) {
+            scenePos.x = THREE.MathUtils.clamp(scenePos.x, cam.position.x - halfW * 0.85, cam.position.x + halfW * 0.85);
+            slot.position.x = scenePos.x;
+            slot.velocity.x = 0;
+          }
+        }
+      }
+      scenePos.z = 0;
+      slot.position.z = 0;
     });
+  }
+
+  /**
+   * Rescues all avatars back to screen center and grounded on floor.
+   */
+  rescueAllAvatars() {
+    const slots = this.avatarManager?.getAllSlots?.();
+    if (!slots || slots.length === 0) return;
+    slots.forEach((slot, idx) => {
+      if (!slot.vrm?.scene) return;
+      const targetX = slots.length > 1 ? (idx - (slots.length - 1) / 2) * 0.8 : 0.0;
+      const targetY = this.getFloorYAt(targetX);
+      slot.vrm.scene.position.set(targetX, targetY, 0);
+      slot.position.set(targetX, targetY, 0);
+      slot.velocity.set(0, 0, 0);
+      slot.physicsState = 'idle';
+      if (slot.vrm.scene) {
+        slot.vrm.scene.rotation.y = this.avatarManager.getFrontRotation(slot.costumeKey);
+      }
+      this._resetAvatarLimbs(slot);
+    });
+    this.avatarManager.updateSelectionRing();
   }
 
   /**
