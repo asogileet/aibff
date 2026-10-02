@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>動作姿勢儲存修復與互動預覽 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.35);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(236, 72, 153, 0.25);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <div class="border-b border-pink-500/30 pb-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>🛠️</span> 動作姿勢儲存修復與互動預覽 (Mockup)
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          解決 Electron 環境中 <code class="text-pink-300">window.prompt()</code> 靜默失效、以及骨架面板未即時捕捉肢體姿態的問題。
+        </p>
+      </div>
+      <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs border border-emerald-500/40">
+        規格驗證版
+      </span>
+    </div>
+
+    <!-- Bug Comparison Section -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="glass-panel p-4 rounded-xl border-rose-500/40">
+        <div class="flex items-center gap-2 mb-2 text-rose-400 font-bold text-sm">
+          <span>❌</span> 原始問題：點擊「存為新姿勢」毫無反應
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          程式碼呼叫 <code class="bg-slate-900 px-1 py-0.5 rounded text-rose-300">window.prompt(...)</code>，但在 Electron 桌面架構中，Chromium <strong>完全未實作 prompt 原生視窗</strong>，呼叫時直接回傳 <code class="text-rose-300">null</code>，導致程式碼判斷使用者已取消，直接中斷執行，完全無法存檔。
+        </p>
+      </div>
+      <div class="glass-panel p-4 rounded-xl border-emerald-500/40">
+        <div class="flex items-center gap-2 mb-2 text-emerald-400 font-bold text-sm">
+          <span>✅</span> 修復方案：內建浮動玻璃擬態命名卡片
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          點擊「存為新姿勢」時，在工具列正下方無縫展開自訂彈窗。預設給予自動流水號名稱，支援鍵盤 <kbd class="bg-slate-800 px-1 py-0.5 rounded text-[10px]">Enter</kbd> 快速存檔與 <kbd class="bg-slate-800 px-1 py-0.5 rounded text-[10px]">Esc</kbd> 取消，並自動同步當前骨架角度。
+        </p>
+      </div>
+    </div>
+
+    <!-- Interactive Demonstration Area -->
+    <div class="glass-panel p-6 rounded-2xl relative min-h-[360px] flex flex-col items-center justify-start border-pink-500/40">
+      <div class="text-xs text-pink-300 font-bold mb-4 tracking-wide uppercase">
+        👇 點擊下方工具列的「💾 存為新姿勢」親自體驗修復後的效果
+      </div>
+
+      <!-- Simulated PuppetPoseBar -->
+      <div class="relative">
+        <div class="glass-panel rounded-full px-4 py-2 flex items-center space-x-2 text-xs text-slate-200 border-pink-500/50 shadow-lg">
+          <div class="flex items-center space-x-1 pl-1 pr-2 border-r border-white/10 font-bold text-pink-300 select-none">
+            <span class="text-sm">🤏</span>
+            <span class="text-xs">玩偶捏人</span>
+          </div>
+
+          <div class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 text-[11px] font-medium">
+            <span>🧲</span>
+            <span>保持姿勢</span>
+          </div>
+
+          <!-- The Save Button Trigger -->
+          <button id="demoBtnSave" class="flex items-center space-x-1 px-3 py-1 rounded-full bg-pink-600 text-white hover:bg-pink-500 border border-pink-400/50 transition font-semibold text-[11px] shadow-lg animate-pulse hover:animate-none">
+            <span>💾</span>
+            <span>存為新姿勢</span>
+          </button>
+
+          <button class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 hover:text-white transition text-[11px]">
+            <span>🔄</span>
+            <span>復位</span>
+          </button>
+        </div>
+
+        <!-- Inline Floating Save Card (The Fix) -->
+        <div id="demoSavePopover" class="hidden absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 glass-panel rounded-xl p-3 border border-pink-500/60 shadow-2xl z-50 transition-all duration-200">
+          <div class="text-[11px] font-bold text-pink-300 mb-1.5 flex items-center justify-between">
+            <span>✨ 儲存自訂動作姿勢</span>
+            <span class="text-[10px] text-slate-400 font-normal">Enter 快速儲存</span>
+          </div>
+          <div class="space-y-2">
+            <input id="demoPoseNameInput" type="text" value="玩偶自訂姿勢 #1" class="w-full bg-slate-950 border border-pink-500/40 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-pink-400 focus:ring-1 focus:ring-pink-400" />
+            <div class="flex justify-end gap-1.5 pt-1">
+              <button id="demoBtnCancel" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
+                取消 (Esc)
+              </button>
+              <button id="demoBtnConfirm" class="px-3 py-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-semibold text-xs transition shadow-md">
+                儲存姿勢
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dialogue Bubble Simulation -->
+      <div id="demoBubble" class="opacity-0 transition-opacity duration-300 mt-16 glass-panel text-xs text-pink-200 px-4 py-2 rounded-2xl shadow-xl max-w-sm flex items-center gap-2 border-pink-500/40">
+        <span class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-semibold border border-pink-500/40">開心</span>
+        <span id="demoBubbleText"></span>
+      </div>
+
+      <!-- Saved Pose List Preview -->
+      <div class="w-full max-w-md mt-6 pt-4 border-t border-slate-800">
+        <div class="flex justify-between items-center text-xs text-slate-400 mb-2">
+          <span class="font-semibold text-slate-300">⚡ 已成功儲存的姿勢快捷鍵列表:</span>
+          <span id="demoPoseCount" class="font-mono text-pink-400">0 個自訂姿勢</span>
+        </div>
+        <div id="demoSavedList" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+          <div class="text-xs text-slate-500 text-center py-3 bg-slate-900/40 rounded-lg">
+            尚未儲存自訂姿勢，請點擊上方按鈕測試儲存！
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const btnSave = document.getElementById('demoBtnSave');
+    const popover = document.getElementById('demoSavePopover');
+    const inputName = document.getElementById('demoPoseNameInput');
+    const btnCancel = document.getElementById('demoBtnCancel');
+    const btnConfirm = document.getElementById('demoBtnConfirm');
+    const bubble = document.getElementById('demoBubble');
+    const bubbleText = document.getElementById('demoBubbleText');
+    const savedList = document.getElementById('demoSavedList');
+    const poseCount = document.getElementById('demoPoseCount');
+
+    let savedPoses = [];
+
+    function showBubble(text) {
+      bubbleText.innerText = text;
+      bubble.classList.remove('opacity-0');
+      clearTimeout(window.bubbleTimer);
+      window.bubbleTimer = setTimeout(() => {
+        bubble.classList.add('opacity-0');
+      }, 4000);
+    }
+
+    function renderList() {
+      poseCount.innerText = `${savedPoses.length} 個自訂姿勢`;
+      if (savedPoses.length === 0) {
+        savedList.innerHTML = '<div class="text-xs text-slate-500 text-center py-3 bg-slate-900/40 rounded-lg">尚未儲存自訂姿勢</div>';
+        return;
+      }
+      savedList.innerHTML = '';
+      savedPoses.forEach((pose, idx) => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-200';
+        item.innerHTML = `
+          <div class="flex items-center gap-1.5 truncate">
+            <span>💃</span>
+            <span class="font-medium">${pose.name}</span>
+            <span class="text-[10px] text-slate-500 font-mono">(${pose.time})</span>
+          </div>
+          <button class="text-pink-400 hover:text-pink-300 font-semibold text-[11px] px-2 py-0.5 rounded bg-pink-500/20">
+            套用
+          </button>
+        `;
+        savedList.appendChild(item);
+      });
+    }
+
+    btnSave.addEventListener('click', (e) => {
+      e.stopPropagation();
+      popover.classList.toggle('hidden');
+      if (!popover.classList.contains('hidden')) {
+        inputName.value = `玩偶自訂姿勢 #${savedPoses.length + 1}`;
+        inputName.focus();
+        inputName.select();
+      }
+    });
+
+    btnCancel.addEventListener('click', () => {
+      popover.classList.add('hidden');
+    });
+
+    function doSave() {
+      const name = inputName.value.trim();
+      if (!name) {
+        inputName.focus();
+        return;
+      }
+      savedPoses.push({
+        name: name,
+        time: new Date().toLocaleTimeString()
+      });
+      popover.classList.add('hidden');
+      renderList();
+      showBubble(`✨ 太棒了！已將當前姿勢成功儲存為「${name}」！💖`);
+    }
+
+    btnConfirm.addEventListener('click', doSave);
+
+    inputName.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        doSave();
+      } else if (e.key === 'Escape') {
+        popover.classList.add('hidden');
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!popover.contains(e.target) && e.target !== btnSave && !btnSave.contains(e.target)) {
+        popover.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

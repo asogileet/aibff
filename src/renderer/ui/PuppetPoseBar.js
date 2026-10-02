@@ -50,11 +50,32 @@ export class PuppetPoseBar {
         <button id="btnDockRight" class="px-1.5 py-0.5 rounded hover:bg-slate-700 text-slate-300 transition" title="平移人偶至右側">靠右</button>
       </div>
 
-      <!-- Save Current Pose Button -->
-      <button id="btnSavePuppetPose" class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-pink-600/30 text-pink-300 hover:bg-pink-600/50 hover:text-white border border-pink-500/40 transition font-semibold text-[11px] shadow" title="將當前肢體拉扯形狀直接儲存為新姿勢">
-        <span>💾</span>
-        <span>存為新姿勢</span>
-      </button>
+      <!-- Save Current Pose Button & Popover -->
+      <div class="relative">
+        <button id="btnSavePuppetPose" class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-pink-600/30 text-pink-300 hover:bg-pink-600/50 hover:text-white border border-pink-500/40 transition font-semibold text-[11px] shadow" title="將當前肢體拉扯形狀直接儲存為新姿勢">
+          <span>💾</span>
+          <span>存為新姿勢</span>
+        </button>
+
+        <!-- Inline Floating Save Card -->
+        <div id="savePosePopover" class="hidden absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-64 glass-panel rounded-xl p-3 border border-pink-500/50 shadow-2xl z-50 transition-all duration-200 bg-slate-950/95 backdrop-blur-md">
+          <div class="text-[11px] font-bold text-pink-300 mb-1.5 flex items-center justify-between">
+            <span>✨ 儲存自訂動作姿勢</span>
+            <span class="text-[9px] text-slate-400 font-normal">Enter 快速儲存</span>
+          </div>
+          <div class="space-y-2">
+            <input id="inputPuppetPoseName" type="text" placeholder="輸入姿勢名稱..." class="w-full bg-slate-900 border border-pink-500/40 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-pink-400 focus:ring-1 focus:ring-pink-400" />
+            <div class="flex justify-end gap-1.5 pt-0.5">
+              <button id="btnCancelPuppetSave" type="button" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
+                取消
+              </button>
+              <button id="btnConfirmPuppetSave" type="button" class="px-3 py-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-semibold text-xs transition shadow-md">
+                儲存姿勢
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Reset Stand Button -->
       <button id="btnResetPuppetPose" class="flex items-center space-x-1 px-2 py-1 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition text-[11px]" title="平滑復位至標準待機站姿">
@@ -121,8 +142,83 @@ export class PuppetPoseBar {
       }
     });
 
-    btnSave.addEventListener('click', () => {
-      this.promptSavePose();
+    const popover = this.element.querySelector('#savePosePopover');
+    const inputName = this.element.querySelector('#inputPuppetPoseName');
+    const btnConfirm = this.element.querySelector('#btnConfirmPuppetSave');
+    const btnCancel = this.element.querySelector('#btnCancelPuppetSave');
+
+    this.openSavePopover = () => {
+      const existingCount = this.poseManager?.savedPoses?.length || 0;
+      const defaultName = `玩偶姿勢 #${existingCount + 1}`;
+      if (inputName) {
+        inputName.value = defaultName;
+      }
+      popover?.classList.remove('hidden');
+      setTimeout(() => {
+        if (inputName) {
+          inputName.focus();
+          inputName.select();
+        }
+      }, 50);
+    };
+
+    this.closeSavePopover = () => {
+      popover?.classList.add('hidden');
+    };
+
+    this.executeSavePose = () => {
+      const existingCount = this.poseManager?.savedPoses?.length || 0;
+      const defaultName = `玩偶姿勢 #${existingCount + 1}`;
+      const trimmed = inputName?.value?.trim() || defaultName;
+
+      try {
+        this.puppetController.saveCurrentPose(trimmed);
+        if (this.poseModal?.refreshSavedPoses) {
+          this.poseModal.refreshSavedPoses();
+        }
+        this.closeSavePopover();
+        this.onShowBubble?.(`✨ 太棒了！已將當前姿勢儲存為「${trimmed}」！💖`, 'happy');
+      } catch (err) {
+        console.error('[PuppetPoseBar] Save pose failed:', err);
+        this.onShowBubble?.('儲存姿勢失敗：' + err.message, 'surprised');
+      }
+    };
+
+    btnSave.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (popover?.classList.contains('hidden')) {
+        this.openSavePopover();
+      } else {
+        this.closeSavePopover();
+      }
+    });
+
+    btnConfirm?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.executeSavePose();
+    });
+
+    btnCancel?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeSavePopover();
+    });
+
+    inputName?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.executeSavePose();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this.closeSavePopover();
+      }
+    });
+
+    // Close popover when clicking anywhere outside
+    document.addEventListener('click', (e) => {
+      if (!this.isVisible) return;
+      if (popover && !popover.contains(e.target) && e.target !== btnSave && !btnSave?.contains(e.target)) {
+        this.closeSavePopover();
+      }
     });
 
     btnReset.addEventListener('click', () => {
@@ -172,23 +268,7 @@ export class PuppetPoseBar {
   }
 
   promptSavePose() {
-    const existingCount = this.poseManager?.savedPoses?.length || 0;
-    const defaultName = `玩偶姿勢 #${existingCount + 1}`;
-    const name = window.prompt('請輸入新姿勢名稱：', defaultName);
-
-    if (name === null) return; // Cancelled
-    const trimmed = name.trim() || defaultName;
-
-    try {
-      this.puppetController.saveCurrentPose(trimmed);
-      if (this.poseModal?.refreshSavedPoses) {
-        this.poseModal.refreshSavedPoses();
-      }
-      this.onShowBubble?.(`✨ 太棒了！已將當前姿勢儲存為「${trimmed}」！💖`, 'happy');
-    } catch (err) {
-      console.error('[PuppetPoseBar] Save pose failed:', err);
-      this.onShowBubble?.('儲存姿勢失敗：' + err.message, 'surprised');
-    }
+    this.openSavePopover?.();
   }
 
   setVisible(visible) {
@@ -197,6 +277,7 @@ export class PuppetPoseBar {
       this.element.classList.remove('hidden');
       this.updateState();
     } else {
+      this.closeSavePopover?.();
       this.element.classList.add('hidden');
     }
   }

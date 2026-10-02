@@ -570,6 +570,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     emotionController,
     sceneManager,
     poseManager,
+    poseModal,
+    puppetPoseBar,
     puppetController,
     handTracker,
     arManager

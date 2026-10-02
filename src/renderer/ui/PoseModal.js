@@ -263,12 +263,16 @@ export class PoseModal {
       this.onShowBubble?.('骨架已還原為自然待機站姿！', 'happy');
     });
 
-    // Save pose button
-    this.element.querySelector('#btnSaveNewPose').addEventListener('click', () => {
+    // Save pose button & Enter key
+    const handleSavePose = () => {
       const name = this.inputName.value.trim();
       if (!name) {
-        alert('請輸入姿勢名稱！');
+        this.onShowBubble?.('請先輸入姿勢名稱再進行儲存哦～', 'shy');
+        this.inputName.focus();
         return;
+      }
+      if (this.poseManager?.captureCurrentPoseFromAvatar) {
+        this.poseManager.captureCurrentPoseFromAvatar();
       }
       this.poseManager.saveCurrentPose(name);
       this.inputName.value = '';
@@ -276,6 +280,15 @@ export class PoseModal {
       const isOverride = ['坐姿', '坐下', 'sit', '蹲姿', '蹲下', 'squat', '跪姿', '跪坐', 'kneel'].some(k => name.toLowerCase().includes(k));
       const extraMsg = isOverride ? '（已優先覆蓋對應內建動作！）' : '';
       this.onShowBubble?.(`姿勢「${name}」已成功儲存為快捷鍵！${extraMsg}`, 'happy');
+    };
+
+    this.element.querySelector('#btnSaveNewPose').addEventListener('click', handleSavePose);
+
+    this.inputName.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSavePose();
+      }
     });
   }
 
@@ -344,10 +357,17 @@ export class PoseModal {
       this.element.classList.toggle('hidden');
     } else if (visible) {
       this.element.classList.remove('hidden');
-      this._updateSlidersFromJoint();
-      this.refreshSavedPoses();
     } else {
       this.element.classList.add('hidden');
+    }
+
+    if (!this.element.classList.contains('hidden')) {
+      // Auto-capture current avatar pose when opening modal so sliders reflect actual posture
+      if (this.poseManager?.captureCurrentPoseFromAvatar) {
+        this.poseManager.captureCurrentPoseFromAvatar();
+      }
+      this._updateSlidersFromJoint();
+      this.refreshSavedPoses();
     }
   }
 }
