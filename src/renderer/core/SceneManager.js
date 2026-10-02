@@ -395,14 +395,19 @@ export class SceneManager {
 
   _animate() {
     requestAnimationFrame(this._animate);
-    const delta = this.clock.getDelta();
+    const rawDelta = this.clock.getDelta();
+    const delta = Math.min(rawDelta, 0.05); // Clamp frame delta to 50ms (20fps minimum) to prevent physics/lerp explosion
+
+    // Framerate-independent exponential damping strictly bounded in [0, 1)
+    const lerpAlpha = 1.0 - Math.exp(-8.0 * delta);
+    const orbitAlpha = 1.0 - Math.exp(-10.0 * delta);
 
     // Smooth camera distance, pan height & orbit angle lerp
-    this.currentCameraDist = THREE.MathUtils.lerp(this.currentCameraDist, this.targetCameraDist, delta * 8.0);
-    this.currentPanX = THREE.MathUtils.lerp(this.currentPanX, this.targetPanX, delta * 8.0);
-    this.currentPanY = THREE.MathUtils.lerp(this.currentPanY, this.targetPanY, delta * 8.0);
-    this.orbitTheta = THREE.MathUtils.lerp(this.orbitTheta, this.targetOrbitTheta, delta * 10.0);
-    this.orbitPhi = THREE.MathUtils.lerp(this.orbitPhi, this.targetOrbitPhi, delta * 10.0);
+    this.currentCameraDist = THREE.MathUtils.lerp(this.currentCameraDist, this.targetCameraDist, lerpAlpha);
+    this.currentPanX = THREE.MathUtils.lerp(this.currentPanX, this.targetPanX, lerpAlpha);
+    this.currentPanY = THREE.MathUtils.lerp(this.currentPanY, this.targetPanY, lerpAlpha);
+    this.orbitTheta = THREE.MathUtils.lerp(this.orbitTheta, this.targetOrbitTheta, orbitAlpha);
+    this.orbitPhi = THREE.MathUtils.lerp(this.orbitPhi, this.targetOrbitPhi, orbitAlpha);
     this._updateCameraTransform();
 
     // Particle updates

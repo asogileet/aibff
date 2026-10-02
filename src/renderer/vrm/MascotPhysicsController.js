@@ -167,10 +167,16 @@ export class MascotPhysicsController {
     const visibleH = 2 * Math.tan(vFov / 2) * dist;
     const visibleW = visibleH * cam.aspect;
 
-    // Safe boundaries factoring avatar width
-    const margin = 0.45 * (slot.scale || 1.0);
-    const minX = cam.position.x - visibleW / 2 + margin;
-    const maxX = cam.position.x + visibleW / 2 - margin;
+    // Dynamically calculate safe boundaries to prevent inversion in narrow viewports
+    const halfW = visibleW / 2;
+    const safeMargin = Math.min(halfW * 0.35, 0.45 * (slot.scale || 1.0));
+    let minX = cam.position.x - halfW + safeMargin;
+    let maxX = cam.position.x + halfW - safeMargin;
+
+    if (minX >= maxX) {
+      minX = cam.position.x - 0.2;
+      maxX = cam.position.x + 0.2;
+    }
 
     const speed = (slot.patrolSpeed || 0.85) * (slot.scale || 1.0);
     scenePos.x += (slot.patrolDir || 1) * speed * dt;
