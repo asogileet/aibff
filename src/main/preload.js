@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSnapshot: (payload) => ipcRenderer.invoke('app:save-snapshot', payload),
   openPath: (targetPath) => ipcRenderer.invoke('app:open-path', targetPath),
 
+  // Local Config Persistence
+  loadConfig: () => ipcRenderer.invoke('app:load-config'),
+  saveConfig: (cfg) => ipcRenderer.invoke('app:save-config', cfg),
+
   // Multi-Monitor Layout Operations
   getDisplayLayout: () => ipcRenderer.invoke('window:get-display-layout'),
   onDisplayMetricsChanged: (callback) => ipcRenderer.on('window:display-metrics-changed', (event, data) => callback(data)),

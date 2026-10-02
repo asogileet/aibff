@@ -43,8 +43,9 @@ export class MascotPhysicsController {
     const visibleH = 2 * Math.tan(vFov / 2) * dist;
     const visibleW = visibleH * cam.aspect;
 
-    // Convert 3D world X to canvas screen pixel X
-    const screenNormX = (x - (cam.position.x - visibleW / 2)) / visibleW;
+    // Convert 3D world X to canvas screen pixel X using camera NDC projection
+    const testVec = new THREE.Vector3(x, this.floorY, 0).project(cam);
+    const screenNormX = THREE.MathUtils.clamp((testVec.x + 1.0) / 2.0, 0.0, 1.0);
     const pixelX = bounds.x + screenNormX * bounds.width;
 
     // Find the physical display that contains pixelX
@@ -159,22 +160,18 @@ export class MascotPhysicsController {
         scenePos.addScaledVector(slot.velocity, dt);
         scenePos.z = 0; // Strictly lock Z to 2.5D plane
 
-        // Horizontal screen boundary wall bounce
+        // Horizontal screen boundary wall bounce using NDC projection
         if (cam) {
-          const dist = Math.abs(cam.position.z - scenePos.z);
-          const vFov = (cam.fov * Math.PI) / 180;
-          const visibleH = 2 * Math.tan(vFov / 2) * dist;
-          const visibleW = visibleH * cam.aspect;
-          const halfW = visibleW / 2;
-          const safeMargin = Math.min(halfW * 0.35, 0.45 * (slot.scale || 1.0));
-          const minX = cam.position.x - halfW + safeMargin;
-          const maxX = cam.position.x + halfW - safeMargin;
+          const testPos = scenePos.clone();
+          testPos.y += 0.6 * (slot.scale || 1.0);
+          const ndc = testPos.project(cam);
+          const ndcLimit = 0.88;
 
-          if (scenePos.x <= minX) {
-            scenePos.x = minX;
+          if (ndc.x <= -ndcLimit) {
+            scenePos.x += 0.05;
             slot.velocity.x = Math.abs(slot.velocity.x) * 0.55; // Bounce right inward
-          } else if (scenePos.x >= maxX) {
-            scenePos.x = maxX;
+          } else if (ndc.x >= ndcLimit) {
+            scenePos.x -= 0.05;
             slot.velocity.x = -Math.abs(slot.velocity.x) * 0.55; // Bounce left inward
           }
         }
@@ -231,13 +228,22 @@ export class MascotPhysicsController {
           slot.velocity.y = Math.max(0, slot.velocity.y);
         }
         if (cam) {
-          const dist = Math.abs(cam.position.z - (scenePos.z || 0));
-          const vFov = (cam.fov * Math.PI) / 180;
-          const visibleH = 2 * Math.tan(vFov / 2) * dist;
-          const visibleW = visibleH * cam.aspect;
-          const halfW = visibleW / 2;
-          if (Math.abs(scenePos.x - cam.position.x) > halfW + 0.6 || isNaN(scenePos.x)) {
-            scenePos.x = THREE.MathUtils.clamp(scenePos.x, cam.position.x - halfW * 0.85, cam.position.x + halfW * 0.85);
+          const testPos = scenePos.clone();
+          testPos.y += 0.6 * (slot.scale || 1.0);
+          const ndc = testPos.project(cam);
+          if (ndc.x > 0.94) {
+            scenePos.x -= 0.08;
+            slot.position.x = scenePos.x;
+            slot.velocity.x = Math.min(0, slot.velocity.x);
+            slot.patrolDir = -1;
+          } else if (ndc.x < -0.94) {
+            scenePos.x += 0.08;
+            slot.position.x = scenePos.x;
+            slot.velocity.x = Math.max(0, slot.velocity.x);
+            slot.patrolDir = 1;
+          }
+          if (isNaN(scenePos.x)) {
+            scenePos.x = 0;
             slot.position.x = scenePos.x;
             slot.velocity.x = 0;
           }
@@ -275,24 +281,32 @@ export class MascotPhysicsController {
    */
   _updatePatrolMovement(slot, dt, cam) {
     const scenePos = slot.vrm.scene.position;
-    const dist = Math.abs(cam.position.z - scenePos.z);
-    const vFov = (cam.fov * Math.PI) / 180;
-    const visibleH = 2 * Math.tan(vFov / 2) * dist;
-    const visibleW = visibleH * cam.aspect;
+    const speed = (slot.patrolSpeed || 0.85) * (slot.scale || 1.0);
 
-    // Dynamically calculate safe boundaries to prevent inversion in narrow viewports
-    const halfW = visibleW / 2;
-    const safeMargin = Math.min(halfW * 0.35, 0.45 * (slot.scale || 1.0));
-    let minX = cam.position.x - halfW + safeMargin;
-    let maxX = cam.position.x + halfW - safeMargin;
+    // Dynamic screen NDC boundary check
+    const checkPos = scenePos.clone();
+    checkPos.y += 0.6 * (slot.scale || 1.0);
+    const ndc = checkPos.project(cam);
+    const ndcBoundary = 0.88;
 
-    if (minX >= maxX) {
-      minX = cam.position.x - 0.2;
-      maxX = cam.position.x + 0.2;
+    // Flip patrol direction when reaching screen edge
+    if (ndc.x >= ndcBoundary && (slot.patrolDir || 1) > 0) {
+      slot.patrolDir = -1;
+    } else if (ndc.x <= -ndcBoundary && (slot.patrolDir || 1) < 0) {
+      slot.patrolDir = 1;
     }
 
-    const speed = (slot.patrolSpeed || 0.85) * (slot.scale || 1.0);
-    scenePos.x += (slot.patrolDir || 1) * speed * dt;
+    // Safety step clamping: if avatar pushed or dragged past boundary, steer inward
+    if (ndc.x > 0.92) {
+      scenePos.x -= speed * dt * 1.5;
+      slot.patrolDir = -1;
+    } else if (ndc.x < -0.92) {
+      scenePos.x += speed * dt * 1.5;
+      slot.patrolDir = 1;
+    } else {
+      scenePos.x += (slot.patrolDir || 1) * speed * dt;
+    }
+
     scenePos.z = 0; // Strictly lock Z depth
     slot.velocity.z = 0;
 
@@ -304,15 +318,6 @@ export class MascotPhysicsController {
     const baseFacing = this.avatarManager.getFrontRotation(slot.costumeKey);
     const targetFacing = (slot.patrolDir === -1) ? (baseFacing - Math.PI * 0.45) : (baseFacing + Math.PI * 0.45);
     slot.vrm.scene.rotation.y = THREE.MathUtils.lerp(slot.vrm.scene.rotation.y, targetFacing, Math.min(1.0, 12.0 * dt));
-
-    // Wall bounce / direction flip
-    if (scenePos.x >= maxX) {
-      scenePos.x = maxX;
-      slot.patrolDir = -1;
-    } else if (scenePos.x <= minX) {
-      scenePos.x = minX;
-      slot.patrolDir = 1;
-    }
 
     // Dynamic scale: If custom vanishing point is NOT configured, compensate camera perspective depth
     // to maintain uniform apparent height across monitors; if custom vanishing point IS configured,

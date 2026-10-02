@@ -301,6 +301,41 @@ ipcMain.handle('app:open-path', async (event, targetPath) => {
   }
 });
 
+const CONFIG_PATH = path.join(__dirname, '../../config.json');
+
+ipcMain.handle('app:load-config', async () => {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('[Main] Failed to load config.json:', err);
+  }
+  return null;
+});
+
+ipcMain.handle('app:save-config', async (event, newConfig) => {
+  try {
+    let baseConfig = {};
+    if (fs.existsSync(CONFIG_PATH)) {
+      try {
+        baseConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+      } catch (_) {}
+    }
+    const merged = { ...baseConfig, ...newConfig };
+    if (newConfig.camera_perspective) {
+      merged.camera_perspective = { ...(baseConfig.camera_perspective || {}), ...newConfig.camera_perspective };
+    }
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+    console.log('[Main] Saved config.json successfully');
+    return { success: true };
+  } catch (err) {
+    console.error('[Main] Failed to save config.json:', err);
+    return { success: false, error: err.message };
+  }
+});
+
 app.whenReady().then(() => {
   // Grant media permission automatically for microphone recording
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {

@@ -398,8 +398,22 @@ export class SettingsModal {
       if (rngVpX) rngVpX.value = vpX;
       if (rngVpY) rngVpY.value = vpY;
       updatePerspectiveLabels();
-      this.sceneManager?.setFov(fov, false);
-      this.sceneManager?.setVanishingPoint(vpX, vpY, false);
+      this.sceneManager?.setFov(fov, true);
+      this.sceneManager?.setVanishingPoint(vpX, vpY, true);
+
+      const cfg = {
+        fov,
+        vp_offset_x: vpX,
+        vp_offset_y: vpY,
+        show_grid: this.element.querySelector('#cfgShowGrid')?.checked || false,
+        grid_style: this.element.querySelector('#cfgGridStyle')?.value || 'pink'
+      };
+      try {
+        localStorage.setItem('aibff_camera_perspective', JSON.stringify(cfg));
+      } catch (_) {}
+      if (window.electronAPI?.saveConfig) {
+        window.electronAPI.saveConfig({ camera_perspective: cfg });
+      }
     };
 
     this.element.querySelector('#btnPresetStd')?.addEventListener('click', () => {
@@ -482,96 +496,107 @@ export class SettingsModal {
   }
 
   async loadConfig() {
+    let cfg = null;
+    if (window.electronAPI?.loadConfig) {
+      try {
+        cfg = await window.electronAPI.loadConfig();
+      } catch (_) {}
+    }
+    if (!cfg) {
+      try {
+        const apiBase = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://'))
+          ? window.location.origin
+          : 'http://127.0.0.1:8765';
+        const res = await fetch(`${apiBase}/api/config`);
+        if (res.ok) {
+          cfg = await res.json();
+        }
+      } catch (_) {}
+    }
+    if (!cfg) {
+      cfg = {};
+    }
+    this.currentConfig = cfg;
+
+    if (cfg.llm) {
+      const prov = cfg.llm.provider || 'ollama';
+      this.selectProvider(prov, true);
+      if (cfg.llm.api_url) this.element.querySelector('#cfgLlmUrl').value = cfg.llm.api_url;
+      if (cfg.llm.model_name) {
+        this.element.querySelector('#cfgLlmModel').value = cfg.llm.model_name;
+        const selectPreset = this.element.querySelector('#selectLlmPreset');
+        if (selectPreset) {
+          const hasOption = Array.from(selectPreset.options).some(o => o.value === cfg.llm.model_name);
+          selectPreset.value = hasOption ? cfg.llm.model_name : 'custom';
+        }
+      }
+      if (cfg.llm.api_key) this.element.querySelector('#cfgLlmApiKey').value = cfg.llm.api_key;
+    }
+
+    if (cfg.character) {
+      if (cfg.character.name) this.element.querySelector('#cfgCharName').value = cfg.character.name;
+      if (cfg.character.user_nickname) this.element.querySelector('#cfgUserNickname').value = cfg.character.user_nickname;
+      if (cfg.character.system_prompt) this.element.querySelector('#cfgSystemPrompt').value = cfg.character.system_prompt;
+    }
+
+    if (cfg.tts) {
+      if (cfg.tts.voice) this.element.querySelector('#cfgTtsVoice').value = cfg.tts.voice;
+      if (cfg.tts.rate) this.element.querySelector('#cfgTtsRate').value = cfg.tts.rate;
+      if (cfg.tts.volume) this.element.querySelector('#cfgTtsVolume').value = cfg.tts.volume;
+    }
+
+    if (cfg.stt) {
+      if (cfg.stt.model_size) this.element.querySelector('#cfgSttModel').value = cfg.stt.model_size;
+      if (cfg.stt.vad_silence_duration_ms) this.element.querySelector('#cfgSttVad').value = cfg.stt.vad_silence_duration_ms;
+    }
+
+    // Load perspective and vanishing point configuration with priority on local cache
+    let perspectiveCfg = null;
     try {
-      const apiBase = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://'))
-        ? window.location.origin
-        : 'http://127.0.0.1:8765';
-      const res = await fetch(`${apiBase}/api/config`);
-      if (!res.ok) return;
-      const cfg = await res.json();
-      this.currentConfig = cfg;
+      const cached = localStorage.getItem('aibff_camera_perspective');
+      if (cached) perspectiveCfg = JSON.parse(cached);
+    } catch (e) {}
+    if (!perspectiveCfg && cfg.camera_perspective) {
+      perspectiveCfg = cfg.camera_perspective;
+    }
 
-      if (cfg.llm) {
-        const prov = cfg.llm.provider || 'ollama';
-        this.selectProvider(prov, true);
-        if (cfg.llm.api_url) this.element.querySelector('#cfgLlmUrl').value = cfg.llm.api_url;
-        if (cfg.llm.model_name) {
-          this.element.querySelector('#cfgLlmModel').value = cfg.llm.model_name;
-          const selectPreset = this.element.querySelector('#selectLlmPreset');
-          if (selectPreset) {
-            const hasOption = Array.from(selectPreset.options).some(o => o.value === cfg.llm.model_name);
-            selectPreset.value = hasOption ? cfg.llm.model_name : 'custom';
-          }
-        }
-        if (cfg.llm.api_key) this.element.querySelector('#cfgLlmApiKey').value = cfg.llm.api_key;
+    if (perspectiveCfg) {
+      const rngFov = this.element.querySelector('#cfgFov');
+      const rngVpX = this.element.querySelector('#cfgVpX');
+      const rngVpY = this.element.querySelector('#cfgVpY');
+      const lblFov = this.element.querySelector('#cfgFovLabel');
+      const lblVpX = this.element.querySelector('#cfgVpXLabel');
+      const lblVpY = this.element.querySelector('#cfgVpYLabel');
+      const chkGrid = this.element.querySelector('#cfgShowGrid');
+      const selGridStyle = this.element.querySelector('#cfgGridStyle');
+
+      if (perspectiveCfg.fov !== undefined && rngFov) {
+        rngFov.value = perspectiveCfg.fov;
+        if (lblFov) lblFov.innerText = `${perspectiveCfg.fov}°`;
+      }
+      if (perspectiveCfg.vp_offset_x !== undefined && rngVpX) {
+        rngVpX.value = perspectiveCfg.vp_offset_x;
+        if (lblVpX) lblVpX.innerText = parseFloat(perspectiveCfg.vp_offset_x).toFixed(2);
+      }
+      if (perspectiveCfg.vp_offset_y !== undefined && rngVpY) {
+        rngVpY.value = perspectiveCfg.vp_offset_y;
+        if (lblVpY) lblVpY.innerText = parseFloat(perspectiveCfg.vp_offset_y).toFixed(2);
+      }
+      if (perspectiveCfg.show_grid !== undefined && chkGrid) {
+        chkGrid.checked = !!perspectiveCfg.show_grid;
+      }
+      if (perspectiveCfg.grid_style && selGridStyle) {
+        selGridStyle.value = perspectiveCfg.grid_style;
       }
 
-      if (cfg.character) {
-        if (cfg.character.name) this.element.querySelector('#cfgCharName').value = cfg.character.name;
-        if (cfg.character.user_nickname) this.element.querySelector('#cfgUserNickname').value = cfg.character.user_nickname;
-        if (cfg.character.system_prompt) this.element.querySelector('#cfgSystemPrompt').value = cfg.character.system_prompt;
+      if (this.sceneManager) {
+        if (perspectiveCfg.fov !== undefined) this.sceneManager.setFov(perspectiveCfg.fov, true);
+        if (perspectiveCfg.vp_offset_x !== undefined || perspectiveCfg.vp_offset_y !== undefined) {
+          this.sceneManager.setVanishingPoint(perspectiveCfg.vp_offset_x || 0, perspectiveCfg.vp_offset_y || 0, true);
+        }
+        if (perspectiveCfg.show_grid !== undefined) this.sceneManager.setGridVisible(perspectiveCfg.show_grid);
+        if (perspectiveCfg.grid_style) this.sceneManager.setGridStyle(perspectiveCfg.grid_style);
       }
-
-      if (cfg.tts) {
-        if (cfg.tts.voice) this.element.querySelector('#cfgTtsVoice').value = cfg.tts.voice;
-        if (cfg.tts.rate) this.element.querySelector('#cfgTtsRate').value = cfg.tts.rate;
-        if (cfg.tts.volume) this.element.querySelector('#cfgTtsVolume').value = cfg.tts.volume;
-      }
-
-      if (cfg.stt) {
-        if (cfg.stt.model_size) this.element.querySelector('#cfgSttModel').value = cfg.stt.model_size;
-        if (cfg.stt.vad_silence_duration_ms) this.element.querySelector('#cfgSttVad').value = cfg.stt.vad_silence_duration_ms;
-      }
-
-      // Load perspective and vanishing point configuration
-      let perspectiveCfg = cfg.camera_perspective;
-      if (!perspectiveCfg) {
-        try {
-          const cached = localStorage.getItem('aibff_camera_perspective');
-          if (cached) perspectiveCfg = JSON.parse(cached);
-        } catch (e) {}
-      }
-
-      if (perspectiveCfg) {
-        const rngFov = this.element.querySelector('#cfgFov');
-        const rngVpX = this.element.querySelector('#cfgVpX');
-        const rngVpY = this.element.querySelector('#cfgVpY');
-        const lblFov = this.element.querySelector('#cfgFovLabel');
-        const lblVpX = this.element.querySelector('#cfgVpXLabel');
-        const lblVpY = this.element.querySelector('#cfgVpYLabel');
-        const chkGrid = this.element.querySelector('#cfgShowGrid');
-        const selGridStyle = this.element.querySelector('#cfgGridStyle');
-
-        if (perspectiveCfg.fov !== undefined && rngFov) {
-          rngFov.value = perspectiveCfg.fov;
-          if (lblFov) lblFov.innerText = `${perspectiveCfg.fov}°`;
-        }
-        if (perspectiveCfg.vp_offset_x !== undefined && rngVpX) {
-          rngVpX.value = perspectiveCfg.vp_offset_x;
-          if (lblVpX) lblVpX.innerText = parseFloat(perspectiveCfg.vp_offset_x).toFixed(2);
-        }
-        if (perspectiveCfg.vp_offset_y !== undefined && rngVpY) {
-          rngVpY.value = perspectiveCfg.vp_offset_y;
-          if (lblVpY) lblVpY.innerText = parseFloat(perspectiveCfg.vp_offset_y).toFixed(2);
-        }
-        if (perspectiveCfg.show_grid !== undefined && chkGrid) {
-          chkGrid.checked = !!perspectiveCfg.show_grid;
-        }
-        if (perspectiveCfg.grid_style && selGridStyle) {
-          selGridStyle.value = perspectiveCfg.grid_style;
-        }
-
-        if (this.sceneManager) {
-          if (perspectiveCfg.fov !== undefined) this.sceneManager.setFov(perspectiveCfg.fov, true);
-          if (perspectiveCfg.vp_offset_x !== undefined || perspectiveCfg.vp_offset_y !== undefined) {
-            this.sceneManager.setVanishingPoint(perspectiveCfg.vp_offset_x || 0, perspectiveCfg.vp_offset_y || 0, true);
-          }
-          if (perspectiveCfg.show_grid !== undefined) this.sceneManager.setGridVisible(perspectiveCfg.show_grid);
-          if (perspectiveCfg.grid_style) this.sceneManager.setGridStyle(perspectiveCfg.grid_style);
-        }
-      }
-    } catch (e) {
-      console.warn('[SettingsModal] Failed to load remote config:', e);
     }
   }
 
@@ -621,6 +646,10 @@ export class SettingsModal {
     try {
       localStorage.setItem('aibff_camera_perspective', JSON.stringify(payload.camera_perspective));
     } catch (e) {}
+
+    if (window.electronAPI?.saveConfig) {
+      window.electronAPI.saveConfig(payload).catch(() => {});
+    }
 
     const startupEnabled = this.element.querySelector('#cfgStartup').checked;
     if (window.electronAPI?.setStartup) {
