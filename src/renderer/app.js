@@ -55,6 +55,22 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 1. Initialize 3D Engine & Scene
   const sceneManager = new SceneManager(canvasContainer);
 
+  // Restore cached perspective & vanishing point settings if available
+  try {
+    const cachedPerspective = localStorage.getItem('aibff_camera_perspective');
+    if (cachedPerspective) {
+      const p = JSON.parse(cachedPerspective);
+      if (p.fov !== undefined) sceneManager.setFov(p.fov, true);
+      if (p.vp_offset_x !== undefined || p.vp_offset_y !== undefined) {
+        sceneManager.setVanishingPoint(p.vp_offset_x || 0, p.vp_offset_y || 0, true);
+      }
+      if (p.show_grid !== undefined) sceneManager.setGridVisible(p.show_grid);
+      if (p.grid_style) sceneManager.setGridStyle(p.grid_style);
+    }
+  } catch (e) {
+    console.warn('[App] Failed to load cached perspective config:', e);
+  }
+
   // 2. Initialize Controllers with AvatarManager
   const avatarManager = new AvatarManager(sceneManager, {
     onSelectionChanged: (slot, index) => {
@@ -413,12 +429,45 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
       return true;
     }
-    if (trimmed.startsWith('/gravity ')) {
-      const val = parseFloat(trimmed.replace('/gravity ', '').trim());
-      if (!isNaN(val) && val >= 0) {
-        mascotPhysicsController.setGravity(val);
-        showBubble(`物理重力已設定為 ${val} m/s²！`, 'happy');
-        chatBox.addAssistantMessage(`物理引擎重力已更新為 ${val} m/s²（設定為 0 可體驗無重力漂浮太空模式）。`);
+    if (trimmed.startsWith('/fov ')) {
+      const val = parseFloat(trimmed.replace('/fov ', '').trim());
+      if (!isNaN(val) && val >= 15 && val <= 85) {
+        sceneManager.setFov(val);
+        showBubble(`視野廣角已設定為 ${val}°！📐`, 'happy');
+        chatBox.addAssistantMessage(`相機視野廣角 (FOV) 已設定為 ${val}°（數值越大近大遠小透視越強烈）。`);
+      } else {
+        chatBox.addAssistantMessage('請輸入有效數值（15 ~ 85），例如：/fov 65 或 /fov 30');
+      }
+      return true;
+    }
+    if (trimmed.startsWith('/vp ')) {
+      const parts = trimmed.replace('/vp ', '').trim().split(/\s+/);
+      const x = parseFloat(parts[0]);
+      const y = parts.length > 1 ? parseFloat(parts[1]) : 0.0;
+      if (!isNaN(x)) {
+        sceneManager.setVanishingPoint(x, isNaN(y) ? 0.0 : y);
+        showBubble(`消失點偏移已設定為 (${x.toFixed(2)}, ${(isNaN(y) ? 0 : y).toFixed(2)})！✨`, 'happy');
+        chatBox.addAssistantMessage(`相機光學消失點已偏移至 X: ${x.toFixed(2)}, Y: ${(isNaN(y) ? 0 : y).toFixed(2)}。`);
+      } else {
+        chatBox.addAssistantMessage('請輸入有效數值（-1.0 ~ 1.0），例如：/vp 0 -0.45 或 /vp 0 0');
+      }
+      return true;
+    }
+    if (trimmed === '/grid' || trimmed === '/grid toggle') {
+      const state = !sceneManager.isGridVisible;
+      sceneManager.setGridVisible(state);
+      showBubble(state ? '3D 地面立體透視網格已開啟！📐' : '3D 地面參考網格已隱藏。', 'happy');
+      chatBox.addAssistantMessage(state ? '已開啟 3D 地面空間立體透視網格。' : '已關閉地面網格。');
+      return true;
+    }
+    if (trimmed.startsWith('/perspective ')) {
+      const preset = trimmed.replace('/perspective ', '').trim().toLowerCase();
+      if (['standard', 'anime', 'figure', 'dramatic'].includes(preset)) {
+        sceneManager.setPerspectivePreset(preset);
+        showBubble(`已套用「${preset}」透視風格！✨`, 'happy');
+        chatBox.addAssistantMessage(`已切換相機透視模式為：${preset}。`);
+      } else {
+        chatBox.addAssistantMessage('可選預設：standard（標準平視）、anime（動漫廣角）、figure（公仔展示）、dramatic（張力仰視）');
       }
       return true;
     }
@@ -476,7 +525,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {
       console.warn('[App] Error saving config:', e);
     }
-  });
+  }, sceneManager);
 
   const toolbar = new Toolbar(uiContainer, {
     onMic: async () => {

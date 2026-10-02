@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D 消失點與立體透視控制 (Vanishing Point & Perspective) - 互動原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.2);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.3);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>📐</span> 3D 消失點與立體透視調節 (Perspective & Vanishing Point)
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          支援自訂視野廣角 (FOV)、光學消失點偏移 (View Offset)、地平線參考網格與極致立體透視效果
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">Three.js Off-Axis Projection</span>
+        <span class="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Dynamic FOV (15°~90°)</span>
+        <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Spatial Grid Helper</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Left: Interactive 3D Canvas Preview Simulation -->
+      <div class="lg:col-span-2 glass-panel rounded-2xl p-6 flex flex-col items-center">
+        <div class="w-full flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <h2 class="text-sm font-semibold text-slate-200">即時透視效果與消失點視覺化 (可直接拖曳十字準星)</h2>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <button id="btnToggleGuides" class="px-2.5 py-1 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/40 transition">
+              <span id="txtGuideStatus">隱藏透視射線</span>
+            </button>
+            <button id="btnToggleGrid" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition">
+              <span id="txtGridStatus">隱藏空間網格</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 480x720 aspect simulator canvas -->
+        <div id="viewportContainer" class="relative w-[360px] h-[540px] bg-slate-900 rounded-2xl border-2 border-slate-700/80 overflow-hidden shadow-2xl flex items-center justify-center cursor-crosshair select-none">
+          
+          <!-- SVG Perspective Rays converging to Vanishing Point -->
+          <svg id="svgPerspective" class="absolute inset-0 w-full h-full pointer-events-none z-10">
+            <!-- Ray lines generated dynamically in JS -->
+          </svg>
+
+          <!-- 3D Room Box / Perspective Geometry Simulation -->
+          <div id="roomPerspectiveBox" class="absolute inset-0 pointer-events-none transition-all duration-150 flex items-center justify-center">
+            <!-- Ground Plane simulation with CSS 3D -->
+            <div id="groundPlane" class="absolute bottom-0 w-full h-1/2 opacity-60 pointer-events-none origin-bottom" style="transform: perspective(600px) rotateX(65deg);">
+              <div class="w-full h-full bg-[linear-gradient(to_right,#ec489933_1px,transparent_1px),linear-gradient(to_bottom,#ec489933_1px,transparent_1px)] [background-size:24px_24px]"></div>
+            </div>
+
+            <!-- 3D Avatar Silhouette with foreshortening simulation -->
+            <div id="avatarModel" class="relative z-20 flex flex-col items-center transition-all duration-150" style="transform-origin: center bottom;">
+              <!-- Head -->
+              <div id="modelHead" class="w-16 h-16 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 border-2 border-pink-200 shadow-xl flex items-center justify-center text-xs font-bold text-white shadow-pink-500/30">
+                AI 女友
+              </div>
+              <!-- Torso -->
+              <div id="modelTorso" class="w-20 h-28 bg-gradient-to-b from-indigo-600/80 to-purple-800/80 rounded-t-lg mt-1 border border-indigo-400/50 flex items-center justify-center text-[10px] text-indigo-100 shadow-lg">
+                軀幹
+              </div>
+              <!-- Skirt -->
+              <div id="modelSkirt" class="w-24 h-14 bg-gradient-to-b from-pink-600 to-pink-800 rounded-b-xl border border-pink-300/40 flex items-center justify-center text-[10px] text-pink-100 shadow-md">
+                裙擺
+              </div>
+              <!-- Legs -->
+              <div id="modelLegs" class="flex gap-4 w-16 h-40 mt-1">
+                <div class="flex-1 bg-gradient-to-b from-purple-900 to-indigo-950 rounded-b-full border border-purple-400/40"></div>
+                <div class="flex-1 bg-gradient-to-b from-purple-900 to-indigo-950 rounded-b-full border border-purple-400/40"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Vanishing Point Crosshair Target -->
+          <div id="vpHandle" class="absolute z-30 w-7 h-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-pink-400 bg-pink-500/30 flex items-center justify-center shadow-lg shadow-pink-500/60 cursor-grab active:cursor-grabbing hover:scale-125 transition-transform" style="left: 180px; top: 270px;">
+            <div class="w-1.5 h-1.5 rounded-full bg-pink-300"></div>
+            <!-- Crosshair tick marks -->
+            <div class="absolute -top-2 w-0.5 h-2 bg-pink-400"></div>
+            <div class="absolute -bottom-2 w-0.5 h-2 bg-pink-400"></div>
+            <div class="absolute -left-2 w-2 h-0.5 bg-pink-400"></div>
+            <div class="absolute -right-2 w-2 h-0.5 bg-pink-400"></div>
+          </div>
+
+          <!-- HUD Info overlay -->
+          <div class="absolute top-3 left-3 right-3 flex justify-between items-center text-[11px] text-slate-300 bg-slate-950/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/60 z-30">
+            <div>FOV: <strong id="hudFov" class="text-pink-400 font-mono">35°</strong></div>
+            <div>消失點 X: <strong id="hudVpX" class="text-cyan-400 font-mono">0.00</strong></div>
+            <div>消失點 Y: <strong id="hudVpY" class="text-emerald-400 font-mono">0.00</strong></div>
+          </div>
+
+          <!-- Bottom hint -->
+          <div class="absolute bottom-3 text-[10px] text-slate-400 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800 z-30">
+            💡 按住粉色十字準星拖曳即可自訂消失點位置
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Controls & Presets Panel -->
+      <div class="space-y-4">
+        
+        <!-- Perspective Presets -->
+        <div class="glass-panel rounded-2xl p-5 border border-slate-700 space-y-3">
+          <h3 class="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+            <span>✨</span> <span>透視風格一鍵預設 (Presets)</span>
+          </h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="presetStandard" class="p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-700 hover:border-pink-500/50 text-left transition">
+              <div class="text-xs font-semibold text-slate-200">自然平視 (預設)</div>
+              <div class="text-[10px] text-slate-400">FOV 35° / 居中消失點</div>
+            </button>
+            <button id="presetAnimeWide" class="p-2.5 rounded-xl border border-pink-500/50 bg-pink-500/10 hover:bg-pink-500/20 text-left transition">
+              <div class="text-xs font-semibold text-pink-300">動漫廣角立體</div>
+              <div class="text-[10px] text-pink-400/80">FOV 65° / 低視角消失點</div>
+            </button>
+            <button id="presetFigure" class="p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-700 hover:border-cyan-500/50 text-left transition">
+              <div class="text-xs font-semibold text-cyan-300">公仔望遠展示</div>
+              <div class="text-[10px] text-cyan-400/80">FOV 20° / 幾何零畸變</div>
+            </button>
+            <button id="presetDramaticLow" class="p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-700 hover:border-indigo-500/50 text-left transition">
+              <div class="text-xs font-semibold text-indigo-300">張力極致仰視</div>
+              <div class="text-[10px] text-indigo-400/80">FOV 75° / 偏移延伸立體感</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Real-time Fine-Tuning Sliders -->
+        <div class="glass-panel rounded-2xl p-5 border border-slate-700 space-y-4 text-xs">
+          <h3 class="text-sm font-bold text-pink-400 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <span>🎛️</span> <span>精細數值調節 (Parameters)</span>
+            </span>
+            <button id="btnResetParams" class="text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-800">
+              重設中央
+            </button>
+          </h3>
+
+          <!-- FOV Slider -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-slate-300 font-medium">視野廣角 (FOV 透視感)</label>
+              <span id="lblFovVal" class="text-pink-400 font-mono font-bold">35°</span>
+            </div>
+            <input id="rngFov" type="range" min="15" max="85" value="35" step="1" class="w-full accent-pink-500 cursor-pointer" />
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>15° (望遠/平面)</span>
+              <span>35° (標準)</span>
+              <span>65° (廣角)</span>
+              <span>85° (極限)</span>
+            </div>
+          </div>
+
+          <!-- Vanishing Point X Offset -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-slate-300 font-medium">消失點水平偏移 (VP X-Offset)</label>
+              <span id="lblVpXVal" class="text-cyan-400 font-mono font-bold">0.00</span>
+            </div>
+            <input id="rngVpX" type="range" min="-1.0" max="1.0" value="0.0" step="0.02" class="w-full accent-cyan-500 cursor-pointer" />
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>-1.0 (偏左側)</span>
+              <span>0.0 (置中)</span>
+              <span>+1.0 (偏右側)</span>
+            </div>
+          </div>
+
+          <!-- Vanishing Point Y Offset -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-slate-300 font-medium">消失點垂直高度 (VP Y-Offset)</label>
+              <span id="lblVpYVal" class="text-emerald-400 font-mono font-bold">0.00</span>
+            </div>
+            <input id="rngVpY" type="range" min="-1.0" max="1.0" value="0.0" step="0.02" class="w-full accent-emerald-500 cursor-pointer" />
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>-1.0 (仰視地面)</span>
+              <span>0.0 (齊平胸口)</span>
+              <span>+1.0 (俯視頂部)</span>
+            </div>
+          </div>
+
+          <!-- Ground Grid Style Switcher -->
+          <div class="pt-2 border-t border-slate-800 space-y-2">
+            <label class="block text-slate-300 font-medium">3D 透視網格色彩風格</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button id="btnStylePink" class="py-1 px-2 rounded-lg border border-pink-500 bg-pink-500/20 text-pink-300 text-[11px]">浪漫粉光</button>
+              <button id="btnStyleCyber" class="py-1 px-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:text-cyan-300 text-[11px]">賽博冷青</button>
+              <button id="btnStyleClean" class="py-1 px-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200 text-[11px]">簡約極致白</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Technical Implementation Reference -->
+        <div class="glass-panel rounded-2xl p-4 border border-slate-800 text-[11px] text-slate-400 space-y-2">
+          <div class="font-semibold text-slate-300 flex items-center gap-1">
+            <span>⚙️</span> <span>技術實現核心原理</span>
+          </div>
+          <ul class="list-disc list-inside space-y-1 text-slate-400">
+            <li><strong>Three.js setViewOffset:</strong> 透過相機光軸偏移無損位移消失點，垂直線保持直立不傾斜。</li>
+            <li><strong>動態 FOV 景深:</strong> 數值越高「近大遠小」透視變形越顯著，增強角色立體手足前後景深。</li>
+            <li><strong>GridHelper:</strong> 於角色腳底 <code class="font-mono text-pink-400">y = 0</code> 繪製自定義消散網格，建立真實空間站立感。</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const viewport = document.getElementById('viewportContainer');
+    const vpHandle = document.getElementById('vpHandle');
+    const svgPerspective = document.getElementById('svgPerspective');
+    const avatarModel = document.getElementById('avatarModel');
+    const groundPlane = document.getElementById('groundPlane');
+
+    const rngFov = document.getElementById('rngFov');
+    const rngVpX = document.getElementById('rngVpX');
+    const rngVpY = document.getElementById('rngVpY');
+
+    const lblFovVal = document.getElementById('lblFovVal');
+    const lblVpXVal = document.getElementById('lblVpXVal');
+    const lblVpYVal = document.getElementById('lblVpYVal');
+
+    const hudFov = document.getElementById('hudFov');
+    const hudVpX = document.getElementById('hudVpX');
+    const hudVpY = document.getElementById('hudVpY');
+
+    const btnToggleGuides = document.getElementById('btnToggleGuides');
+    const btnToggleGrid = document.getElementById('btnToggleGrid');
+    const txtGuideStatus = document.getElementById('txtGuideStatus');
+    const txtGridStatus = document.getElementById('txtGridStatus');
+    const btnResetParams = document.getElementById('btnResetParams');
+
+    let showGuides = true;
+    let showGrid = true;
+    let isDraggingVp = false;
+
+    // Viewport dimensions
+    const vpWidth = 360;
+    const vpHeight = 540;
+
+    // Update simulation visuals based on params
+    function updateVisuals() {
+      const fov = parseFloat(rngFov.value);
+      const vpNormX = parseFloat(rngVpX.value); // -1.0 to 1.0
+      const vpNormY = parseFloat(rngVpY.value); // -1.0 to 1.0
+
+      // Compute pixel position of vanishing point
+      const vpPxX = (vpNormX * 0.4 + 0.5) * vpWidth;
+      const vpPxY = (-vpNormY * 0.4 + 0.5) * vpHeight;
+
+      // Update handle position
+      vpHandle.style.left = `${vpPxX}px`;
+      vpHandle.style.top = `${vpPxY}px`;
+
+      // Update labels & HUD
+      lblFovVal.innerText = `${fov}°`;
+      lblVpXVal.innerText = vpNormX.toFixed(2);
+      lblVpYVal.innerText = vpNormY.toFixed(2);
+
+      hudFov.innerText = `${fov}°`;
+      hudVpX.innerText = vpNormX.toFixed(2);
+      hudVpY.innerText = vpNormY.toFixed(2);
+
+      // Perspective distortion on avatar
+      // Higher FOV -> more exaggerated scale of head vs feet or foreshortening
+      const fovRatio = fov / 35.0; // 1.0 at standard
+      const rotY = vpNormX * 18 * fovRatio;
+      const rotX = -vpNormY * 18 * fovRatio;
+      const scaleZ = 1.0 + (fov - 35) * 0.008;
+
+      // Adjust model skew and transform to simulate Three.js perspective changes
+      avatarModel.style.transform = `perspective(${650 / fovRatio}px) rotateY(${rotY}deg) rotateX(${rotX}deg) scale(${scaleZ})`;
+
+      // Ground plane perspective tilt towards vanishing point
+      if (groundPlane) {
+        groundPlane.style.display = showGrid ? 'block' : 'none';
+        groundPlane.style.transform = `perspective(${500 / fovRatio}px) rotateX(${60 + vpNormY * 20}deg) translateX(${vpNormX * 30}px)`;
+      }
+
+      // Draw perspective guide rays
+      svgPerspective.innerHTML = '';
+      if (showGuides) {
+        const corners = [
+          { x: 0, y: 0 },
+          { x: vpWidth, y: 0 },
+          { x: 0, y: vpHeight },
+          { x: vpWidth, y: vpHeight },
+          { x: 0, y: vpHeight * 0.65 },
+          { x: vpWidth, y: vpHeight * 0.65 },
+          { x: vpWidth * 0.25, y: vpHeight },
+          { x: vpWidth * 0.75, y: vpHeight }
+        ];
+
+        corners.forEach((c) => {
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', c.x);
+          line.setAttribute('y1', c.y);
+          line.setAttribute('x2', vpPxX);
+          line.setAttribute('y2', vpPxY);
+          line.setAttribute('stroke', 'rgba(244, 114, 182, 0.35)');
+          line.setAttribute('stroke-width', '1.2');
+          line.setAttribute('stroke-dasharray', '4,4');
+          svgPerspective.appendChild(line);
+        });
+
+        // Horizon line across vanishing point
+        const horizon = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        horizon.setAttribute('x1', 0);
+        horizon.setAttribute('y1', vpPxY);
+        horizon.setAttribute('x2', vpWidth);
+        horizon.setAttribute('y2', vpPxY);
+        horizon.setAttribute('stroke', 'rgba(6, 182, 212, 0.45)');
+        horizon.setAttribute('stroke-width', '1');
+        horizon.setAttribute('stroke-dasharray', '6,3');
+        svgPerspective.appendChild(horizon);
+      }
+    }
+
+    // Drag handle logic
+    vpHandle.addEventListener('mousedown', (e) => {
+      isDraggingVp = true;
+      e.stopPropagation();
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDraggingVp) return;
+      const rect = viewport.getBoundingClientRect();
+      const clientX = Math.max(rect.left, Math.min(rect.right, e.clientX));
+      const clientY = Math.max(rect.top, Math.min(rect.bottom, e.clientY));
+
+      const relX = clientX - rect.left;
+      const relY = clientY - rect.top;
+
+      // Convert back to -1.0 .. 1.0 range
+      const normX = ((relX / vpWidth) - 0.5) / 0.4;
+      const normY = -(((relY / vpHeight) - 0.5) / 0.4);
+
+      rngVpX.value = Math.max(-1.0, Math.min(1.0, normX)).toFixed(2);
+      rngVpY.value = Math.max(-1.0, Math.min(1.0, normY)).toFixed(2);
+      updateVisuals();
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDraggingVp = false;
+    });
+
+    // Slider inputs
+    rngFov.addEventListener('input', updateVisuals);
+    rngVpX.addEventListener('input', updateVisuals);
+    rngVpY.addEventListener('input', updateVisuals);
+
+    // Toggle Guides
+    btnToggleGuides.addEventListener('click', () => {
+      showGuides = !showGuides;
+      txtGuideStatus.innerText = showGuides ? '隱藏透視射線' : '顯示透視射線';
+      updateVisuals();
+    });
+
+    // Toggle Grid
+    btnToggleGrid.addEventListener('click', () => {
+      showGrid = !showGrid;
+      txtGridStatus.innerText = showGrid ? '隱藏空間網格' : '顯示空間網格';
+      updateVisuals();
+    });
+
+    // Reset
+    btnResetParams.addEventListener('click', () => {
+      rngFov.value = 35;
+      rngVpX.value = 0.0;
+      rngVpY.value = 0.0;
+      updateVisuals();
+    });
+
+    // Presets
+    document.getElementById('presetStandard').addEventListener('click', () => {
+      rngFov.value = 35;
+      rngVpX.value = 0.0;
+      rngVpY.value = 0.0;
+      updateVisuals();
+    });
+
+    document.getElementById('presetAnimeWide').addEventListener('click', () => {
+      rngFov.value = 65;
+      rngVpX.value = 0.0;
+      rngVpY.value = -0.45; // Low vanishing point looking upward
+      updateVisuals();
+    });
+
+    document.getElementById('presetFigure').addEventListener('click', () => {
+      rngFov.value = 20;
+      rngVpX.value = 0.0;
+      rngVpY.value = 0.0;
+      updateVisuals();
+    });
+
+    document.getElementById('presetDramaticLow').addEventListener('click', () => {
+      rngFov.value = 75;
+      rngVpX.value = 0.25;
+      rngVpY.value = -0.65;
+      updateVisuals();
+    });
+
+    // Grid Style buttons
+    document.getElementById('btnStylePink').addEventListener('click', () => {
+      groundPlane.firstElementChild.className = 'w-full h-full bg-[linear-gradient(to_right,#ec489933_1px,transparent_1px),linear-gradient(to_bottom,#ec489933_1px,transparent_1px)] [background-size:24px_24px]';
+    });
+    document.getElementById('btnStyleCyber').addEventListener('click', () => {
+      groundPlane.firstElementChild.className = 'w-full h-full bg-[linear-gradient(to_right,#06b6d433_1px,transparent_1px),linear-gradient(to_bottom,#06b6d433_1px,transparent_1px)] [background-size:24px_24px]';
+    });
+    document.getElementById('btnStyleClean').addEventListener('click', () => {
+      groundPlane.firstElementChild.className = 'w-full h-full bg-[linear-gradient(to_right,#ffffff22_1px,transparent_1px),linear-gradient(to_bottom,#ffffff22_1px,transparent_1px)] [background-size:24px_24px]';
+    });
+
+    // Initial render
+    updateVisuals();
+  </script>
+</body>
+</html>

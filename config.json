@@ -26,5 +26,12 @@
     "compute_type": "float16",
     "language": "zh",
     "vad_silence_duration_ms": 500
+  },
+  "camera_perspective": {
+    "fov": 30.0,
+    "vp_offset_x": 0.0,
+    "vp_offset_y": 0.0,
+    "show_grid": false,
+    "grid_style": "pink"
   }
 }

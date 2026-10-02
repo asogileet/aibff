@@ -40,6 +40,13 @@ class STTConfig(BaseModel):
     language: str = "zh"
     vad_silence_duration_ms: int = 500
 
+class CameraPerspectiveConfig(BaseModel):
+    fov: float = 30.0
+    vp_offset_x: float = 0.0
+    vp_offset_y: float = 0.0
+    show_grid: bool = False
+    grid_style: str = "pink"
+
 class AppConfig(BaseModel):
     server_port: int = 8765
     server_host: str = "0.0.0.0"
@@ -47,6 +54,7 @@ class AppConfig(BaseModel):
     character: CharacterConfig = Field(default_factory=CharacterConfig)
     tts: TTSConfig = Field(default_factory=TTSConfig)
     stt: STTConfig = Field(default_factory=STTConfig)
+    camera_perspective: CameraPerspectiveConfig = Field(default_factory=CameraPerspectiveConfig)
 
 def load_config() -> AppConfig:
     """Load configuration from config.local.json (priority) or config.json."""

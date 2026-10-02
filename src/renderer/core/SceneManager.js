@@ -31,9 +31,21 @@ export class SceneManager {
     this.isMiddleDragging = false;
     this.lastMousePos = { x: 0, y: 0 };
 
+    // Perspective & Vanishing Point parameters
+    this.fov = 30.0;
+    this.targetFov = 30.0;
+    this.vpOffsetX = 0.0;
+    this.vpOffsetY = 0.0;
+    this.targetVpOffsetX = 0.0;
+    this.targetVpOffsetY = 0.0;
+    this.isGridVisible = false;
+    this.gridStyle = 'pink';
+    this.isGuidesVisible = false;
+
     this._initRenderer();
     this._initCamera();
     this._initLights();
+    this._initGrid();
     this._initParticles();
     this._bindCameraControls();
 
@@ -61,7 +73,8 @@ export class SceneManager {
   _initCamera() {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
-    this.camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 20.0);
+    this.camera = new THREE.PerspectiveCamera(this.fov, width / height, 0.1, 20.0);
+    this._updateCameraViewOffset();
     this._updateCameraTransform();
   }
 
@@ -271,6 +284,156 @@ export class SceneManager {
     this.setCameraPreset('bust');
   }
 
+  /**
+   * Update Three.js camera view offset based on vanishing point coordinates.
+   */
+  _updateCameraViewOffset() {
+    if (!this.camera || !this.container) return;
+    const width = this.container.clientWidth || 1;
+    const height = this.container.clientHeight || 1;
+    if (Math.abs(this.vpOffsetX) < 0.001 && Math.abs(this.vpOffsetY) < 0.001) {
+      this.camera.clearViewOffset();
+    } else {
+      // Invert offset so positive vpOffsetX moves vanishing point to the right,
+      // and positive vpOffsetY moves vanishing point upward
+      const offsetX = -this.vpOffsetX * width * 0.5;
+      const offsetY = -this.vpOffsetY * height * 0.5;
+      this.camera.setViewOffset(width, height, offsetX, offsetY, width, height);
+    }
+  }
+
+  /**
+   * Set field of view (FOV) for perspective depth.
+   */
+  setFov(fov, immediate = false) {
+    const clamped = THREE.MathUtils.clamp(fov, 15.0, 90.0);
+    this.targetFov = clamped;
+    if (immediate) {
+      this.fov = clamped;
+      this.camera.fov = clamped;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  /**
+   * Set vanishing point X and Y offset in normalized coordinates [-1.0, 1.0].
+   */
+  setVanishingPoint(offsetX, offsetY, immediate = false) {
+    if (offsetX !== undefined && offsetX !== null) {
+      this.targetVpOffsetX = THREE.MathUtils.clamp(offsetX, -1.0, 1.0);
+      if (immediate) this.vpOffsetX = this.targetVpOffsetX;
+    }
+    if (offsetY !== undefined && offsetY !== null) {
+      this.targetVpOffsetY = THREE.MathUtils.clamp(offsetY, -1.0, 1.0);
+      if (immediate) this.vpOffsetY = this.targetVpOffsetY;
+    }
+    if (immediate) {
+      this._updateCameraViewOffset();
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  /**
+   * Apply perspective preset: standard, anime, figure, dramatic.
+   */
+  setPerspectivePreset(preset = 'standard', immediate = false) {
+    if (preset === 'standard') {
+      this.setFov(30.0, immediate);
+      this.setVanishingPoint(0.0, 0.0, immediate);
+    } else if (preset === 'anime') {
+      this.setFov(65.0, immediate);
+      this.setVanishingPoint(0.0, -0.45, immediate);
+    } else if (preset === 'figure') {
+      this.setFov(20.0, immediate);
+      this.setVanishingPoint(0.0, 0.0, immediate);
+    } else if (preset === 'dramatic') {
+      this.setFov(75.0, immediate);
+      this.setVanishingPoint(0.25, -0.65, immediate);
+    }
+  }
+
+  /**
+   * Get current perspective configuration.
+   */
+  getPerspectiveState() {
+    return {
+      fov: this.targetFov,
+      vpOffsetX: this.targetVpOffsetX,
+      vpOffsetY: this.targetVpOffsetY,
+      showGrid: this.isGridVisible,
+      gridStyle: this.gridStyle,
+      showGuides: this.isGuidesVisible
+    };
+  }
+
+  /**
+   * Calculate 2D pixel coordinates of the vanishing point on canvas.
+   */
+  getVanishingPointScreenCoords() {
+    const width = this.container.clientWidth || 1;
+    const height = this.container.clientHeight || 1;
+    return {
+      x: (this.vpOffsetX * 0.5 + 0.5) * width,
+      y: (-this.vpOffsetY * 0.5 + 0.5) * height
+    };
+  }
+
+  /**
+   * Initialize ground perspective grid.
+   */
+  _initGrid() {
+    this.gridGroup = new THREE.Group();
+    this.scene.add(this.gridGroup);
+    this._rebuildGrid();
+  }
+
+  /**
+   * Rebuild ground perspective grid helper according to current style.
+   */
+  _rebuildGrid() {
+    if (!this.gridGroup) return;
+    while (this.gridGroup.children.length > 0) {
+      const child = this.gridGroup.children[0];
+      this.gridGroup.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+
+    let centerColor = 0xf43f5e;
+    let gridColor = 0xf472b6;
+    if (this.gridStyle === 'cyber') {
+      centerColor = 0x06b6d4;
+      gridColor = 0x38bdf8;
+    } else if (this.gridStyle === 'clean') {
+      centerColor = 0xffffff;
+      gridColor = 0x64748b;
+    }
+
+    const grid = new THREE.GridHelper(10, 20, centerColor, gridColor);
+    grid.position.set(0, 0, 0);
+    if (grid.material) {
+      grid.material.transparent = true;
+      grid.material.opacity = 0.5;
+      grid.material.depthWrite = false;
+    }
+    this.gridGroup.add(grid);
+    this.gridGroup.visible = this.isGridVisible;
+  }
+
+  setGridVisible(visible) {
+    this.isGridVisible = !!visible;
+    if (this.gridGroup) this.gridGroup.visible = this.isGridVisible;
+  }
+
+  setGridStyle(style) {
+    this.gridStyle = style || 'pink';
+    this._rebuildGrid();
+  }
+
+  setGuidesVisible(visible) {
+    this.isGuidesVisible = !!visible;
+  }
+
   _updateCameraTransform() {
     if (!this.isCustomTargetY) {
       // Dynamically calculate cameraTarget.y based on currentCameraDist
@@ -389,6 +552,7 @@ export class SceneManager {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     this.camera.aspect = width / height;
+    this._updateCameraViewOffset();
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
   }
@@ -408,6 +572,24 @@ export class SceneManager {
     this.currentPanY = THREE.MathUtils.lerp(this.currentPanY, this.targetPanY, lerpAlpha);
     this.orbitTheta = THREE.MathUtils.lerp(this.orbitTheta, this.targetOrbitTheta, orbitAlpha);
     this.orbitPhi = THREE.MathUtils.lerp(this.orbitPhi, this.targetOrbitPhi, orbitAlpha);
+
+    // Smooth FOV & Vanishing Point lerp
+    let projectionDirty = false;
+    if (Math.abs(this.fov - this.targetFov) > 0.05) {
+      this.fov = THREE.MathUtils.lerp(this.fov, this.targetFov, lerpAlpha);
+      this.camera.fov = this.fov;
+      projectionDirty = true;
+    }
+    if (Math.abs(this.vpOffsetX - this.targetVpOffsetX) > 0.002 || Math.abs(this.vpOffsetY - this.targetVpOffsetY) > 0.002) {
+      this.vpOffsetX = THREE.MathUtils.lerp(this.vpOffsetX, this.targetVpOffsetX, lerpAlpha);
+      this.vpOffsetY = THREE.MathUtils.lerp(this.vpOffsetY, this.targetVpOffsetY, lerpAlpha);
+      this._updateCameraViewOffset();
+      projectionDirty = true;
+    }
+    if (projectionDirty) {
+      this.camera.updateProjectionMatrix();
+    }
+
     this._updateCameraTransform();
 
     // Particle updates

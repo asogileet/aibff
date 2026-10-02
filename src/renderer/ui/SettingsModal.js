@@ -1,7 +1,8 @@
 export class SettingsModal {
-  constructor(container, onSaveConfig) {
+  constructor(container, onSaveConfig, sceneManager = null) {
     this.container = container;
     this.onSaveConfig = onSaveConfig;
+    this.sceneManager = sceneManager;
     this.element = null;
     this.currentConfig = null;
     this.currentProvider = 'ollama';
@@ -192,6 +193,105 @@ export class SettingsModal {
             </div>
           </div>
 
+          <!-- 3D Perspective & Vanishing Point Configuration -->
+          <div class="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+            <div class="flex items-center justify-between">
+              <h4 class="font-semibold text-pink-400 flex items-center space-x-1.5">
+                <span>📐</span> <span>3D 鏡頭與空間透視（消失點與立體感）</span>
+              </h4>
+              <button type="button" id="btnCfgResetPerspective" class="text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:border-slate-500 transition">
+                重設為標準
+              </button>
+            </div>
+
+            <!-- Perspective Style Presets -->
+            <div>
+              <label class="block text-slate-400 mb-1.5 font-medium">透視風格預設集</label>
+              <div class="grid grid-cols-4 gap-1.5">
+                <button type="button" id="btnPresetStd" class="py-1.5 px-1 rounded-lg border text-center transition bg-slate-800/80 border-slate-700 hover:border-pink-500 text-slate-200">
+                  <div class="text-[11px] font-semibold">自然平視</div>
+                  <div class="text-[9px] text-slate-400">30°/居中</div>
+                </button>
+                <button type="button" id="btnPresetAnime" class="py-1.5 px-1 rounded-lg border text-center transition bg-pink-600/20 border-pink-500/50 hover:bg-pink-600/30 text-pink-200">
+                  <div class="text-[11px] font-semibold">動漫廣角</div>
+                  <div class="text-[9px] text-pink-300">65°/低仰角</div>
+                </button>
+                <button type="button" id="btnPresetFigure" class="py-1.5 px-1 rounded-lg border text-center transition bg-slate-800/80 border-slate-700 hover:border-cyan-500 text-slate-200">
+                  <div class="text-[11px] font-semibold">公仔展示</div>
+                  <div class="text-[9px] text-slate-400">20°/平面</div>
+                </button>
+                <button type="button" id="btnPresetDramatic" class="py-1.5 px-1 rounded-lg border text-center transition bg-slate-800/80 border-slate-700 hover:border-indigo-500 text-slate-200">
+                  <div class="text-[11px] font-semibold">張力仰視</div>
+                  <div class="text-[9px] text-slate-400">75°/極限</div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Sliders for FOV and Vanishing Point -->
+            <div class="space-y-2.5 pt-1">
+              <!-- FOV Slider -->
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="text-slate-300">視野廣角 (FOV 透視感)</label>
+                  <span id="cfgFovLabel" class="text-pink-400 font-mono font-bold">30°</span>
+                </div>
+                <input id="cfgFov" type="range" min="15" max="85" value="30" step="1" class="w-full accent-pink-500 cursor-pointer" />
+                <div class="flex justify-between text-[10px] text-slate-500">
+                  <span>15° (望遠平面)</span>
+                  <span>30° (標準)</span>
+                  <span>65° (廣角立體)</span>
+                  <span>85° (極限張力)</span>
+                </div>
+              </div>
+
+              <!-- Vanishing Point X and Y -->
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="text-slate-300">消失點水平 (X 偏移)</label>
+                    <span id="cfgVpXLabel" class="text-cyan-400 font-mono font-bold">0.00</span>
+                  </div>
+                  <input id="cfgVpX" type="range" min="-1.0" max="1.0" value="0.0" step="0.02" class="w-full accent-cyan-500 cursor-pointer" />
+                  <div class="flex justify-between text-[9px] text-slate-500">
+                    <span>左移</span>
+                    <span>置中</span>
+                    <span>右移</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="text-slate-300">消失點垂直 (Y 偏移)</label>
+                    <span id="cfgVpYLabel" class="text-emerald-400 font-mono font-bold">0.00</span>
+                  </div>
+                  <input id="cfgVpY" type="range" min="-1.0" max="1.0" value="0.0" step="0.02" class="w-full accent-emerald-500 cursor-pointer" />
+                  <div class="flex justify-between text-[9px] text-slate-500">
+                    <span>仰視地面</span>
+                    <span>胸口</span>
+                    <span>俯視頂部</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Spatial Ground Grid & Options -->
+            <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center space-x-2">
+                <input type="checkbox" id="cfgShowGrid" class="rounded accent-pink-500" />
+                <label for="cfgShowGrid" class="text-slate-300">顯示 3D 地面立體參考網格</label>
+              </div>
+
+              <div class="flex items-center space-x-1.5 text-[11px]">
+                <span class="text-slate-400">網格風格:</span>
+                <select id="cfgGridStyle" class="bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200">
+                  <option value="pink">浪漫粉光</option>
+                  <option value="cyber">賽博冷青</option>
+                  <option value="clean">簡約白</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <!-- System -->
           <div>
             <h4 class="font-semibold text-pink-400 mb-2 flex items-center space-x-1.5">
@@ -252,6 +352,70 @@ export class SettingsModal {
         keyInput.type = 'password';
         btn.innerText = '顯示';
       }
+    });
+
+    // 3D Perspective & Vanishing Point controls binding
+    const rngFov = this.element.querySelector('#cfgFov');
+    const rngVpX = this.element.querySelector('#cfgVpX');
+    const rngVpY = this.element.querySelector('#cfgVpY');
+    const lblFov = this.element.querySelector('#cfgFovLabel');
+    const lblVpX = this.element.querySelector('#cfgVpXLabel');
+    const lblVpY = this.element.querySelector('#cfgVpYLabel');
+    const chkGrid = this.element.querySelector('#cfgShowGrid');
+    const selGridStyle = this.element.querySelector('#cfgGridStyle');
+
+    const updatePerspectiveLabels = () => {
+      if (lblFov && rngFov) lblFov.innerText = `${rngFov.value}°`;
+      if (lblVpX && rngVpX) lblVpX.innerText = parseFloat(rngVpX.value).toFixed(2);
+      if (lblVpY && rngVpY) lblVpY.innerText = parseFloat(rngVpY.value).toFixed(2);
+    };
+
+    rngFov?.addEventListener('input', () => {
+      updatePerspectiveLabels();
+      this.sceneManager?.setFov(parseFloat(rngFov.value), false);
+    });
+
+    rngVpX?.addEventListener('input', () => {
+      updatePerspectiveLabels();
+      this.sceneManager?.setVanishingPoint(parseFloat(rngVpX.value), parseFloat(rngVpY.value), false);
+    });
+
+    rngVpY?.addEventListener('input', () => {
+      updatePerspectiveLabels();
+      this.sceneManager?.setVanishingPoint(parseFloat(rngVpX.value), parseFloat(rngVpY.value), false);
+    });
+
+    chkGrid?.addEventListener('change', () => {
+      this.sceneManager?.setGridVisible(chkGrid.checked);
+    });
+
+    selGridStyle?.addEventListener('change', () => {
+      this.sceneManager?.setGridStyle(selGridStyle.value);
+    });
+
+    const applyPerspectiveValues = (fov, vpX, vpY) => {
+      if (rngFov) rngFov.value = fov;
+      if (rngVpX) rngVpX.value = vpX;
+      if (rngVpY) rngVpY.value = vpY;
+      updatePerspectiveLabels();
+      this.sceneManager?.setFov(fov, false);
+      this.sceneManager?.setVanishingPoint(vpX, vpY, false);
+    };
+
+    this.element.querySelector('#btnPresetStd')?.addEventListener('click', () => {
+      applyPerspectiveValues(30, 0.0, 0.0);
+    });
+    this.element.querySelector('#btnPresetAnime')?.addEventListener('click', () => {
+      applyPerspectiveValues(65, 0.0, -0.45);
+    });
+    this.element.querySelector('#btnPresetFigure')?.addEventListener('click', () => {
+      applyPerspectiveValues(20, 0.0, 0.0);
+    });
+    this.element.querySelector('#btnPresetDramatic')?.addEventListener('click', () => {
+      applyPerspectiveValues(75, 0.25, -0.65);
+    });
+    this.element.querySelector('#btnCfgResetPerspective')?.addEventListener('click', () => {
+      applyPerspectiveValues(30, 0.0, 0.0);
     });
 
     // Populate initial provider
@@ -358,6 +522,54 @@ export class SettingsModal {
         if (cfg.stt.model_size) this.element.querySelector('#cfgSttModel').value = cfg.stt.model_size;
         if (cfg.stt.vad_silence_duration_ms) this.element.querySelector('#cfgSttVad').value = cfg.stt.vad_silence_duration_ms;
       }
+
+      // Load perspective and vanishing point configuration
+      let perspectiveCfg = cfg.camera_perspective;
+      if (!perspectiveCfg) {
+        try {
+          const cached = localStorage.getItem('aibff_camera_perspective');
+          if (cached) perspectiveCfg = JSON.parse(cached);
+        } catch (e) {}
+      }
+
+      if (perspectiveCfg) {
+        const rngFov = this.element.querySelector('#cfgFov');
+        const rngVpX = this.element.querySelector('#cfgVpX');
+        const rngVpY = this.element.querySelector('#cfgVpY');
+        const lblFov = this.element.querySelector('#cfgFovLabel');
+        const lblVpX = this.element.querySelector('#cfgVpXLabel');
+        const lblVpY = this.element.querySelector('#cfgVpYLabel');
+        const chkGrid = this.element.querySelector('#cfgShowGrid');
+        const selGridStyle = this.element.querySelector('#cfgGridStyle');
+
+        if (perspectiveCfg.fov !== undefined && rngFov) {
+          rngFov.value = perspectiveCfg.fov;
+          if (lblFov) lblFov.innerText = `${perspectiveCfg.fov}°`;
+        }
+        if (perspectiveCfg.vp_offset_x !== undefined && rngVpX) {
+          rngVpX.value = perspectiveCfg.vp_offset_x;
+          if (lblVpX) lblVpX.innerText = parseFloat(perspectiveCfg.vp_offset_x).toFixed(2);
+        }
+        if (perspectiveCfg.vp_offset_y !== undefined && rngVpY) {
+          rngVpY.value = perspectiveCfg.vp_offset_y;
+          if (lblVpY) lblVpY.innerText = parseFloat(perspectiveCfg.vp_offset_y).toFixed(2);
+        }
+        if (perspectiveCfg.show_grid !== undefined && chkGrid) {
+          chkGrid.checked = !!perspectiveCfg.show_grid;
+        }
+        if (perspectiveCfg.grid_style && selGridStyle) {
+          selGridStyle.value = perspectiveCfg.grid_style;
+        }
+
+        if (this.sceneManager) {
+          if (perspectiveCfg.fov !== undefined) this.sceneManager.setFov(perspectiveCfg.fov, true);
+          if (perspectiveCfg.vp_offset_x !== undefined || perspectiveCfg.vp_offset_y !== undefined) {
+            this.sceneManager.setVanishingPoint(perspectiveCfg.vp_offset_x || 0, perspectiveCfg.vp_offset_y || 0, true);
+          }
+          if (perspectiveCfg.show_grid !== undefined) this.sceneManager.setGridVisible(perspectiveCfg.show_grid);
+          if (perspectiveCfg.grid_style) this.sceneManager.setGridStyle(perspectiveCfg.grid_style);
+        }
+      }
     } catch (e) {
       console.warn('[SettingsModal] Failed to load remote config:', e);
     }
@@ -396,8 +608,19 @@ export class SettingsModal {
       stt: {
         model_size: this.element.querySelector('#cfgSttModel').value,
         vad_silence_duration_ms: parseInt(this.element.querySelector('#cfgSttVad').value, 10) || 500
+      },
+      camera_perspective: {
+        fov: parseFloat(this.element.querySelector('#cfgFov')?.value) || 30.0,
+        vp_offset_x: parseFloat(this.element.querySelector('#cfgVpX')?.value) || 0.0,
+        vp_offset_y: parseFloat(this.element.querySelector('#cfgVpY')?.value) || 0.0,
+        show_grid: this.element.querySelector('#cfgShowGrid')?.checked || false,
+        grid_style: this.element.querySelector('#cfgGridStyle')?.value || 'pink'
       }
     };
+
+    try {
+      localStorage.setItem('aibff_camera_perspective', JSON.stringify(payload.camera_perspective));
+    } catch (e) {}
 
     const startupEnabled = this.element.querySelector('#cfgStartup').checked;
     if (window.electronAPI?.setStartup) {
