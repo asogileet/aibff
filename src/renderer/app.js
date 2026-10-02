@@ -119,8 +119,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   const handTracker = new HandTracker({
-    onHandUpdate: ({ x, y, isPinching }) => {
-      puppetController.updateFinger(x, y, isPinching);
+    onHandUpdate: ({ x, y, isPinching, hands }) => {
+      puppetController.updateFinger(x, y, isPinching, hands);
     }
   });
 
@@ -569,7 +569,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     actionController,
     emotionController,
     sceneManager,
-    poseManager
+    poseManager,
+    puppetController,
+    handTracker,
+    arManager
   };
 
   // 6. Services

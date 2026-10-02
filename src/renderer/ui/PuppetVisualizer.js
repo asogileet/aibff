@@ -1,7 +1,7 @@
 /**
  * PuppetVisualizer
- * Renders glowing finger pointers, elastic tension strings, and joint snapping indicators
- * on an overlay 2D canvas above the 3D scene.
+ * Renders glowing dual-hand index finger pointers, elastic tension strings,
+ * and joint snapping indicators on an overlay 2D canvas above the 3D scene.
  */
 export class PuppetVisualizer {
   constructor(container, puppetController) {
@@ -50,18 +50,34 @@ export class PuppetVisualizer {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    const finger = this.puppetController.fingerScreenPos;
-    const isPinching = this.puppetController.isPinching;
-    const grabbedKey = this.puppetController.grabbedJointKey;
-    const hoveredKey = this.puppetController.hoveredJointKey;
+    const pointers = typeof this.puppetController.getActivePointers === 'function'
+      ? this.puppetController.getActivePointers()
+      : [];
+
+    // Fallback single pointer if pointers list is empty
+    const activePointers = pointers.length > 0 ? pointers : [
+      {
+        id: 'primary',
+        name: '食指',
+        x: this.puppetController.fingerScreenPos.x,
+        y: this.puppetController.fingerScreenPos.y,
+        isPinching: this.puppetController.isPinching,
+        grabbedJointKey: this.puppetController.grabbedJointKey,
+        hoveredJointKey: this.puppetController.hoveredJointKey
+      }
+    ];
+
     const jointTargets = this.puppetController.getJointScreenPositions();
 
     // 1. Draw glowing grabbable joint circles
     for (const [key, pos] of Object.entries(jointTargets)) {
       if (pos.z > 1.0) continue; // Behind camera
 
-      const isHovered = hoveredKey === key;
-      const isGrabbed = grabbedKey === key;
+      // Check if grabbed or hovered by ANY pointer
+      const grabbingPointer = activePointers.find(p => p.grabbedJointKey === key);
+      const hoveringPointer = activePointers.find(p => p.hoveredJointKey === key);
+      const isGrabbed = Boolean(grabbingPointer);
+      const isHovered = Boolean(hoveringPointer);
 
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, isGrabbed ? 10 : (isHovered ? 8 : 4), 0, Math.PI * 2);
@@ -100,7 +116,7 @@ export class PuppetVisualizer {
         };
         const label = labelMap[key] || key;
         ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-        ctx.fillRect(pos.x - 32, pos.y - 28, 64, 18);
+        ctx.fillRect(pos.x - 34, pos.y - 28, 68, 18);
         ctx.fillStyle = isGrabbed ? '#6ee7b7' : '#fbcfe8';
         ctx.font = '11px sans-serif';
         ctx.textAlign = 'center';
@@ -108,59 +124,77 @@ export class PuppetVisualizer {
       }
     }
 
-    // 2. Draw Elastic Tension Line if currently dragging
-    if (grabbedKey && jointTargets[grabbedKey]) {
-      const jointPos = jointTargets[grabbedKey];
+    // 2. Draw Elastic Tension Strings & Finger Pointer Rings for Each Active Pointer
+    activePointers.forEach((pointer, index) => {
+      // Palette: Pointer 1 = Cyan/Emerald, Pointer 2 = Pink/Violet
+      const isSecondHand = index > 0 || pointer.id === 'hand_1';
+      const mainColor = isSecondHand ? '#ec4899' : '#06b6d4';
+      const glowColor = isSecondHand ? 'rgba(236, 72, 153, 0.4)' : 'rgba(6, 182, 212, 0.4)';
+
+      // 2a. Draw Elastic Tension Line if currently dragging
+      if (pointer.grabbedJointKey && jointTargets[pointer.grabbedJointKey]) {
+        const jointPos = jointTargets[pointer.grabbedJointKey];
+        ctx.save();
+        ctx.strokeStyle = mainColor;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(pointer.x, pointer.y);
+        ctx.lineTo(jointPos.x, jointPos.y);
+        ctx.stroke();
+        ctx.restore();
+
+        // Elastic node glow
+        ctx.beginPath();
+        ctx.arc(jointPos.x, jointPos.y, 16, 0, Math.PI * 2);
+        ctx.fillStyle = glowColor;
+        ctx.fill();
+      }
+
+      // 2b. Draw Finger Cursor Ring
       ctx.save();
-      ctx.strokeStyle = '#ec4899';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.moveTo(finger.x, finger.y);
-      ctx.lineTo(jointPos.x, jointPos.y);
-      ctx.stroke();
+      ctx.translate(pointer.x, pointer.y);
+
+      if (pointer.isPinching) {
+        // Pinched Grab State
+        ctx.beginPath();
+        ctx.arc(0, 0, 13, 0, Math.PI * 2);
+        ctx.fillStyle = isSecondHand ? 'rgba(236, 72, 153, 0.35)' : 'rgba(16, 185, 129, 0.35)';
+        ctx.fill();
+        ctx.strokeStyle = isSecondHand ? '#ec4899' : '#10b981';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      } else if (pointer.hoveredJointKey) {
+        // Near Joint Magnet State
+        ctx.beginPath();
+        ctx.arc(0, 0, 14, 0, Math.PI * 2);
+        ctx.fillStyle = isSecondHand ? 'rgba(244, 114, 182, 0.25)' : 'rgba(6, 182, 212, 0.25)';
+        ctx.fill();
+        ctx.strokeStyle = isSecondHand ? '#f472b6' : '#22d3ee';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else {
+        // Idle Cursor State
+        ctx.beginPath();
+        ctx.arc(0, 0, 8, 0, Math.PI * 2);
+        ctx.fillStyle = isSecondHand ? 'rgba(236, 72, 153, 0.2)' : 'rgba(6, 182, 212, 0.2)';
+        ctx.fill();
+        ctx.strokeStyle = mainColor;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Draw Finger Identifier Badge (if dual hands active)
+      if (activePointers.length > 1) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.fillRect(-22, -28, 44, 15);
+        ctx.fillStyle = mainColor;
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(pointer.name || (isSecondHand ? '食指 2' : '食指 1'), 0, -17);
+      }
+
       ctx.restore();
-
-      // Elastic node glow
-      ctx.beginPath();
-      ctx.arc(jointPos.x, jointPos.y, 16, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(236, 72, 153, 0.4)';
-      ctx.fill();
-    }
-
-    // 3. Draw Finger Cursor Ring
-    ctx.save();
-    ctx.translate(finger.x, finger.y);
-
-    if (isPinching) {
-      // Pinched Grab State (Green glowing pulse)
-      ctx.beginPath();
-      ctx.arc(0, 0, 12, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.35)';
-      ctx.fill();
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-    } else if (hoveredKey) {
-      // Near Joint Magnet State (Pink highlight)
-      ctx.beginPath();
-      ctx.arc(0, 0, 14, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(244, 114, 182, 0.25)';
-      ctx.fill();
-      ctx.strokeStyle = '#f472b6';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    } else {
-      // Idle Cursor State (Cyan subtle ring)
-      ctx.beginPath();
-      ctx.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(6, 182, 212, 0.2)';
-      ctx.fill();
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-
-    ctx.restore();
+    });
   }
 }

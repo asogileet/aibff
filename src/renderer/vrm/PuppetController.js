@@ -3,7 +3,8 @@ import * as THREE from 'three';
 /**
  * PuppetController
  * Implements interactive ragdoll/puppet-like physical pulling of VRM humanoid bones.
- * Supports direct screen-delta mapping for hands, legs, head, and lifting the entire body (hips).
+ * Supports dual-hand simultaneous index finger tracking and direct screen-delta mapping
+ * for hands, legs, head, and lifting the entire body (hips).
  */
 export class PuppetController {
   constructor(avatarController, animationController, sceneManager, options = {}) {
@@ -16,7 +17,7 @@ export class PuppetController {
 
     this.isEnabled = false; // Disabled by default, toggled via toolbar button
     this.keepPoseOnRelease = true; // Hold sculpted pose instead of auto-recovering
-    this.grabbedJointKey = null; // 'head', 'hips', 'rightHand', 'leftHand', 'rightFoot', 'leftFoot'
+    this.grabbedJointKey = null; // Primary pointer joint key
     this.hoveredJointKey = null;
 
     this.fingerScreenPos = { x: 0, y: 0 };
@@ -24,6 +25,9 @@ export class PuppetController {
     this.dragDelta = { x: 0, y: 0 };
     this.isPinching = false;
     this.snappingRadius = 90; // Screen pixels
+
+    // Multi-pointer map: Map<pointerId, PointerState>
+    this.pointers = new Map();
 
     // Spring damping recovery state
     this.isRecovering = false;
@@ -46,7 +50,6 @@ export class PuppetController {
       head: new THREE.Euler(0, 0, 0)
     };
 
-    // Dialogue lines per joint
     // Dialogue lines per joint
     this.dialogues = {
       hips: [
@@ -107,6 +110,11 @@ export class PuppetController {
       ],
       leftUpperLeg: [
         { emotion: 'shy', text: '主人大壞蛋！裙子要飄起來了啦～///' }
+      ],
+      dualHands: [
+        { emotion: 'happy', text: '哇～主人的兩隻手食指都在牽我，像在空中跳華爾滋一樣！💃' },
+        { emotion: 'shy', text: '兩隻手一起拉著我...心跳都快停下來了啦～💕' },
+        { emotion: 'happy', text: '雙手一起展開～來一個大大的溫暖擁抱吧！🥰' }
       ]
     };
 
@@ -118,13 +126,19 @@ export class PuppetController {
   }
 
   isGrabbingOrHovered() {
-    return this.isEnabled && (this.grabbedJointKey !== null || this.hoveredJointKey !== null);
+    if (!this.isEnabled) return false;
+    if (this.grabbedJointKey !== null || this.hoveredJointKey !== null) return true;
+    for (const p of this.pointers.values()) {
+      if (p.grabbedJointKey !== null || p.hoveredJointKey !== null) return true;
+    }
+    return false;
   }
 
   setEnabled(enabled) {
     this.isEnabled = enabled;
-    if (!enabled && this.grabbedJointKey) {
+    if (!enabled) {
       this.releaseGrab();
+      this.pointers.clear();
     }
   }
 
@@ -169,13 +183,13 @@ export class PuppetController {
   }
 
   _cacheStartRotations(jointKey, vrm) {
-    if (!vrm || !vrm.humanoid) return;
-    this.startBoneRots = {};
+    if (!vrm || !vrm.humanoid) return {};
+    const startBoneRots = {};
     const humanoid = vrm.humanoid;
     const saveBone = (name) => {
       const node = humanoid.getNormalizedBoneNode(name);
       if (node) {
-        this.startBoneRots[name] = {
+        startBoneRots[name] = {
           x: node.rotation.x,
           y: node.rotation.y,
           z: node.rotation.z
@@ -203,99 +217,229 @@ export class PuppetController {
       saveBone('chest');
       saveBone('spine');
     }
+    return startBoneRots;
   }
 
   /**
-   * Called by HandTracker on every finger/mouse position update.
+   * Called on finger/mouse update, optionally accepting dual hands array.
+   * @param {number} x
+   * @param {number} y
+   * @param {boolean} isPinching
+   * @param {Array<Object>} [hands]
    */
-  updateFinger(x, y, isPinching) {
+  updateFinger(x, y, isPinching, hands = null) {
     if (!this.isEnabled) return;
 
-    this.fingerScreenPos.x = x;
-    this.fingerScreenPos.y = y;
+    if (hands && Array.isArray(hands) && hands.length > 0) {
+      this.updateHands(hands);
+      return;
+    }
 
-    const wasPinching = this.isPinching;
-    this.isPinching = isPinching;
+    // Default single pointer fallback
+    this.updateHands([
+      {
+        id: 'primary',
+        x,
+        y,
+        isPinching,
+        name: '食指'
+      }
+    ]);
+  }
 
-    // Detect grab trigger
-    if (this.isPinching && !wasPinching) {
-      let targetJoint = this.hoveredJointKey;
-      if (!targetJoint) {
-        // Smart nearest joint search within avatar region (260px radius)
-        const jointTargets = this.getJointScreenPositions();
-        let closestKey = null;
-        let minDist = 260;
+  /**
+   * Updates multiple pointer states (dual index fingers).
+   * @param {Array<Object>} handsList
+   */
+  updateHands(handsList) {
+    if (!this.isEnabled) return;
+
+    const currentIds = new Set(handsList.map(h => h.id));
+    const jointTargets = this.getJointScreenPositions();
+    const vrm = this.currentVRM;
+
+    // 1. Release and cleanup disappeared pointers
+    for (const [id, pointer] of this.pointers.entries()) {
+      if (!currentIds.has(id)) {
+        if (pointer.grabbedJointKey) {
+          this.releasePointerGrab(pointer);
+        }
+        this.pointers.delete(id);
+      }
+    }
+
+    // 2. Process each active hand pointer
+    for (const hand of handsList) {
+      let pointer = this.pointers.get(hand.id);
+      if (!pointer) {
+        pointer = {
+          id: hand.id,
+          name: hand.name || (hand.id === 'hand_1' ? '食指 2' : '食指 1'),
+          x: hand.x,
+          y: hand.y,
+          isPinching: false,
+          grabbedJointKey: null,
+          hoveredJointKey: null,
+          dragStartFinger: { x: hand.x, y: hand.y },
+          dragDelta: { x: 0, y: 0 },
+          startBoneRots: {},
+          startModelPos: new THREE.Vector3()
+        };
+        this.pointers.set(hand.id, pointer);
+      }
+
+      pointer.x = hand.x;
+      pointer.y = hand.y;
+      const wasPinching = pointer.isPinching;
+      pointer.isPinching = hand.isPinching;
+
+      // Update hover state if not grabbing
+      if (!pointer.grabbedJointKey) {
+        pointer.hoveredJointKey = null;
+        let minDist = this.snappingRadius;
         for (const [key, pos] of Object.entries(jointTargets)) {
-          const d = Math.hypot(this.fingerScreenPos.x - pos.x, this.fingerScreenPos.y - pos.y);
-          if (d < minDist) {
-            minDist = d;
-            closestKey = key;
+          // Avoid targeting joint already grabbed by another pointer
+          const alreadyGrabbed = Array.from(this.pointers.values()).some(
+            p => p.id !== pointer.id && p.grabbedJointKey === key
+          );
+          if (alreadyGrabbed) continue;
+
+          const dist = Math.hypot(pointer.x - pos.x, pointer.y - pos.y);
+          if (dist < minDist) {
+            minDist = dist;
+            pointer.hoveredJointKey = key;
           }
         }
-        targetJoint = closestKey || 'hips'; // Fallback to body hips
       }
 
-      if (targetJoint) {
-        this.grabbedJointKey = targetJoint;
-        this.hoveredJointKey = targetJoint;
-        this.dragStartFinger.x = x;
-        this.dragStartFinger.y = y;
-        this.dragDelta.x = 0;
-        this.dragDelta.y = 0;
+      // Detect grab start
+      if (pointer.isPinching && !wasPinching) {
+        let targetJoint = pointer.hoveredJointKey;
+        if (!targetJoint) {
+          // Smart nearest search within avatar range
+          let closestKey = null;
+          let minDist = 260;
+          for (const [key, pos] of Object.entries(jointTargets)) {
+            const alreadyGrabbed = Array.from(this.pointers.values()).some(
+              p => p.id !== pointer.id && p.grabbedJointKey === key
+            );
+            if (alreadyGrabbed) continue;
 
-        console.log(`[Puppet] Grabbed joint: ${targetJoint}`);
-
-        const vrm = this.currentVRM;
-        if (vrm && vrm.scene) {
-          this.startModelPos.copy(vrm.scene.position);
+            const d = Math.hypot(pointer.x - pos.x, pointer.y - pos.y);
+            if (d < minDist) {
+              minDist = d;
+              closestKey = key;
+            }
+          }
+          targetJoint = closestKey || (this._isJointAvailable('hips') ? 'hips' : null);
         }
 
-        this._cacheStartRotations(targetJoint, vrm);
+        if (targetJoint) {
+          pointer.grabbedJointKey = targetJoint;
+          pointer.hoveredJointKey = targetJoint;
+          pointer.dragStartFinger.x = hand.x;
+          pointer.dragStartFinger.y = hand.y;
+          pointer.dragDelta.x = 0;
+          pointer.dragDelta.y = 0;
 
-        this.isRecovering = false;
-        // Correct method name to override breathing idle action!
-        if (this.animationController?.setCustomPoseOverride) {
-          this.animationController.setCustomPoseOverride(true);
+          if (vrm && vrm.scene) {
+            pointer.startModelPos.copy(vrm.scene.position);
+          }
+          pointer.startBoneRots = this._cacheStartRotations(targetJoint, vrm);
+
+          this.isRecovering = false;
+          if (this.animationController?.setCustomPoseOverride) {
+            this.animationController.setCustomPoseOverride(true);
+          }
+
+          // Check if dual hands are now both grabbing!
+          const activeGrabs = Array.from(this.pointers.values()).filter(p => p.grabbedJointKey);
+          if (activeGrabs.length >= 2) {
+            this._triggerReaction('dualHands');
+          } else {
+            this._triggerReaction(pointer.grabbedJointKey);
+          }
+
+          console.log(`[Puppet] ${pointer.name} (${pointer.id}) grabbed: ${targetJoint}`);
         }
-        this._triggerReaction(this.grabbedJointKey);
+      } else if (pointer.isPinching && wasPinching && pointer.grabbedJointKey) {
+        // Actively dragging
+        pointer.dragDelta.x = pointer.x - pointer.dragStartFinger.x;
+        pointer.dragDelta.y = pointer.y - pointer.dragStartFinger.y;
+      } else if (!pointer.isPinching && wasPinching) {
+        // Released grab
+        this.releasePointerGrab(pointer);
       }
-    } else if (this.isPinching && wasPinching) {
-      // Actively dragging
-      this.dragDelta.x = this.fingerScreenPos.x - this.dragStartFinger.x;
-      this.dragDelta.y = this.fingerScreenPos.y - this.dragStartFinger.y;
-    } else if (!this.isPinching && wasPinching) {
-      this.releaseGrab();
+    }
+
+    // Mirror to primary pointer fields for backward compatibility
+    const firstPointer = this.pointers.values().next().value;
+    if (firstPointer) {
+      this.fingerScreenPos.x = firstPointer.x;
+      this.fingerScreenPos.y = firstPointer.y;
+      this.isPinching = Array.from(this.pointers.values()).some(p => p.isPinching);
+      this.grabbedJointKey = firstPointer.grabbedJointKey;
+      this.hoveredJointKey = firstPointer.hoveredJointKey;
+      this.dragDelta.x = firstPointer.dragDelta.x;
+      this.dragDelta.y = firstPointer.dragDelta.y;
+      this.startBoneRots = firstPointer.startBoneRots;
+      this.startModelPos.copy(firstPointer.startModelPos);
+    }
+  }
+
+  _isJointAvailable(jointKey) {
+    for (const p of this.pointers.values()) {
+      if (p.grabbedJointKey === jointKey) return false;
+    }
+    return true;
+  }
+
+  releasePointerGrab(pointer) {
+    if (pointer && pointer.grabbedJointKey) {
+      console.log(`[Puppet] Released joint: ${pointer.grabbedJointKey} for ${pointer.id}`);
+      pointer.grabbedJointKey = null;
+
+      const anyOtherGrab = Array.from(this.pointers.values()).some(p => p.grabbedJointKey !== null);
+      if (!anyOtherGrab) {
+        this.releaseGrab();
+      }
     }
   }
 
   releaseGrab() {
-    if (this.grabbedJointKey) {
-      this.grabbedJointKey = null;
-
-      if (this.keepPoseOnRelease) {
-        // Keep current sculpted pose without spring recovery
-        this.isRecovering = false;
-        if (this.animationController?.setCustomPoseOverride) {
-          this.animationController.setCustomPoseOverride(true);
-        }
-        if (this.poseManager?.captureCurrentPoseFromAvatar) {
-          this.poseManager.captureCurrentPoseFromAvatar();
-        }
-        // Save into active avatar slot if avatarManager is present
-        const activeSlot = this.avatarController?.getActiveSlot?.();
-        if (activeSlot && this.poseManager?.currentRotations) {
-          activeSlot.isSculpted = true;
-          activeSlot.customBoneRotations = { ...this.poseManager.currentRotations };
-        }
-        if (typeof this.onPoseUpdated === 'function') {
-          this.onPoseUpdated();
-        }
-      } else {
-        // Standard elastic spring recovery
-        this.isRecovering = true;
-        this.recoveryProgress = 0.0;
-      }
+    this.grabbedJointKey = null;
+    for (const p of this.pointers.values()) {
+      p.grabbedJointKey = null;
     }
+
+    if (this.keepPoseOnRelease) {
+      this.isRecovering = false;
+      if (this.animationController?.setCustomPoseOverride) {
+        this.animationController.setCustomPoseOverride(true);
+      }
+      if (this.poseManager?.captureCurrentPoseFromAvatar) {
+        this.poseManager.captureCurrentPoseFromAvatar();
+      }
+      const activeSlot = this.avatarController?.getActiveSlot?.();
+      if (activeSlot && this.poseManager?.currentRotations) {
+        activeSlot.isSculpted = true;
+        activeSlot.customBoneRotations = { ...this.poseManager.currentRotations };
+      }
+      if (typeof this.onPoseUpdated === 'function') {
+        this.onPoseUpdated();
+      }
+    } else {
+      this.isRecovering = true;
+      this.recoveryProgress = 0.0;
+    }
+  }
+
+  /**
+   * Retrieves active pointers for visualizer rendering.
+   * @returns {Array<Object>}
+   */
+  getActivePointers() {
+    return Array.from(this.pointers.values());
   }
 
   /**
@@ -306,25 +450,34 @@ export class PuppetController {
     const vrm = this.currentVRM;
     if (!vrm || !vrm.humanoid) return;
 
-    // 1. Calculate screen projections for target joints
-    const jointTargets = this.getJointScreenPositions();
-
-    // 2. Determine hovered joint when not currently grabbing
-    if (!this.grabbedJointKey) {
-      this.hoveredJointKey = null;
-      for (const [key, pos] of Object.entries(jointTargets)) {
-        const dist = Math.hypot(this.fingerScreenPos.x - pos.x, this.fingerScreenPos.y - pos.y);
-        if (dist < this.snappingRadius) {
-          this.hoveredJointKey = key;
-          break;
-        }
+    // Process dragging physics for each active pointer
+    let hasAnyDragging = false;
+    for (const pointer of this.pointers.values()) {
+      if (pointer.grabbedJointKey) {
+        hasAnyDragging = true;
+        this._applyDirectLimbDragging(
+          pointer.grabbedJointKey,
+          vrm,
+          pointer.dragDelta,
+          pointer.startBoneRots,
+          pointer.startModelPos
+        );
       }
     }
 
-    // 3. Process Dragging Physics
-    if (this.grabbedJointKey) {
-      this._applyDirectLimbDragging(this.grabbedJointKey, vrm);
-    } else if (this.isRecovering) {
+    // Fallback for single pointer direct state
+    if (!hasAnyDragging && this.grabbedJointKey) {
+      hasAnyDragging = true;
+      this._applyDirectLimbDragging(
+        this.grabbedJointKey,
+        vrm,
+        this.dragDelta,
+        this.startBoneRots,
+        this.startModelPos
+      );
+    }
+
+    if (!hasAnyDragging && this.isRecovering) {
       // Smooth spring recovery
       this.recoveryProgress += delta * 4.0;
       const t = Math.min(1.0, this.recoveryProgress);
@@ -348,23 +501,24 @@ export class PuppetController {
   }
 
   /**
-   * Applies direct, intuitive, responsive physical pulling based on screen delta.
+   * Applies direct physical pulling with configurable delta and start transforms.
    */
-  _applyDirectLimbDragging(jointKey, vrm) {
-    const dx = this.dragDelta.x;
-    const dy = this.dragDelta.y;
+  _applyDirectLimbDragging(jointKey, vrm, dragDelta = null, startBoneRots = null, startModelPos = null) {
+    const delta = dragDelta || this.dragDelta;
+    const baseRots = startBoneRots || this.startBoneRots;
+    const modelPos = startModelPos || this.startModelPos;
+    const dx = delta.x;
+    const dy = delta.y;
 
     if (jointKey === 'hips') {
-      // Pick up the whole avatar model and move with mouse
       if (vrm.scene) {
-        vrm.scene.position.x = this.startModelPos.x + dx * 0.0035;
-        vrm.scene.position.y = this.startModelPos.y - dy * 0.0035;
+        vrm.scene.position.x = modelPos.x + dx * 0.0035;
+        vrm.scene.position.y = modelPos.y - dy * 0.0035;
         if (this.avatarController?.updateSelectionRing) {
           this.avatarController.updateSelectionRing();
         }
       }
 
-      // Limbs sway and dangle
       const rArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
       const lArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
       const rLeg = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
@@ -379,15 +533,12 @@ export class PuppetController {
     if (jointKey === 'rightHand') {
       const upperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
       const lowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
-      const baseUpper = this.startBoneRots.rightUpperArm || { x: 0.08, y: 0, z: -Math.PI * 0.38 };
-      const baseLower = this.startBoneRots.rightLowerArm || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.rightUpperArm || { x: 0.08, y: 0, z: -Math.PI * 0.38 };
+      const baseLower = baseRots.rightLowerArm || { x: 0, y: 0, z: 0 };
       if (upperArm && lowerArm) {
-        // Dragging UP (dy < 0) raises right arm (becomes more negative Z); dragging LEFT (dx < 0, outward) raises arm towards horizontal
         upperArm.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dy * 0.006) + (dx * 0.004), -2.4, -0.15);
-        // Dragging UP (dy < 0) raises arm forward (+X)
         upperArm.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.004), -0.5, 1.6);
         upperArm.rotation.y = THREE.MathUtils.clamp(baseUpper.y - (dx * 0.003), -1.2, 1.2);
-        // Elbow bends forward naturally (+X in VRM humanoid space)
         lowerArm.rotation.x = THREE.MathUtils.clamp(baseLower.x - (dy * 0.005) + Math.abs(dx * 0.003), 0, Math.PI * 0.85);
       }
       return;
@@ -396,33 +547,27 @@ export class PuppetController {
     if (jointKey === 'leftHand') {
       const upperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
       const lowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
-      const baseUpper = this.startBoneRots.leftUpperArm || { x: 0.08, y: 0, z: Math.PI * 0.38 };
-      const baseLower = this.startBoneRots.leftLowerArm || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.leftUpperArm || { x: 0.08, y: 0, z: Math.PI * 0.38 };
+      const baseLower = baseRots.leftLowerArm || { x: 0, y: 0, z: 0 };
       if (upperArm && lowerArm) {
-        // Dragging UP (dy < 0) raises left arm (becomes more positive Z); dragging RIGHT (dx > 0, outward) raises arm towards horizontal
         upperArm.rotation.z = THREE.MathUtils.clamp(baseUpper.z - (dy * 0.006) + (dx * 0.004), 0.15, 2.4);
-        // Dragging UP (dy < 0) raises arm forward (+X)
         upperArm.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.004), -0.5, 1.6);
         upperArm.rotation.y = THREE.MathUtils.clamp(baseUpper.y + (dx * 0.003), -1.2, 1.2);
-        // Elbow bends forward naturally (+X in VRM humanoid space)
         lowerArm.rotation.x = THREE.MathUtils.clamp(baseLower.x - (dy * 0.005) + Math.abs(dx * 0.003), 0, Math.PI * 0.85);
       }
       return;
     }
 
-    // Direct Elbow Control (Hands on hips, cat paws, salute)
     if (jointKey === 'rightLowerArm') {
       const lowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
       const upperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
-      const baseLower = this.startBoneRots.rightLowerArm || { x: 0, y: 0, z: 0 };
-      const baseUpper = this.startBoneRots.rightUpperArm || { x: 0.08, y: 0, z: -Math.PI * 0.38 };
+      const baseLower = baseRots.rightLowerArm || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.rightUpperArm || { x: 0.08, y: 0, z: -Math.PI * 0.38 };
       if (lowerArm) {
-        // Elbow bends forward (+X)
         lowerArm.rotation.x = THREE.MathUtils.clamp(baseLower.x - (dy * 0.006) + Math.abs(dx * 0.003), 0, Math.PI * 0.85);
         lowerArm.rotation.y = THREE.MathUtils.clamp(baseLower.y - (dx * 0.004), -1.2, 1.2);
       }
       if (upperArm) {
-        // Dragging elbow influences shoulder position
         upperArm.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dy * 0.004) + (dx * 0.004), -2.2, -0.15);
       }
       return;
@@ -431,32 +576,27 @@ export class PuppetController {
     if (jointKey === 'leftLowerArm') {
       const lowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
       const upperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
-      const baseLower = this.startBoneRots.leftLowerArm || { x: 0, y: 0, z: 0 };
-      const baseUpper = this.startBoneRots.leftUpperArm || { x: 0.08, y: 0, z: Math.PI * 0.38 };
+      const baseLower = baseRots.leftLowerArm || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.leftUpperArm || { x: 0.08, y: 0, z: Math.PI * 0.38 };
       if (lowerArm) {
-        // Elbow bends forward (+X)
         lowerArm.rotation.x = THREE.MathUtils.clamp(baseLower.x - (dy * 0.006) + Math.abs(dx * 0.003), 0, Math.PI * 0.85);
         lowerArm.rotation.y = THREE.MathUtils.clamp(baseLower.y + (dx * 0.004), -1.2, 1.2);
       }
       if (upperArm) {
-        // Dragging elbow influences shoulder position
         upperArm.rotation.z = THREE.MathUtils.clamp(baseUpper.z - (dy * 0.004) + (dx * 0.004), 0.15, 2.2);
       }
       return;
     }
 
-    // Direct Knee Control (Kneeling, cross-legged, kicking)
     if (jointKey === 'rightLowerLeg') {
       const lowerLeg = vrm.humanoid.getNormalizedBoneNode('rightLowerLeg');
       const upperLeg = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
-      const baseLower = this.startBoneRots.rightLowerLeg || { x: 0, y: 0, z: 0 };
-      const baseUpper = this.startBoneRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
+      const baseLower = baseRots.rightLowerLeg || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
       if (lowerLeg) {
-        // Human knees bend backward (-X in VRM humanoid space)
         lowerLeg.rotation.x = THREE.MathUtils.clamp(baseLower.x + (dy * 0.007), -Math.PI * 0.85, 0);
       }
       if (upperLeg) {
-        // Lifting knee raises thigh forward (+X)
         upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.005), -0.5, Math.PI * 0.65);
       }
       return;
@@ -465,14 +605,12 @@ export class PuppetController {
     if (jointKey === 'leftLowerLeg') {
       const lowerLeg = vrm.humanoid.getNormalizedBoneNode('leftLowerLeg');
       const upperLeg = vrm.humanoid.getNormalizedBoneNode('leftUpperLeg');
-      const baseLower = this.startBoneRots.leftLowerLeg || { x: 0, y: 0, z: 0 };
-      const baseUpper = this.startBoneRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
+      const baseLower = baseRots.leftLowerLeg || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
       if (lowerLeg) {
-        // Human knees bend backward (-X in VRM humanoid space)
         lowerLeg.rotation.x = THREE.MathUtils.clamp(baseLower.x + (dy * 0.007), -Math.PI * 0.85, 0);
       }
       if (upperLeg) {
-        // Lifting knee raises thigh forward (+X)
         upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.005), -0.5, Math.PI * 0.65);
       }
       return;
@@ -481,13 +619,11 @@ export class PuppetController {
     if (jointKey === 'rightFoot') {
       const upperLeg = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
       const lowerLeg = vrm.humanoid.getNormalizedBoneNode('rightLowerLeg');
-      const baseUpper = this.startBoneRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
-      const baseLower = this.startBoneRots.rightLowerLeg || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
+      const baseLower = baseRots.rightLowerLeg || { x: 0, y: 0, z: 0 };
       if (upperLeg && lowerLeg) {
-        // Pulling foot up raises thigh forward (+X) and opens leg outward (-Z)
         upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.006), -0.5, Math.PI * 0.65);
         upperLeg.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dx * 0.004), -0.9, 0.4);
-        // Knee bends naturally backward (-X)
         lowerLeg.rotation.x = THREE.MathUtils.clamp(baseLower.x - Math.abs(dy * 0.008), -Math.PI * 0.85, 0);
       }
       return;
@@ -496,13 +632,11 @@ export class PuppetController {
     if (jointKey === 'leftFoot') {
       const upperLeg = vrm.humanoid.getNormalizedBoneNode('leftUpperLeg');
       const lowerLeg = vrm.humanoid.getNormalizedBoneNode('leftLowerLeg');
-      const baseUpper = this.startBoneRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
-      const baseLower = this.startBoneRots.leftLowerLeg || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
+      const baseLower = baseRots.leftLowerLeg || { x: 0, y: 0, z: 0 };
       if (upperLeg && lowerLeg) {
-        // Pulling foot up raises thigh forward (+X) and opens leg outward (+Z)
         upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.006), -0.5, Math.PI * 0.65);
         upperLeg.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dx * 0.004), -0.4, 0.9);
-        // Knee bends naturally backward (-X)
         lowerLeg.rotation.x = THREE.MathUtils.clamp(baseLower.x - Math.abs(dy * 0.008), -Math.PI * 0.85, 0);
       }
       return;
@@ -510,7 +644,7 @@ export class PuppetController {
 
     if (jointKey === 'rightUpperLeg') {
       const upperLeg = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
-      const baseUpper = this.startBoneRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.rightUpperLeg || { x: 0, y: 0, z: 0 };
       if (upperLeg) {
         upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.006), -0.5, Math.PI * 0.65);
         upperLeg.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dx * 0.005), -0.9, 0.4);
@@ -520,7 +654,7 @@ export class PuppetController {
 
     if (jointKey === 'leftUpperLeg') {
       const upperLeg = vrm.humanoid.getNormalizedBoneNode('leftUpperLeg');
-      const baseUpper = this.startBoneRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
+      const baseUpper = baseRots.leftUpperLeg || { x: 0, y: 0, z: 0 };
       if (upperLeg) {
         upperLeg.rotation.x = THREE.MathUtils.clamp(baseUpper.x - (dy * 0.006), -0.5, Math.PI * 0.65);
         upperLeg.rotation.z = THREE.MathUtils.clamp(baseUpper.z + (dx * 0.005), -0.4, 0.9);
@@ -530,7 +664,7 @@ export class PuppetController {
 
     if (jointKey === 'head') {
       const head = vrm.humanoid.getNormalizedBoneNode('head');
-      const baseHead = this.startBoneRots.head || { x: 0, y: 0, z: 0 };
+      const baseHead = baseRots.head || { x: 0, y: 0, z: 0 };
       if (head) {
         head.rotation.z = Math.max(-0.6, Math.min(0.6, baseHead.z + dx * 0.004));
         head.rotation.x = Math.max(-0.5, Math.min(0.5, baseHead.x - dy * 0.003));
@@ -540,7 +674,7 @@ export class PuppetController {
 
     if (jointKey === 'neck') {
       const neck = vrm.humanoid.getNormalizedBoneNode('neck');
-      const baseNeck = this.startBoneRots.neck || { x: 0, y: 0, z: 0 };
+      const baseNeck = baseRots.neck || { x: 0, y: 0, z: 0 };
       if (neck) {
         neck.rotation.y = Math.max(-0.8, Math.min(0.8, baseNeck.y + dx * 0.004));
         neck.rotation.x = Math.max(-0.4, Math.min(0.4, baseNeck.x - dy * 0.003));
@@ -550,7 +684,7 @@ export class PuppetController {
 
     if (jointKey === 'chest') {
       const chest = vrm.humanoid.getNormalizedBoneNode('chest');
-      const baseChest = this.startBoneRots.chest || { x: 0, y: 0, z: 0 };
+      const baseChest = baseRots.chest || { x: 0, y: 0, z: 0 };
       if (chest) {
         chest.rotation.x = Math.max(-0.4, Math.min(0.5, baseChest.x - dy * 0.003));
         chest.rotation.y = Math.max(-0.5, Math.min(0.5, baseChest.y + dx * 0.003));
@@ -560,7 +694,7 @@ export class PuppetController {
 
     if (jointKey === 'spine') {
       const spine = vrm.humanoid.getNormalizedBoneNode('spine');
-      const baseSpine = this.startBoneRots.spine || { x: 0, y: 0, z: 0 };
+      const baseSpine = baseRots.spine || { x: 0, y: 0, z: 0 };
       if (spine) {
         spine.rotation.x = Math.max(-0.5, Math.min(0.6, baseSpine.x - dy * 0.004));
         spine.rotation.z = Math.max(-0.4, Math.min(0.4, baseSpine.z - dx * 0.003));

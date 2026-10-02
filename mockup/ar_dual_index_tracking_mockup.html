@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AR 雙手食指同步追蹤・人偶拉扯物理互動 - 原型 Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Optional MediaPipe CDN for real camera dual hand finger detection -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.25);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(244, 114, 182, 0.4);
+      border-radius: 4px;
+    }
+    .transparent-pattern {
+      background-color: #0f172a;
+      background-image: linear-gradient(45deg, #1e293b 25%, transparent 25%), 
+                        linear-gradient(-45deg, #1e293b 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #1e293b 75%), 
+                        linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+    }
+    .video-mirror {
+      transform: scaleX(-1);
+    }
+    @keyframes fingerPulseA {
+      0% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.3); opacity: 0.4; }
+      100% { transform: scale(1); opacity: 0.9; }
+    }
+    @keyframes fingerPulseB {
+      0% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.3); opacity: 0.4; }
+      100% { transform: scale(1); opacity: 0.9; }
+    }
+    .pulse-hand-a { animation: fingerPulseA 1.2s infinite ease-in-out; }
+    .pulse-hand-b { animation: fingerPulseB 1.2s infinite ease-in-out 0.6s; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans select-none">
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between shadow-xl gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-pink-400 flex items-center gap-2">
+          <span>✌️</span> AR 模式雙手食指同步偵測・玩偶肢體拉扯互動
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+          偵測使用者的左右兩隻手食指尖，兩隻食指可獨立或同時拉扯人偶肢體（例如左食指牽左手、右食指牽右手一起動）
+        </p>
+      </div>
+      <div class="flex items-center flex-wrap gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">雙手食指 (Landmark 8)</span>
+        <span class="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">兩指同步牽引 (Dual-Drag)</span>
+        <span class="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">獨立 Two-Bone IK</span>
+        <span class="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">AR 鏡像自動映射</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Column 1: Interactive Puppet & Video Stage (7 cols) -->
+      <div class="lg:col-span-7 glass-panel rounded-2xl p-5 flex flex-col items-center">
+        <div class="w-full flex justify-between items-center mb-3">
+          <div class="flex items-center gap-2">
+            <span id="puppetStateDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="puppetStateText" class="text-xs font-medium text-slate-300">雙手偵測準備中</span>
+          </div>
+          <div class="flex gap-2">
+            <span id="hand1StatusBadge" class="text-[10px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-700/50">食指1: 未偵測</span>
+            <span id="hand2StatusBadge" class="text-[10px] px-2 py-0.5 rounded bg-pink-950 text-pink-300 border border-pink-700/50">食指2: 未偵測</span>
+          </div>
+        </div>
+
+        <!-- Simulated Window Stage Frame -->
+        <div class="relative w-[440px] h-[580px] rounded-3xl overflow-hidden border-2 border-slate-700 shadow-2xl transition-all duration-300 flex flex-col justify-end" id="puppetStage">
+          
+          <!-- Background: AR Video or Transparency Pattern -->
+          <div id="stagePatternBg" class="absolute inset-0 transparent-pattern"></div>
+          <video id="stageWebcam" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover hidden opacity-0 transition-opacity duration-300 video-mirror"></video>
+
+          <!-- Dialogue Bubble -->
+          <div id="stageDialogueBubble" class="absolute top-4 left-1/2 -translate-x-1/2 glass-panel text-xs text-pink-200 px-3.5 py-2 rounded-2xl shadow-xl max-w-[360px] transition-all duration-300 border-pink-500/40 flex items-center space-x-2 z-20 pointer-events-none">
+            <span id="stageEmotion" class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[10px] font-medium border border-pink-500/40">開心</span>
+            <p id="stageDialogue" class="leading-relaxed text-[11px] truncate">伸出兩隻手的食指，可以同時拉起我的雙手跳舞喔～✨</p>
+          </div>
+
+          <!-- Interactive 2D Skeletal Puppet Canvas -->
+          <canvas id="puppetCanvas" width="440" height="580" class="absolute inset-0 z-10 cursor-crosshair"></canvas>
+
+          <!-- Bottom Control Bar -->
+          <div class="relative z-30 mb-3 px-3 flex justify-between items-center w-full">
+            <div class="glass-panel rounded-full px-3 py-1 flex items-center space-x-2 text-[11px] text-slate-300 border-slate-700">
+              <span>視訊：</span>
+              <button id="btnToggleCamFeed" class="text-emerald-400 hover:underline font-medium">開啟真實鏡頭</button>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button id="btnSimulateDualHands" class="glass-panel rounded-full px-2.5 py-1 text-[11px] text-cyan-300 hover:text-white border-cyan-500/40 hover:bg-cyan-500/20 transition">
+                🎮 雙指模擬展示
+              </button>
+              <button id="btnResetPose" class="glass-panel rounded-full px-2.5 py-1 text-[11px] text-pink-300 hover:text-white border-pink-500/40 hover:bg-pink-500/20 transition">
+                🔄 復位
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <p class="text-[11px] text-slate-400 mt-3 text-center">
+          💡 <strong>操作說明</strong>：開啟真實鏡頭後，鏡頭前伸出<strong>雙手食指</strong>即可同時拉動人偶！若無鏡頭，點擊「雙指模擬展示」或直接以滑鼠與觸控體驗。
+        </p>
+      </div>
+
+      <!-- Column 2: Dual Tracking Controls & Visualizer Diagnostics (5 cols) -->
+      <div class="lg:col-span-5 space-y-4">
+        
+        <!-- Live Hand Tracking Status Panel -->
+        <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center justify-between">
+            <span class="flex items-center gap-2"><span>🔍</span> 雙手食指即時追蹤狀態</span>
+            <span id="fpsBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">30 FPS</span>
+          </h2>
+
+          <!-- Hand 1 Card (Cyan) -->
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-cyan-500/30 space-y-1.5">
+            <div class="flex justify-between items-center text-xs">
+              <span class="font-bold text-cyan-400 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> 食指 1 (Hand A)
+              </span>
+              <span id="hand1ActionStatus" class="text-[11px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-200">待命</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+              <div>座標：<span id="hand1Coord" class="text-slate-200 font-mono">X: 0, Y: 0</span></div>
+              <div>鎖定部位：<span id="hand1Joint" class="text-cyan-300 font-medium">無</span></div>
+            </div>
+          </div>
+
+          <!-- Hand 2 Card (Pink) -->
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-pink-500/30 space-y-1.5">
+            <div class="flex justify-between items-center text-xs">
+              <span class="font-bold text-pink-400 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-pink-400"></span> 食指 2 (Hand B)
+              </span>
+              <span id="hand2ActionStatus" class="text-[11px] px-2 py-0.5 rounded bg-pink-950 text-pink-200">待命</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+              <div>座標：<span id="hand2Coord" class="text-slate-200 font-mono">X: 0, Y: 0</span></div>
+              <div>鎖定部位：<span id="hand2Joint" class="text-pink-300 font-medium">無</span></div>
+            </div>
+          </div>
+
+          <!-- Interaction Mode Toggle -->
+          <div class="pt-2 border-t border-slate-800 space-y-2">
+            <div class="text-xs text-slate-300 font-medium">食指抓取模式：</div>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btnModeTouch" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-pink-600 text-white shadow-lg transition">
+                👉 接觸即吸附 (靠近抓取)
+              </button>
+              <button id="btnModePinch" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+                🤏 捏合抓取 (拇指+食指)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preset Dual Interaction Moves -->
+        <div class="glass-panel rounded-2xl p-5 shadow-xl space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <span>🎭</span> 雙手食指連動示範動作
+          </h2>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <button id="btnDemoSpreadArms" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-left transition hover:border-pink-500/50">
+              <div class="font-medium text-slate-200">👐 雙臂同時張開</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">雙食指各拉一隻手向外展開</div>
+            </button>
+            <button id="btnDemoRaiseHands" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-left transition hover:border-pink-500/50">
+              <div class="font-medium text-slate-200">🙌 雙手向上歡呼</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">雙食指同時往上拉高手臂</div>
+            </button>
+            <button id="btnDemoHeadAndHand" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-left transition hover:border-pink-500/50">
+              <div class="font-medium text-slate-200">🥰 摸頭兼牽手</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">左食指撫摸頭部、右食指牽手</div>
+            </button>
+            <button id="btnDemoWaveDance" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-left transition hover:border-pink-500/50">
+              <div class="font-medium text-slate-200">💃 波浪牽引舞</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">雙指交替起伏帶動肢體搖擺</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Technical Features -->
+        <div class="glass-panel rounded-2xl p-4 shadow-xl text-xs space-y-2 text-slate-300">
+          <div class="font-semibold text-slate-100 flex items-center gap-1.5">
+            <span>⚙️</span> 架構核心技術亮點
+          </div>
+          <ul class="list-disc pl-4 space-y-1 text-slate-400 text-[11px]">
+            <li><strong>極致輕量</strong>：僅追蹤食指尖（Index Finger Tip），不浪費運算在全指骨架。</li>
+            <li><strong>雙手獨立狀態樹</strong>：支援同時 2 個指標（Multi-pointer IK），互不干擾。</li>
+            <li><strong>鏡像與視野校準</strong>：自動補償視訊鏡像反轉，手指動態精確映射至 3D 人偶。</li>
+            <li><strong>零延遲無縫降級</strong>：鏡頭未啟動或環境暗時，滑鼠與多點觸控依然 100% 正常運作。</li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // --- 2D Skeletal Puppet Simulation Setup ---
+    const canvas = document.getElementById('puppetCanvas');
+    const ctx = canvas.getContext('2d');
+    const stageWebcam = document.getElementById('stageWebcam');
+    const stagePatternBg = document.getElementById('stagePatternBg');
+
+    // Joint Positions in Stage Space (440 x 580)
+    const baseJoints = {
+      head: { x: 220, y: 150, radius: 24, name: '摸頭' },
+      neck: { x: 220, y: 190, radius: 8, name: '頸部' },
+      chest: { x: 220, y: 230, radius: 10, name: '挺胸' },
+      hips: { x: 220, y: 310, radius: 16, name: '抓腰提拔' },
+      leftShoulder: { x: 175, y: 220 },
+      rightShoulder: { x: 265, y: 220 },
+      leftElbow: { x: 145, y: 280, radius: 9, name: '左手肘' },
+      rightElbow: { x: 295, y: 280, radius: 9, name: '右手肘' },
+      leftHand: { x: 130, y: 350, radius: 12, name: '左手' },
+      rightHand: { x: 310, y: 350, radius: 12, name: '右手' },
+      leftHip: { x: 195, y: 320 },
+      rightHip: { x: 245, y: 320 },
+      leftKnee: { x: 190, y: 420, radius: 9, name: '左膝蓋' },
+      rightKnee: { x: 250, y: 420, radius: 9, name: '右膝蓋' },
+      leftFoot: { x: 185, y: 510, radius: 11, name: '左腳' },
+      rightFoot: { x: 255, y: 510, radius: 11, name: '右腳' }
+    };
+
+    // Current animated joints (cloned)
+    let currentJoints = JSON.parse(JSON.stringify(baseJoints));
+
+    // Dual Fingers State (Left / Right Index)
+    const fingerState = {
+      handA: {
+        id: 'handA',
+        name: '食指 1',
+        color: '#06b6d4', // Cyan
+        glowColor: 'rgba(6, 182, 212, 0.4)',
+        x: 130,
+        y: 350,
+        detected: false,
+        isPinching: false,
+        grabbedJoint: null,
+        hoveredJoint: null,
+        startFinger: { x: 0, y: 0 }
+      },
+      handB: {
+        id: 'handB',
+        name: '食指 2',
+        color: '#ec4899', // Pink
+        glowColor: 'rgba(236, 72, 153, 0.4)',
+        x: 310,
+        y: 350,
+        detected: false,
+        isPinching: false,
+        grabbedJoint: null,
+        hoveredJoint: null,
+        startFinger: { x: 0, y: 0 }
+      }
+    };
+
+    let grabMode = 'touch'; // 'touch' or 'pinch'
+    let isWebcamActive = false;
+    let handsDetector = null;
+    let cameraUtil = null;
+    let isSimulationActive = false;
+    let simTime = 0;
+
+    // --- UI Elements ---
+    const puppetStateDot = document.getElementById('puppetStateDot');
+    const puppetStateText = document.getElementById('puppetStateText');
+    const hand1StatusBadge = document.getElementById('hand1StatusBadge');
+    const hand2StatusBadge = document.getElementById('hand2StatusBadge');
+    const hand1ActionStatus = document.getElementById('hand1ActionStatus');
+    const hand2ActionStatus = document.getElementById('hand2ActionStatus');
+    const hand1Coord = document.getElementById('hand1Coord');
+    const hand2Coord = document.getElementById('hand2Coord');
+    const hand1Joint = document.getElementById('hand1Joint');
+    const hand2Joint = document.getElementById('hand2Joint');
+    const stageDialogue = document.getElementById('stageDialogue');
+    const stageEmotion = document.getElementById('stageEmotion');
+    const btnToggleCamFeed = document.getElementById('btnToggleCamFeed');
+    const btnSimulateDualHands = document.getElementById('btnSimulateDualHands');
+    const btnResetPose = document.getElementById('btnResetPose');
+    const btnModeTouch = document.getElementById('btnModeTouch');
+    const btnModePinch = document.getElementById('btnModePinch');
+
+    // Dialogues pool
+    const dualDialogues = [
+      { emotion: '開心', text: '哇～主人的兩隻手食指都在拉我，好像在空中跳華爾滋呀！💃' },
+      { emotion: '害羞', text: '兩隻手一起牽住我...心跳都快停下來了啦～💕' },
+      { emotion: '驚訝', text: '好厲害！左邊右邊一起動，主人真是頂級操偶大師～✨' },
+      { emotion: '調皮', text: '要幫我擺出元氣應援姿勢還是芭蕾舞姿呢～？嘻嘻！' }
+    ];
+
+    function triggerDualDialogue() {
+      const item = dualDialogues[Math.floor(Math.random() * dualDialogues.length)];
+      stageEmotion.textContent = item.emotion;
+      stageDialogue.textContent = item.text;
+    }
+
+    // --- Interaction Mode Toggle ---
+    btnModeTouch.addEventListener('click', () => {
+      grabMode = 'touch';
+      btnModeTouch.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-pink-600 text-white shadow-lg transition';
+      btnModePinch.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+    });
+
+    btnModePinch.addEventListener('click', () => {
+      grabMode = 'pinch';
+      btnModePinch.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-pink-600 text-white shadow-lg transition';
+      btnModeTouch.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+    });
+
+    // --- Two-Bone IK Solver (2D) ---
+    function solveTwoBoneIK(root, mid, target, l1, l2, bendRight = true) {
+      const dx = target.x - root.x;
+      const dy = target.y - root.y;
+      const d = Math.min(l1 + l2 - 0.001, Math.max(Math.abs(l1 - l2) + 0.001, Math.hypot(dx, dy)));
+      const baseAngle = Math.atan2(dy, dx);
+
+      const cosA = (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d);
+      const angleA = Math.acos(Math.max(-1, Math.min(1, cosA)));
+
+      const shoulderAngle = baseAngle + (bendRight ? angleA : -angleA);
+      mid.x = root.x + Math.cos(shoulderAngle) * l1;
+      mid.y = root.y + Math.sin(shoulderAngle) * l1;
+    }
+
+    // Update Puppet Physics based on dual finger grabs
+    function updatePuppetLimbs() {
+      // Process Hand A
+      if (fingerState.handA.grabbedJoint) {
+        applyJointDrag(fingerState.handA);
+      }
+      // Process Hand B
+      if (fingerState.handB.grabbedJoint) {
+        applyJointDrag(fingerState.handB);
+      }
+    }
+
+    function applyJointDrag(finger) {
+      const key = finger.grabbedJoint;
+      if (!key) return;
+
+      if (key === 'leftHand') {
+        currentJoints.leftHand.x = finger.x;
+        currentJoints.leftHand.y = finger.y;
+        solveTwoBoneIK(currentJoints.leftShoulder, currentJoints.leftElbow, currentJoints.leftHand, 65, 75, false);
+      } else if (key === 'rightHand') {
+        currentJoints.rightHand.x = finger.x;
+        currentJoints.rightHand.y = finger.y;
+        solveTwoBoneIK(currentJoints.rightShoulder, currentJoints.rightElbow, currentJoints.rightHand, 65, 75, true);
+      } else if (key === 'head') {
+        currentJoints.head.x = finger.x;
+        currentJoints.head.y = finger.y;
+      } else if (key === 'leftFoot') {
+        currentJoints.leftFoot.x = finger.x;
+        currentJoints.leftFoot.y = finger.y;
+        solveTwoBoneIK(currentJoints.leftHip, currentJoints.leftKnee, currentJoints.leftFoot, 95, 95, false);
+      } else if (key === 'rightFoot') {
+        currentJoints.rightFoot.x = finger.x;
+        currentJoints.rightFoot.y = finger.y;
+        solveTwoBoneIK(currentJoints.rightHip, currentJoints.rightKnee, currentJoints.rightFoot, 95, 95, true);
+      }
+    }
+
+    // --- Check Proximity for Finger Snapping ---
+    function checkFingerHover(finger) {
+      if (finger.grabbedJoint) return;
+      const grabbables = ['head', 'leftHand', 'rightHand', 'leftFoot', 'rightFoot'];
+      let closest = null;
+      let minDist = 45;
+
+      for (const k of grabbables) {
+        // Prevent grabbing same joint if already grabbed by other hand
+        const otherHand = finger.id === 'handA' ? fingerState.handB : fingerState.handA;
+        if (otherHand.grabbedJoint === k) continue;
+
+        const j = currentJoints[k];
+        const dist = Math.hypot(finger.x - j.x, finger.y - j.y);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = k;
+        }
+      }
+      finger.hoveredJoint = closest;
+
+      if (grabMode === 'touch' && closest && (finger.detected || isSimulationActive)) {
+        finger.grabbedJoint = closest;
+        finger.isPinching = true;
+        if (fingerState.handA.grabbedJoint && fingerState.handB.grabbedJoint) {
+          triggerDualDialogue();
+        }
+      }
+    }
+
+    // --- Render Loop ---
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Draw Bones
+      ctx.save();
+      ctx.strokeStyle = 'rgba(244, 114, 182, 0.4)';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      function drawBone(p1, p2) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+
+      // Torso & Spine
+      drawBone(currentJoints.head, currentJoints.neck);
+      drawBone(currentJoints.neck, currentJoints.chest);
+      drawBone(currentJoints.chest, currentJoints.hips);
+      drawBone(currentJoints.leftShoulder, currentJoints.rightShoulder);
+      drawBone(currentJoints.leftHip, currentJoints.rightHip);
+
+      // Arms
+      drawBone(currentJoints.leftShoulder, currentJoints.leftElbow);
+      drawBone(currentJoints.leftElbow, currentJoints.leftHand);
+      drawBone(currentJoints.rightShoulder, currentJoints.rightElbow);
+      drawBone(currentJoints.rightElbow, currentJoints.rightHand);
+
+      // Legs
+      drawBone(currentJoints.leftHip, currentJoints.leftKnee);
+      drawBone(currentJoints.leftKnee, currentJoints.leftFoot);
+      drawBone(currentJoints.rightHip, currentJoints.rightKnee);
+      drawBone(currentJoints.rightKnee, currentJoints.rightFoot);
+      ctx.restore();
+
+      // 2. Draw Joints
+      for (const [key, joint] of Object.entries(currentJoints)) {
+        if (!joint.radius) continue;
+
+        const isGrabbedByA = fingerState.handA.grabbedJoint === key;
+        const isGrabbedByB = fingerState.handB.grabbedJoint === key;
+        const isHovered = fingerState.handA.hoveredJoint === key || fingerState.handB.hoveredJoint === key;
+
+        ctx.beginPath();
+        ctx.arc(joint.x, joint.y, isGrabbedByA || isGrabbedByB ? 12 : (isHovered ? 10 : joint.radius * 0.7), 0, Math.PI * 2);
+        
+        if (isGrabbedByA) {
+          ctx.fillStyle = '#06b6d4'; // Cyan
+        } else if (isGrabbedByB) {
+          ctx.fillStyle = '#ec4899'; // Pink
+        } else if (isHovered) {
+          ctx.fillStyle = '#fbbf24'; // Yellow
+        } else {
+          ctx.fillStyle = '#ffffff';
+        }
+        ctx.fill();
+
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Label
+        if (joint.name && (isHovered || isGrabbedByA || isGrabbedByB)) {
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+          ctx.fillRect(joint.x - 30, joint.y - 28, 60, 18);
+          ctx.fillStyle = isGrabbedByA ? '#67e8f9' : (isGrabbedByB ? '#f472b6' : '#fef08a');
+          ctx.font = '11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(joint.name, joint.x, joint.y - 15);
+        }
+      }
+
+      // 3. Draw Tension Strings & Finger Cursors
+      drawFingerVisuals(fingerState.handA);
+      drawFingerVisuals(fingerState.handB);
+
+      requestAnimationFrame(render);
+    }
+
+    function drawFingerVisuals(finger) {
+      if (!finger.detected && !isSimulationActive) return;
+
+      // Elastic Tension string
+      if (finger.grabbedJoint && currentJoints[finger.grabbedJoint]) {
+        const j = currentJoints[finger.grabbedJoint];
+        ctx.save();
+        ctx.strokeStyle = finger.color;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(finger.x, finger.y);
+        ctx.lineTo(j.x, j.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Finger Pointer Halo
+      ctx.save();
+      ctx.translate(finger.x, finger.y);
+
+      // Outer wave
+      ctx.beginPath();
+      ctx.arc(0, 0, finger.isPinching ? 18 : 12, 0, Math.PI * 2);
+      ctx.fillStyle = finger.glowColor;
+      ctx.fill();
+
+      // Inner ring
+      ctx.beginPath();
+      ctx.arc(0, 0, 8, 0, Math.PI * 2);
+      ctx.fillStyle = finger.color;
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Text Badge
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.fillRect(-24, -30, 48, 16);
+      ctx.fillStyle = finger.color;
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(finger.name, 0, -18);
+
+      ctx.restore();
+    }
+
+    // --- Simulation Loop for Dual Hands Demo ---
+    function updateSimulation() {
+      if (isSimulationActive) {
+        simTime += 0.035;
+
+        // Animate Hand A (Left side)
+        fingerState.handA.detected = true;
+        fingerState.handA.x = 130 + Math.sin(simTime) * 60;
+        fingerState.handA.y = 350 - Math.abs(Math.sin(simTime * 0.8)) * 120;
+        checkFingerHover(fingerState.handA);
+
+        // Animate Hand B (Right side)
+        fingerState.handB.detected = true;
+        fingerState.handB.x = 310 - Math.sin(simTime) * 60;
+        fingerState.handB.y = 350 - Math.abs(Math.sin(simTime * 0.8)) * 120;
+        checkFingerHover(fingerState.handB);
+
+        updatePuppetLimbs();
+        updateDiagnosticsUI();
+      }
+      requestAnimationFrame(updateSimulation);
+    }
+
+    btnSimulateDualHands.addEventListener('click', () => {
+      isSimulationActive = !isSimulationActive;
+      if (isSimulationActive) {
+        btnSimulateDualHands.classList.add('bg-cyan-500/30', 'text-cyan-200');
+        puppetStateText.textContent = '雙指模擬展示中 (雙手同步拉扯)';
+        triggerDualDialogue();
+      } else {
+        btnSimulateDualHands.classList.remove('bg-cyan-500/30', 'text-cyan-200');
+        puppetStateText.textContent = '已停止展示';
+        resetFingers();
+      }
+    });
+
+    btnResetPose.addEventListener('click', () => {
+      currentJoints = JSON.parse(JSON.stringify(baseJoints));
+      resetFingers();
+      stageEmotion.textContent = '安心';
+      stageDialogue.textContent = '呼～已經恢復立正待機姿勢囉！隨時可以再拉我～😊';
+    });
+
+    function resetFingers() {
+      fingerState.handA.grabbedJoint = null;
+      fingerState.handA.hoveredJoint = null;
+      fingerState.handA.isPinching = false;
+      fingerState.handB.grabbedJoint = null;
+      fingerState.handB.hoveredJoint = null;
+      fingerState.handB.isPinching = false;
+      updateDiagnosticsUI();
+    }
+
+    function updateDiagnosticsUI() {
+      // Hand A
+      hand1Coord.textContent = `X: ${Math.round(fingerState.handA.x)}, Y: ${Math.round(fingerState.handA.y)}`;
+      hand1Joint.textContent = fingerState.handA.grabbedJoint || (fingerState.handA.hoveredJoint ? `${fingerState.handA.hoveredJoint} (吸附中)` : '無');
+      hand1ActionStatus.textContent = fingerState.handA.grabbedJoint ? '拉扯中' : (fingerState.handA.detected ? '已偵測' : '未出現');
+      hand1StatusBadge.textContent = `食指1: ${fingerState.handA.grabbedJoint ? '拉扯中' : (fingerState.handA.detected ? '已就緒' : '未偵測')}`;
+      hand1StatusBadge.className = `text-[10px] px-2 py-0.5 rounded border ${fingerState.handA.detected ? 'bg-cyan-950 text-cyan-300 border-cyan-500' : 'bg-slate-900 text-slate-500 border-slate-700'}`;
+
+      // Hand B
+      hand2Coord.textContent = `X: ${Math.round(fingerState.handB.x)}, Y: ${Math.round(fingerState.handB.y)}`;
+      hand2Joint.textContent = fingerState.handB.grabbedJoint || (fingerState.handB.hoveredJoint ? `${fingerState.handB.hoveredJoint} (吸附中)` : '無');
+      hand2ActionStatus.textContent = fingerState.handB.grabbedJoint ? '拉扯中' : (fingerState.handB.detected ? '已偵測' : '未出現');
+      hand2StatusBadge.textContent = `食指2: ${fingerState.handB.grabbedJoint ? '拉扯中' : (fingerState.handB.detected ? '已就緒' : '未偵測')}`;
+      hand2StatusBadge.className = `text-[10px] px-2 py-0.5 rounded border ${fingerState.handB.detected ? 'bg-pink-950 text-pink-300 border-pink-500' : 'bg-slate-900 text-slate-500 border-slate-700'}`;
+    }
+
+    // --- Preset Action Demos ---
+    document.getElementById('btnDemoSpreadArms').addEventListener('click', () => {
+      isSimulationActive = false;
+      fingerState.handA.detected = true;
+      fingerState.handB.detected = true;
+      fingerState.handA.x = 90;
+      fingerState.handA.y = 230;
+      fingerState.handA.grabbedJoint = 'leftHand';
+      fingerState.handB.x = 350;
+      fingerState.handB.y = 230;
+      fingerState.handB.grabbedJoint = 'rightHand';
+      updatePuppetLimbs();
+      updateDiagnosticsUI();
+      stageEmotion.textContent = '元氣';
+      stageDialogue.textContent = '哇～雙臂大張開！來一個大大的溫暖擁抱吧！🥰';
+    });
+
+    document.getElementById('btnDemoRaiseHands').addEventListener('click', () => {
+      isSimulationActive = false;
+      fingerState.handA.detected = true;
+      fingerState.handB.detected = true;
+      fingerState.handA.x = 150;
+      fingerState.handA.y = 120;
+      fingerState.handA.grabbedJoint = 'leftHand';
+      fingerState.handB.x = 290;
+      fingerState.handB.y = 120;
+      fingerState.handB.grabbedJoint = 'rightHand';
+      updatePuppetLimbs();
+      updateDiagnosticsUI();
+      stageEmotion.textContent = '歡呼';
+      stageDialogue.textContent = '好高興～萬歲！兩隻手一起向天空歡呼！🙌';
+    });
+
+    document.getElementById('btnDemoHeadAndHand').addEventListener('click', () => {
+      isSimulationActive = false;
+      fingerState.handA.detected = true;
+      fingerState.handB.detected = true;
+      fingerState.handA.x = 220;
+      fingerState.handA.y = 140;
+      fingerState.handA.grabbedJoint = 'head';
+      fingerState.handB.x = 330;
+      fingerState.handB.y = 300;
+      fingerState.handB.grabbedJoint = 'rightHand';
+      updatePuppetLimbs();
+      updateDiagnosticsUI();
+      stageEmotion.textContent = '害羞';
+      stageDialogue.textContent = '左邊摸頭、右邊牽手，主人太溫柔了啦...臉紅紅的～///';
+    });
+
+    document.getElementById('btnDemoWaveDance').addEventListener('click', () => {
+      isSimulationActive = true;
+      simTime = 0;
+      puppetStateText.textContent = '波浪舞蹈同步牽引中...';
+      triggerDualDialogue();
+    });
+
+    // --- Real Camera & MediaPipe Hands Integration ---
+    async function startWebcamDetection() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+        });
+        stageWebcam.srcObject = stream;
+        stageWebcam.classList.remove('hidden');
+        stageWebcam.style.opacity = '0.9';
+        isWebcamActive = true;
+        btnToggleCamFeed.textContent = '關閉視訊鏡頭';
+        btnToggleCamFeed.classList.replace('text-emerald-400', 'text-red-400');
+        puppetStateText.textContent = '真實鏡頭啟動中，請在鏡頭前伸出食指...';
+
+        // Load MediaPipe Hands
+        if (window.Hands) {
+          handsDetector = new window.Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+          });
+          handsDetector.setOptions({
+            maxNumHands: 2, // Enable Dual Hand Tracking
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+          });
+
+          handsDetector.onResults(onMediaPipeResults);
+
+          const processVideo = async () => {
+            if (!isWebcamActive) return;
+            if (stageWebcam.readyState >= 2) {
+              await handsDetector.send({ image: stageWebcam });
+            }
+            requestAnimationFrame(processVideo);
+          };
+          requestAnimationFrame(processVideo);
+        } else {
+          puppetStateText.textContent = '鏡頭已開啟 (MediaPipe 離線模式，可使用模擬或滑鼠)';
+        }
+      } catch (err) {
+        console.warn('Camera access failed:', err);
+        alert('無法存取視訊鏡頭，請檢查權限或繼續使用模擬按鈕。');
+      }
+    }
+
+    function stopWebcamDetection() {
+      if (stageWebcam.srcObject) {
+        stageWebcam.srcObject.getTracks().forEach(t => t.stop());
+        stageWebcam.srcObject = null;
+      }
+      stageWebcam.classList.add('hidden');
+      stageWebcam.style.opacity = '0';
+      isWebcamActive = false;
+      btnToggleCamFeed.textContent = '開啟真實鏡頭';
+      btnToggleCamFeed.classList.replace('text-red-400', 'text-emerald-400');
+      puppetStateText.textContent = '鏡頭已關閉';
+    }
+
+    btnToggleCamFeed.addEventListener('click', () => {
+      if (isWebcamActive) {
+        stopWebcamDetection();
+      } else {
+        startWebcamDetection();
+      }
+    });
+
+    // Callback on MediaPipe Hands detection results
+    function onMediaPipeResults(results) {
+      if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+        fingerState.handA.detected = false;
+        fingerState.handB.detected = false;
+        updateDiagnosticsUI();
+        return;
+      }
+
+      // We have 1 or 2 hands!
+      const rect = canvas.getBoundingClientRect();
+      const numHands = results.multiHandLandmarks.length;
+
+      // Update Hand A
+      if (numHands >= 1) {
+        const landmarksA = results.multiHandLandmarks[0];
+        const indexTipA = landmarksA[8]; // Index Finger Tip!
+        const thumbTipA = landmarksA[4];
+
+        fingerState.handA.detected = true;
+        // Mirror calculation: x = (1 - landmark.x)
+        fingerState.handA.x = (1 - indexTipA.x) * canvas.width;
+        fingerState.handA.y = indexTipA.y * canvas.height;
+
+        const pinchDistA = Math.hypot(indexTipA.x - thumbTipA.x, indexTipA.y - thumbTipA.y);
+        fingerState.handA.isPinching = pinchDistA < 0.08;
+
+        checkFingerHover(fingerState.handA);
+      } else {
+        fingerState.handA.detected = false;
+        fingerState.handA.grabbedJoint = null;
+      }
+
+      // Update Hand B (if second hand present)
+      if (numHands >= 2) {
+        const landmarksB = results.multiHandLandmarks[1];
+        const indexTipB = landmarksB[8]; // Index Finger Tip!
+        const thumbTipB = landmarksB[4];
+
+        fingerState.handB.detected = true;
+        fingerState.handB.x = (1 - indexTipB.x) * canvas.width;
+        fingerState.handB.y = indexTipB.y * canvas.height;
+
+        const pinchDistB = Math.hypot(indexTipB.x - thumbTipB.x, indexTipB.y - thumbTipB.y);
+        fingerState.handB.isPinching = pinchDistB < 0.08;
+
+        checkFingerHover(fingerState.handB);
+      } else {
+        fingerState.handB.detected = false;
+        fingerState.handB.grabbedJoint = null;
+      }
+
+      updatePuppetLimbs();
+      updateDiagnosticsUI();
+    }
+
+    // --- Mouse Fallback for Hand A ---
+    canvas.addEventListener('mousemove', (e) => {
+      if (isWebcamActive || isSimulationActive) return;
+      const rect = canvas.getBoundingClientRect();
+      fingerState.handA.detected = true;
+      fingerState.handA.x = e.clientX - rect.left;
+      fingerState.handA.y = e.clientY - rect.top;
+      checkFingerHover(fingerState.handA);
+      updatePuppetLimbs();
+      updateDiagnosticsUI();
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (isWebcamActive || isSimulationActive) return;
+      fingerState.handA.isPinching = true;
+      if (fingerState.handA.hoveredJoint) {
+        fingerState.handA.grabbedJoint = fingerState.handA.hoveredJoint;
+      }
+      updatePuppetLimbs();
+      updateDiagnosticsUI();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isWebcamActive || isSimulationActive) return;
+      fingerState.handA.isPinching = false;
+      fingerState.handA.grabbedJoint = null;
+      updateDiagnosticsUI();
+    });
+
+    // Start loops
+    render();
+    updateSimulation();
+  </script>
+</body>
+</html>
