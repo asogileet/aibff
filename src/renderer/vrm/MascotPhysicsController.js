@@ -102,7 +102,7 @@ export class MascotPhysicsController {
       slot.velocity.set(0, 0, 0);
       if (slot.vrm?.scene) {
         const base = this.avatarManager.getFrontRotation(slot.costumeKey);
-        slot.vrm.scene.rotation.y = base + (slot.patrolDir || 1) * 0.2;
+        slot.vrm.scene.rotation.y = (slot.patrolDir === -1) ? (base - Math.PI * 0.45) : (base + Math.PI * 0.45);
       }
       return true;
     }
@@ -302,16 +302,30 @@ export class MascotPhysicsController {
     slot.position.copy(scenePos);
 
     const baseFacing = this.avatarManager.getFrontRotation(slot.costumeKey);
+    const targetFacing = (slot.patrolDir === -1) ? (baseFacing - Math.PI * 0.45) : (baseFacing + Math.PI * 0.45);
+    slot.vrm.scene.rotation.y = THREE.MathUtils.lerp(slot.vrm.scene.rotation.y, targetFacing, Math.min(1.0, 12.0 * dt));
 
     // Wall bounce / direction flip
     if (scenePos.x >= maxX) {
       scenePos.x = maxX;
       slot.patrolDir = -1;
-      slot.vrm.scene.rotation.y = baseFacing - 0.2;
     } else if (scenePos.x <= minX) {
       scenePos.x = minX;
       slot.patrolDir = 1;
-      slot.vrm.scene.rotation.y = baseFacing + 0.2;
+    }
+
+    // Dynamic scale: If custom vanishing point is NOT configured, compensate camera perspective depth
+    // to maintain uniform apparent height across monitors; if custom vanishing point IS configured,
+    // preserve off-axis perspective scaling (closer to VP is smaller, further is bigger).
+    const hasVP = Boolean(this.sceneManager?.hasCustomVanishingPoint?.());
+    const baseScale = slot.scale || 1.0;
+    if (!hasVP && cam) {
+      const camDist = cam.position.distanceTo(scenePos);
+      const refDist = this.sceneManager.currentCameraDist || 3.3;
+      const comp = THREE.MathUtils.clamp(camDist / refDist, 0.65, 1.5);
+      slot.vrm.scene.scale.setScalar(baseScale * comp);
+    } else {
+      slot.vrm.scene.scale.setScalar(baseScale);
     }
 
     this.avatarManager.updateSelectionRing();
@@ -460,5 +474,8 @@ export class MascotPhysicsController {
     if (rightUpperLeg) rightUpperLeg.rotation.set(0, 0, 0);
     if (leftLowerLeg) leftLowerLeg.rotation.set(0, 0, 0);
     if (rightLowerLeg) rightLowerLeg.rotation.set(0, 0, 0);
+    if (slot.vrm?.scene) {
+      slot.vrm.scene.scale.setScalar(slot.scale || 1.0);
+    }
   }
 }

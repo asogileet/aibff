@@ -114,7 +114,6 @@ export class SceneManager {
     });
 
     window.addEventListener('mousemove', (e) => {
-      const isFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
       if (this.isRightDragging) {
         const deltaX = e.clientX - this.lastMousePos.x;
         const deltaY = e.clientY - this.lastMousePos.y;
@@ -124,11 +123,12 @@ export class SceneManager {
           // Shift + Right drag: Pan camera target (both X and Y)
           const panFactor = this.currentCameraDist * 0.0016;
           this.setCameraPan(this.targetPanX - deltaX * panFactor, this.targetPanY + deltaY * panFactor);
-        } else if (!isFullscreen) {
-          // Standard Right drag: Orbit around avatar (strictly disabled in multi-monitor fullscreen to preserve perpendicular projection)
-          this.targetOrbitTheta -= deltaX * 0.008;
-          this.targetOrbitPhi += deltaY * 0.006;
-          this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
+        } else {
+          // Standard Right drag: Smooth orbit with strict pitch clamp to prevent upside-down flipping
+          this.targetOrbitTheta -= deltaX * 0.003;
+          this.targetOrbitTheta = THREE.MathUtils.clamp(this.targetOrbitTheta, -1.15, 1.15); // ~±66° safe yaw
+          this.targetOrbitPhi += deltaY * 0.0025;
+          this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -0.52, 0.52); // ~±30° safe pitch (strictly prevents upside-down)
         }
       } else if (this.isMiddleDragging) {
         const deltaX = e.clientX - this.lastMousePos.x;
@@ -163,17 +163,15 @@ export class SceneManager {
     }, { passive: true });
 
     dom.addEventListener('touchmove', (e) => {
-      const isFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
       if (e.touches.length === 1 && this.lastTouchPos) {
         const deltaX = e.touches[0].clientX - this.lastTouchPos.x;
         const deltaY = e.touches[0].clientY - this.lastTouchPos.y;
         this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 
-        if (!isFullscreen) {
-          this.targetOrbitTheta -= deltaX * 0.008;
-          this.targetOrbitPhi += deltaY * 0.006;
-          this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -1.48, 1.48);
-        }
+        this.targetOrbitTheta -= deltaX * 0.003;
+        this.targetOrbitTheta = THREE.MathUtils.clamp(this.targetOrbitTheta, -1.15, 1.15);
+        this.targetOrbitPhi += deltaY * 0.0025;
+        this.targetOrbitPhi = THREE.MathUtils.clamp(this.targetOrbitPhi, -0.52, 0.52);
       } else if (e.touches.length === 2 && this.touchStartDist) {
         // Pinch-to-zoom distance
         const currentDist = Math.hypot(
@@ -422,6 +420,13 @@ export class SceneManager {
       gridStyle: this.gridStyle,
       showGuides: this.isGuidesVisible
     };
+  }
+
+  /**
+   * Check whether custom vanishing point perspective is enabled.
+   */
+  hasCustomVanishingPoint() {
+    return Math.abs(this.vpOffsetX) > 0.01 || Math.abs(this.vpOffsetY) > 0.01;
   }
 
   /**

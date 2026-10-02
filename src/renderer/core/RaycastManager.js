@@ -29,6 +29,12 @@ export class RaycastManager {
     this.lastDragTime = 0;
     this.dragVelocity = new THREE.Vector3();
 
+    // Avatar direct horizontal yaw rotation via right-click
+    this.isRightMouseDown = false;
+    this.isRotatingAvatar = false;
+    this.rotatedSlot = null;
+    this.lastRightMouseX = 0;
+
     this._bindEvents();
   }
 
@@ -90,8 +96,19 @@ export class RaycastManager {
       }
     }, { capture: true, passive: false });
 
-    // 2. Mouse Down: Hit check for avatar drag vs window drag vs joint puppet
+    // 2. Mouse Down: Hit check for avatar drag vs window drag vs joint puppet vs right-click avatar spin
     dom.addEventListener('mousedown', (e) => {
+      if (e.button === 2) {
+        const hitRes = this._getHitAvatar(e);
+        if (hitRes && hitRes.slot) {
+          this.isRightMouseDown = true;
+          this.isRotatingAvatar = true;
+          this.rotatedSlot = hitRes.slot;
+          this.lastRightMouseX = e.clientX;
+          e.stopPropagation();
+        }
+        return;
+      }
       if (e.button !== 0) return; // Left click only
 
       // When puppet mode is active, ordinary left-click pulls joints; Alt + Left-click allows window moving
@@ -157,6 +174,14 @@ export class RaycastManager {
 
     // 3. Mouse Move: Avatar translation or Electron window repositioning
     window.addEventListener('mousemove', (e) => {
+      if (this.isRotatingAvatar && this.rotatedSlot?.vrm?.scene) {
+        const deltaX = e.clientX - this.lastRightMouseX;
+        this.lastRightMouseX = e.clientX;
+        this.rotatedSlot.vrm.scene.rotation.y += deltaX * 0.015;
+        this.avatarController?.updateSelectionRing?.();
+        return;
+      }
+
       if (!this.isMouseDown) return;
 
       const deltaX = e.screenX - this.startPos.x;
@@ -221,6 +246,12 @@ export class RaycastManager {
 
     // 4. Mouse Up: Head pat vs drop/throw into free fall
     window.addEventListener('mouseup', (e) => {
+      if (e.button === 2) {
+        this.isRightMouseDown = false;
+        this.isRotatingAvatar = false;
+        this.rotatedSlot = null;
+      }
+
       if (!this.isMouseDown) return;
 
       const clickDuration = Date.now() - this.startTime;
