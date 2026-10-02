@@ -198,18 +198,26 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     if (layout && layout.primary && window.innerWidth > 600) {
       const primaryCenter = Math.round(layout.primary.offsetX + layout.primary.width / 2);
-      if (bottomToolbar) bottomToolbar.style.left = `${primaryCenter}px`;
+      if (bottomToolbar) {
+        bottomToolbar.style.left = `${primaryCenter}px`;
+        bottomToolbar.style.bottom = '52px'; // Elevate safely above Windows taskbar
+      }
       if (topBar) topBar.style.left = `${primaryCenter}px`;
       if (miniBar) miniBar.style.left = `${primaryCenter}px`;
       if (chatModal && !chatModal.classList.contains('docked-right')) {
         chatModal.style.left = `${primaryCenter}px`;
+        chatModal.style.bottom = '116px';
       }
     } else {
-      if (bottomToolbar) bottomToolbar.style.left = '';
+      if (bottomToolbar) {
+        bottomToolbar.style.left = '';
+        bottomToolbar.style.bottom = '';
+      }
       if (topBar) topBar.style.left = '';
       if (miniBar) miniBar.style.left = '';
       if (chatModal && !chatModal.classList.contains('docked-right')) {
         chatModal.style.left = '';
+        chatModal.style.bottom = '';
       }
     }
   };
@@ -220,12 +228,16 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (typeof puppetPoseBar !== 'undefined' && puppetPoseBar) {
         puppetPoseBar.setFullscreenState(isFull);
       }
-      if (isFull && window.electronAPI?.getDisplayLayout) {
-        try {
-          const layout = await window.electronAPI.getDisplayLayout();
-          updateUIPositioning(layout);
-        } catch (_) {}
+      if (isFull) {
+        if (sceneManager) sceneManager.setCameraPreset('full');
+        if (window.electronAPI?.getDisplayLayout) {
+          try {
+            const layout = await window.electronAPI.getDisplayLayout();
+            updateUIPositioning(layout);
+          } catch (_) {}
+        }
       } else {
+        if (sceneManager) sceneManager.setCameraPreset('bust');
         updateUIPositioning(null);
       }
       showBubble(isFull ? '🖥️ 已切換為多螢幕全域透明畫布模式！' : '已切換回桌面懸浮小視窗～', 'happy');
@@ -245,6 +257,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (window.electronAPI?.onDisplayMetricsChanged) {
     window.electronAPI.onDisplayMetricsChanged((layout) => {
       updateUIPositioning(layout);
+      if (layout && sceneManager) {
+        sceneManager.setCameraPreset('full');
+      } else if (!layout && sceneManager) {
+        sceneManager.setCameraPreset('bust');
+      }
     });
   }
 

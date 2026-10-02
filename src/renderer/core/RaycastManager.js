@@ -170,6 +170,18 @@ export class RaycastManager {
             const targetPos = this.dragIntersection.clone().add(this.dragOffset);
             targetPos.y = Math.max(0, targetPos.y); // Floor boundary
 
+            // Clamp horizontal drag position to visible screen boundaries
+            const cam = this.sceneManager.camera;
+            if (cam) {
+              const dist = Math.abs(cam.position.z - targetPos.z);
+              const vFov = (cam.fov * Math.PI) / 180;
+              const visibleH = 2 * Math.tan(vFov / 2) * dist;
+              const visibleW = visibleH * cam.aspect;
+              const halfW = visibleW / 2;
+              const safeMargin = Math.min(halfW * 0.35, 0.45 * (this.draggedSlot.scale || 1.0));
+              targetPos.x = THREE.MathUtils.clamp(targetPos.x, cam.position.x - halfW + safeMargin, cam.position.x + halfW - safeMargin);
+            }
+
             this.draggedSlot.vrm.scene.position.copy(targetPos);
             this.draggedSlot.position.copy(targetPos);
             this.avatarController.updateSelectionRing();

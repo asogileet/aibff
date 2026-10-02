@@ -113,6 +113,27 @@ export class MascotPhysicsController {
 
         // Apply velocity to 3D scene position
         scenePos.addScaledVector(slot.velocity, dt);
+
+        // Horizontal screen boundary wall bounce
+        if (cam) {
+          const dist = Math.abs(cam.position.z - scenePos.z);
+          const vFov = (cam.fov * Math.PI) / 180;
+          const visibleH = 2 * Math.tan(vFov / 2) * dist;
+          const visibleW = visibleH * cam.aspect;
+          const halfW = visibleW / 2;
+          const safeMargin = Math.min(halfW * 0.35, 0.45 * (slot.scale || 1.0));
+          const minX = cam.position.x - halfW + safeMargin;
+          const maxX = cam.position.x + halfW - safeMargin;
+
+          if (scenePos.x <= minX) {
+            scenePos.x = minX;
+            slot.velocity.x = Math.abs(slot.velocity.x) * 0.55; // Bounce right inward
+          } else if (scenePos.x >= maxX) {
+            scenePos.x = maxX;
+            slot.velocity.x = -Math.abs(slot.velocity.x) * 0.55; // Bounce left inward
+          }
+        }
+
         slot.position.copy(scenePos);
 
         // Air drag damping on horizontal speed

@@ -9,16 +9,17 @@ export class SceneManager {
 
     // Camera control parameters
     this.defaultCameraPos = new THREE.Vector3(0.0, 1.35, 1.8);
+    const isInitialFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
     this.bustTargetY = 1.25;      // Target height for bust / face close-up
-    this.fullBodyTargetY = 0.75;  // Target height for full body center
-    this.targetPanY = 1.25;
-    this.currentPanY = 1.25;
+    this.fullBodyTargetY = 0.72;  // Target height for full body standing grounded above floor
+    this.targetPanY = isInitialFullscreen ? this.fullBodyTargetY : this.bustTargetY;
+    this.currentPanY = this.targetPanY;
     this.targetPanX = 0.0;
     this.currentPanX = 0.0;
     this.isCustomTargetY = false;
-    this.cameraTarget = new THREE.Vector3(0.0, this.bustTargetY, 0.0);
-    this.currentCameraDist = 1.8;
-    this.targetCameraDist = 1.8;
+    this.cameraTarget = new THREE.Vector3(0.0, this.targetPanY, 0.0);
+    this.currentCameraDist = isInitialFullscreen ? 3.3 : 1.8;
+    this.targetCameraDist = this.currentCameraDist;
     this.minDist = 0.15;  // Extreme close-up micro zoom on face/eyes
     this.maxDist = 12.0;  // Full panoramic wide distance
 
@@ -245,20 +246,20 @@ export class SceneManager {
     if (phi !== undefined) this.targetOrbitPhi = THREE.MathUtils.clamp(phi, -1.48, 1.48);
   }
 
-  setCameraPreset(mode = 'toggle') {
+  setCameraPreset(mode = 'toggle', snap = false) {
     if (mode === 'bust') {
       this.targetCameraDist = 1.8;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 0.0;
       this.targetPanX = 0.0;
-      this.targetPanY = 1.25;
+      this.targetPanY = this.bustTargetY;
       this.isCustomTargetY = false;
     } else if (mode === 'full') {
-      this.targetCameraDist = 3.6;
+      this.targetCameraDist = 3.3;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 0.0;
       this.targetPanX = 0.0;
-      this.targetPanY = 0.75;
+      this.targetPanY = this.fullBodyTargetY;
       this.isCustomTargetY = false;
     } else if (mode === 'top') {
       this.targetCameraDist = 1.1;
@@ -276,10 +277,19 @@ export class SceneManager {
       this.isCustomTargetY = true;
     } else if (mode === 'toggle') {
       if (this.targetCameraDist > 2.6) {
-        this.setCameraPreset('bust');
+        this.setCameraPreset('bust', snap);
       } else {
-        this.setCameraPreset('full');
+        this.setCameraPreset('full', snap);
       }
+      return;
+    }
+
+    if (snap) {
+      this.currentCameraDist = this.targetCameraDist;
+      this.currentPanX = this.targetPanX;
+      this.currentPanY = this.targetPanY;
+      this.orbitTheta = this.targetOrbitTheta;
+      this.orbitPhi = this.targetOrbitPhi;
     }
   }
 
@@ -440,8 +450,8 @@ export class SceneManager {
 
   _updateCameraTransform() {
     if (!this.isCustomTargetY) {
-      // Dynamically calculate cameraTarget.y based on currentCameraDist
-      const t = THREE.MathUtils.clamp((this.currentCameraDist - 1.5) / (3.6 - 1.5), 0.0, 1.0);
+      // Dynamically calculate cameraTarget.y based on targetCameraDist
+      const t = THREE.MathUtils.clamp((this.targetCameraDist - 1.8) / (3.3 - 1.8), 0.0, 1.0);
       this.targetPanY = THREE.MathUtils.lerp(this.bustTargetY, this.fullBodyTargetY, t);
     }
     this.cameraTarget.x = this.currentPanX;
