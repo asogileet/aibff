@@ -20,8 +20,8 @@ export class SceneManager {
     this.cameraTarget = new THREE.Vector3(0.0, this.targetPanY, 0.0);
     this.currentCameraDist = isInitialFullscreen ? 3.3 : 1.8;
     this.targetCameraDist = this.currentCameraDist;
-    this.minDist = 0.15;  // Extreme close-up micro zoom on face/eyes
-    this.maxDist = 12.0;  // Full panoramic wide distance
+    this.minDist = 1.6;  // Safe close-up bust framing without penetrating VRM model mesh
+    this.maxDist = 4.2;  // Safe full-body wide distance keeping avatar clearly visible and grounded
 
     // Orbit angles (azimuth & elevation)
     this.orbitTheta = 0.0;       // Horizontal angle

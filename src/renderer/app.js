@@ -180,6 +180,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   sceneManager.addUpdatable(eyeTrackingController);
   sceneManager.addUpdatable(mascotPhysicsController);
 
+  if (window.electronAPI?.getDisplayLayout) {
+    window.electronAPI.getDisplayLayout().then((layout) => {
+      if (layout && mascotPhysicsController) {
+        mascotPhysicsController.setDisplayLayout(layout);
+      }
+    }).catch(() => {});
+  }
+
   // Mobile Web Audio autoplay policy unlock on first user gesture
   const unlockAudio = () => {
     if (lipSyncController.audioContext && lipSyncController.audioContext.state === 'suspended') {
@@ -233,11 +241,17 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (window.electronAPI?.getDisplayLayout) {
           try {
             const layout = await window.electronAPI.getDisplayLayout();
+            if (mascotPhysicsController) {
+              mascotPhysicsController.setDisplayLayout(layout);
+            }
             updateUIPositioning(layout);
           } catch (_) {}
         }
       } else {
         if (sceneManager) sceneManager.setCameraPreset('bust');
+        if (mascotPhysicsController) {
+          mascotPhysicsController.setDisplayLayout(null);
+        }
         updateUIPositioning(null);
       }
       showBubble(isFull ? '🖥️ 已切換為多螢幕全域透明畫布模式！' : '已切換回桌面懸浮小視窗～', 'happy');
@@ -257,6 +271,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (window.electronAPI?.onDisplayMetricsChanged) {
     window.electronAPI.onDisplayMetricsChanged((layout) => {
       updateUIPositioning(layout);
+      if (mascotPhysicsController) {
+        mascotPhysicsController.setDisplayLayout(layout);
+      }
       if (layout && sceneManager) {
         sceneManager.setCameraPreset('full');
       } else if (!layout && sceneManager) {
@@ -838,8 +855,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!isResting) {
       actionController.triggerHeadPat(hitPoint);
     }
-  });
+  }, avatarManager);
   raycastManager.setPuppetController(puppetController);
+  raycastManager.setMascotPhysicsController(mascotPhysicsController);
   toolbar.setPuppetActive(false);
 
   // Expose controllers for testing and inspection

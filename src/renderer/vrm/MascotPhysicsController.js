@@ -20,6 +20,45 @@ export class MascotPhysicsController {
 
     // Base bone node cache for restoring postures
     this.baseHipsPositions = new Map();
+    this.displayLayout = null;
+  }
+
+  setDisplayLayout(layout) {
+    this.displayLayout = layout;
+  }
+
+  /**
+   * Calculates the adaptive floor Y in 3D world space corresponding to the physical display at 3D X coordinate.
+   */
+  getFloorYAt(x) {
+    if (!this.displayLayout || !this.displayLayout.bounds || !this.displayLayout.displays?.length) {
+      return this.floorY;
+    }
+    const cam = this.sceneManager?.camera;
+    if (!cam) return this.floorY;
+
+    const bounds = this.displayLayout.bounds;
+    const vFov = (cam.fov * Math.PI) / 180;
+    const dist = this.sceneManager.currentCameraDist || 3.3;
+    const visibleH = 2 * Math.tan(vFov / 2) * dist;
+    const visibleW = visibleH * cam.aspect;
+
+    // Convert 3D world X to canvas screen pixel X
+    const screenNormX = (x - (cam.position.x - visibleW / 2)) / visibleW;
+    const pixelX = bounds.x + screenNormX * bounds.width;
+
+    // Find the physical display that contains pixelX
+    const disp = this.displayLayout.displays.find(d => pixelX >= d.x && pixelX < d.x + d.width)
+      || this.displayLayout.displays[0];
+
+    if (!disp) return this.floorY;
+
+    // The floor is positioned ~48px above the bottom of this specific display (avoiding taskbar)
+    const dispBottomY = disp.y + disp.height - 48;
+    const normY = (dispBottomY - bounds.y) / bounds.height;
+    const floor3D = (cam.position.y + visibleH / 2) - normY * visibleH;
+
+    return Math.max(this.floorY, floor3D);
   }
 
   setGravity(val) {
@@ -110,9 +149,11 @@ export class MascotPhysicsController {
       if (slot.physicsState === 'falling') {
         // Integrate gravity
         slot.velocity.y -= this.gravity * dt;
+        slot.velocity.z = 0;
 
         // Apply velocity to 3D scene position
         scenePos.addScaledVector(slot.velocity, dt);
+        scenePos.z = 0; // Strictly lock Z to 2.5D plane
 
         // Horizontal screen boundary wall bounce
         if (cam) {
@@ -142,10 +183,11 @@ export class MascotPhysicsController {
         // Animate limbs slightly while falling (arms outward for balance)
         this._updateFallingLimbAnimation(humanoid);
 
-        // Floor collision detection
-        if (scenePos.y <= this.floorY) {
-          scenePos.y = this.floorY;
-          slot.position.y = this.floorY;
+        // Adaptive floor collision detection across multi-monitor setup
+        const curFloor = this.getFloorYAt(scenePos.x);
+        if (scenePos.y <= curFloor) {
+          scenePos.y = curFloor;
+          slot.position.y = curFloor;
 
           const impactSpeed = -slot.velocity.y;
 
@@ -201,7 +243,12 @@ export class MascotPhysicsController {
 
     const speed = (slot.patrolSpeed || 0.85) * (slot.scale || 1.0);
     scenePos.x += (slot.patrolDir || 1) * speed * dt;
-    scenePos.y = this.floorY;
+    scenePos.z = 0; // Strictly lock Z depth
+    slot.velocity.z = 0;
+
+    // Adaptive floor level stepping across monitors
+    const targetFloor = this.getFloorYAt(scenePos.x);
+    scenePos.y = THREE.MathUtils.lerp(scenePos.y, targetFloor, Math.min(1.0, 8.0 * dt));
     slot.position.copy(scenePos);
 
     const baseFacing = this.avatarManager.getFrontRotation(slot.costumeKey);
@@ -210,11 +257,11 @@ export class MascotPhysicsController {
     if (scenePos.x >= maxX) {
       scenePos.x = maxX;
       slot.patrolDir = -1;
-      slot.vrm.scene.rotation.y = baseFacing - 0.45; // Turn slightly left
+      slot.vrm.scene.rotation.y = baseFacing - Math.PI * 0.35;
     } else if (scenePos.x <= minX) {
       scenePos.x = minX;
       slot.patrolDir = 1;
-      slot.vrm.scene.rotation.y = baseFacing + 0.45; // Turn slightly right
+      slot.vrm.scene.rotation.y = baseFacing + Math.PI * 0.35;
     }
 
     this.avatarManager.updateSelectionRing();

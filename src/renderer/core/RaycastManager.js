@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 
 export class RaycastManager {
-  constructor(sceneManager, avatarController, onHeadPat) {
+  constructor(sceneManager, avatarController, onHeadPat, avatarManager = null) {
     this.sceneManager = sceneManager;
     this.avatarController = avatarController;
+    this.avatarManager = avatarManager || (avatarController?.slots ? avatarController : null);
     this.onHeadPat = onHeadPat;
+    this.mascotPhysicsController = null;
 
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
@@ -28,6 +30,10 @@ export class RaycastManager {
     this.dragVelocity = new THREE.Vector3();
 
     this._bindEvents();
+  }
+
+  setMascotPhysicsController(controller) {
+    this.mascotPhysicsController = controller;
   }
 
   setPuppetController(puppetController) {
@@ -77,7 +83,10 @@ export class RaycastManager {
         const curScale = hitRes.slot.scale || 1.0;
         const delta = e.deltaY < 0 ? 0.08 : -0.08;
         const newScale = THREE.MathUtils.clamp(curScale + delta, 0.35, 2.5);
-        this.avatarController.setScale(hitRes.index, newScale);
+        const mgr = this.avatarManager || this.avatarController;
+        if (mgr && typeof mgr.setScale === 'function') {
+          mgr.setScale(hitRes.index, newScale);
+        }
       }
     }, { capture: true, passive: false });
 
@@ -168,7 +177,9 @@ export class RaycastManager {
           this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
           if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragIntersection)) {
             const targetPos = this.dragIntersection.clone().add(this.dragOffset);
-            targetPos.y = Math.max(0, targetPos.y); // Floor boundary
+            targetPos.z = 0; // Strictly lock Z depth to 2.5D plane
+            const minFloorY = this.mascotPhysicsController ? this.mascotPhysicsController.getFloorYAt(targetPos.x) : 0;
+            targetPos.y = Math.max(minFloorY, targetPos.y); // Dynamic floor boundary per monitor
 
             // Clamp horizontal drag position to visible screen boundaries
             const cam = this.sceneManager.camera;
@@ -190,6 +201,7 @@ export class RaycastManager {
             const dt = (now - this.lastDragTime) / 1000;
             if (dt > 0.012) {
               this.dragVelocity.subVectors(targetPos, this.lastDragPos).divideScalar(dt);
+              this.dragVelocity.z = 0;
               this.lastDragPos.copy(targetPos);
               this.lastDragTime = now;
             }
@@ -229,8 +241,9 @@ export class RaycastManager {
           this.draggedSlot.physicsState = 'idle';
         } else {
           // Released from drag / throw!
+          const curFloor = this.mascotPhysicsController ? this.mascotPhysicsController.getFloorYAt(this.draggedSlot.vrm.scene.position.x) : 0;
           const curY = this.draggedSlot.vrm.scene.position.y;
-          if (curY > 0.05 || Math.abs(this.dragVelocity.y) > 0.25) {
+          if (curY > curFloor + 0.05 || Math.abs(this.dragVelocity.y) > 0.25) {
             this.draggedSlot.physicsState = 'falling';
             // Clamp release velocity to safe values
             this.dragVelocity.x = THREE.MathUtils.clamp(this.dragVelocity.x, -5.5, 5.5);
