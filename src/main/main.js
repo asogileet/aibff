@@ -2,6 +2,10 @@ const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage, sc
 const path = require('path');
 const fs = require('fs');
 
+// Force 1:1 physical pixel mapping across mixed-DPI multi-monitor setups
+app.commandLine.appendSwitch('high-dpi-support', '1');
+app.commandLine.appendSwitch('force-device-scale-factor', '1');
+
 let mainWindow = null;
 let tray = null;
 let isResting = false;
@@ -164,6 +168,44 @@ function registerShortcuts() {
   });
 }
 
+// Multi-Monitor Layout & Bounding Box Calculation
+function getMultiMonitorLayout() {
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  if (!displays || displays.length === 0) {
+    return {
+      bounds: { x: primary.bounds.x, y: primary.bounds.y, width: primary.bounds.width, height: primary.bounds.height },
+      primary: { offsetX: 0, offsetY: 0, width: primary.bounds.width, height: primary.bounds.height },
+      displays: [primary.bounds]
+    };
+  }
+
+  const minX = Math.min(...displays.map(d => d.bounds.x));
+  const minY = Math.min(...displays.map(d => d.bounds.y));
+  const maxX = Math.max(...displays.map(d => d.bounds.x + d.bounds.width));
+  const maxY = Math.max(...displays.map(d => d.bounds.y + d.bounds.height));
+
+  const totalBounds = {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY
+  };
+
+  const primaryRelative = {
+    offsetX: primary.bounds.x - minX,
+    offsetY: primary.bounds.y - minY,
+    width: primary.bounds.width,
+    height: primary.bounds.height
+  };
+
+  return {
+    bounds: totalBounds,
+    primary: primaryRelative,
+    displays: displays.map(d => d.bounds)
+  };
+}
+
 let isFullscreenCanvas = false;
 let lastWindowBounds = null;
 
@@ -174,16 +216,22 @@ ipcMain.on('window:move', (event, { mouseX, mouseY }) => {
   mainWindow.setPosition(x + mouseX, y + mouseY);
 });
 
+ipcMain.handle('window:get-display-layout', () => {
+  return getMultiMonitorLayout();
+});
+
 ipcMain.handle('window:toggle-fullscreen', () => {
   if (!mainWindow) return false;
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
   isFullscreenCanvas = !isFullscreenCanvas;
   if (isFullscreenCanvas) {
     lastWindowBounds = mainWindow.getBounds();
-    mainWindow.setBounds({ x: 0, y: 0, width: screenWidth, height: screenHeight });
+    const layout = getMultiMonitorLayout();
+    mainWindow.setBounds(layout.bounds);
+    mainWindow.webContents.send('window:display-metrics-changed', layout);
   } else {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
     const fallbackBounds = {
       width: 480,
       height: 720,
@@ -191,6 +239,7 @@ ipcMain.handle('window:toggle-fullscreen', () => {
       y: Math.max(0, screenHeight - 720 - 10)
     };
     mainWindow.setBounds(lastWindowBounds || fallbackBounds);
+    mainWindow.webContents.send('window:display-metrics-changed', null);
   }
   return isFullscreenCanvas;
 });
@@ -270,6 +319,18 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   registerShortcuts();
+
+  // Dynamically update fullscreen bounds if monitors are added, removed, or resolution changes
+  const handleDisplayChange = () => {
+    if (mainWindow && isFullscreenCanvas) {
+      const layout = getMultiMonitorLayout();
+      mainWindow.setBounds(layout.bounds);
+      mainWindow.webContents.send('window:display-metrics-changed', layout);
+    }
+  };
+  screen.on('display-metrics-changed', handleDisplayChange);
+  screen.on('display-added', handleDisplayChange);
+  screen.on('display-removed', handleDisplayChange);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -104,7 +104,7 @@ export class PuppetPoseBar {
         const isFull = await window.electronAPI.toggleFullscreen();
         this.setFullscreenState(isFull);
         if (isFull) {
-          this.onShowBubble?.('🖥️ 已切換為全螢幕透明畫布！整個螢幕都是活動空間～✨（按住右鍵旋轉，Shift+右鍵或中鍵可平移）', 'happy');
+          this.onShowBubble?.('🖥️ 已切換為多螢幕全域透明畫布！全部螢幕都是活動空間～✨（按住右鍵旋轉，Shift+右鍵或中鍵可平移）', 'happy');
         } else {
           this.onShowBubble?.('已切換回桌面懸浮小視窗～', 'happy');
         }

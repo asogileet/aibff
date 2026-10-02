@@ -189,17 +189,64 @@ window.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('touchstart', unlockAudio, { once: true });
   window.addEventListener('click', unlockAudio, { once: true });
 
+  // Multi-Monitor UI Alignment Helper
+  const updateUIPositioning = (layout) => {
+    const bottomToolbar = document.getElementById('bottomToolbar');
+    const topBar = document.getElementById('multiAvatarBar');
+    const miniBar = document.getElementById('miniAvatarRestoreBar');
+    const chatModal = document.getElementById('chatModal');
+
+    if (layout && layout.primary && window.innerWidth > 600) {
+      const primaryCenter = Math.round(layout.primary.offsetX + layout.primary.width / 2);
+      if (bottomToolbar) bottomToolbar.style.left = `${primaryCenter}px`;
+      if (topBar) topBar.style.left = `${primaryCenter}px`;
+      if (miniBar) miniBar.style.left = `${primaryCenter}px`;
+      if (chatModal && !chatModal.classList.contains('docked-right')) {
+        chatModal.style.left = `${primaryCenter}px`;
+      }
+    } else {
+      if (bottomToolbar) bottomToolbar.style.left = '';
+      if (topBar) topBar.style.left = '';
+      if (miniBar) miniBar.style.left = '';
+      if (chatModal && !chatModal.classList.contains('docked-right')) {
+        chatModal.style.left = '';
+      }
+    }
+  };
+
+  const handleToggleFullscreen = async () => {
+    if (window.electronAPI?.toggleFullscreen) {
+      const isFull = await window.electronAPI.toggleFullscreen();
+      if (typeof puppetPoseBar !== 'undefined' && puppetPoseBar) {
+        puppetPoseBar.setFullscreenState(isFull);
+      }
+      if (isFull && window.electronAPI?.getDisplayLayout) {
+        try {
+          const layout = await window.electronAPI.getDisplayLayout();
+          updateUIPositioning(layout);
+        } catch (_) {}
+      } else {
+        updateUIPositioning(null);
+      }
+      showBubble(isFull ? '🖥️ 已切換為多螢幕全域透明畫布模式！' : '已切換回桌面懸浮小視窗～', 'happy');
+      return isFull;
+    }
+    return false;
+  };
+
   // F11 Fullscreen Canvas shortcut
   window.addEventListener('keydown', async (e) => {
     if (e.key === 'F11') {
       e.preventDefault();
-      if (window.electronAPI?.toggleFullscreen) {
-        const isFull = await window.electronAPI.toggleFullscreen();
-        if (puppetPoseBar) puppetPoseBar.setFullscreenState(isFull);
-        showBubble(isFull ? '🖥️ 已切換為全螢幕透明畫布模式！' : '已切換回桌面懸浮小視窗～', 'happy');
-      }
+      await handleToggleFullscreen();
     }
   });
+
+  if (window.electronAPI?.onDisplayMetricsChanged) {
+    window.electronAPI.onDisplayMetricsChanged((layout) => {
+      updateUIPositioning(layout);
+    });
+  }
 
   // 3. UI & Feature Modules
   let isResting = false;
@@ -306,11 +353,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       return true;
     }
     if (trimmed === '/fullscreen' || trimmed === '/fs') {
-      if (window.electronAPI?.toggleFullscreen) {
-        const isFull = await window.electronAPI.toggleFullscreen();
-        puppetPoseBar.setFullscreenState(isFull);
-        showBubble(isFull ? '🖥️ 已切換為全螢幕透明畫布模式！' : '已切換回桌面懸浮小視窗～', 'happy');
-      }
+      await handleToggleFullscreen();
       return true;
     }
     if (trimmed === '/ar' || trimmed === '/ar toggle') {
@@ -715,6 +758,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Calculate initial bubble offset
   updateBubbleOffset();
+
+  // Initial multi-monitor layout positioning if starting in fullscreen mode
+  if (window.innerWidth > 600 && window.electronAPI?.getDisplayLayout) {
+    window.electronAPI.getDisplayLayout().then(layout => {
+      updateUIPositioning(layout);
+    }).catch(() => {});
+  }
 
   // 4. Action Controller Dispatcher
   const actionController = new ActionController(

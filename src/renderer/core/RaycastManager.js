@@ -85,7 +85,7 @@ export class RaycastManager {
     dom.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return; // Left click only
 
-      // When puppet mode is active, ordinary left-click pulls joints; Alt + Left-click allows avatar moving
+      // When puppet mode is active, ordinary left-click pulls joints; Alt + Left-click allows window moving
       if (this.puppetController && this.puppetController.isEnabled) {
         if (e.altKey && window.innerWidth <= 600 && window.electronAPI) {
           this.isMouseDown = true;
@@ -93,6 +93,18 @@ export class RaycastManager {
           this.startPos = { x: e.screenX, y: e.screenY };
           this.startTime = Date.now();
         }
+        return;
+      }
+
+      // Holding Alt in small window mode forces dragging the OS window across screens
+      if (e.altKey && window.innerWidth <= 600 && window.electronAPI) {
+        this.isMouseDown = true;
+        this.isDragging = false;
+        this.startPos = { x: e.screenX, y: e.screenY };
+        this.startTime = Date.now();
+        this.draggedSlot = null;
+        this.draggedSlotIndex = -1;
+        this.initialHitPoint = null;
         return;
       }
 

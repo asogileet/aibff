@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三螢幕跨屏透明巨幅畫布與桌寵漫遊 - 互動模擬 (Multi-Monitor Canvas Mockup)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .screen-bezel {
+      border: 4px solid #334155;
+      background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
+    }
+    .grid-lines {
+      background-size: 30px 30px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    }
+    .frustum-overlay {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none">
+  <!-- Top Bar -->
+  <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-500 flex items-center justify-center text-xl shadow-lg shadow-cyan-500/20">
+        🖥️
+      </div>
+      <div>
+        <h1 class="text-base font-bold tracking-tight text-white flex items-center space-x-2">
+          <span>三螢幕全域透明巨幅畫布與人偶漫遊 (方案 A)</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">互動原型</span>
+        </h1>
+        <p class="text-xs text-slate-400">解決人偶無法移動至其他螢幕、巡邏邊界狹窄的根本原因與跨屏解決方案</p>
+      </div>
+    </div>
+
+    <!-- Quick Control Switches -->
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center bg-slate-800/80 p-1 rounded-xl border border-slate-700 text-xs">
+        <button id="btnModeSingle" class="px-3 py-1.5 rounded-lg transition font-medium text-slate-400 hover:text-white">
+          現狀 (單螢幕畫布)
+        </button>
+        <button id="btnModeMulti" class="px-3 py-1.5 rounded-lg transition font-medium bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30">
+          方案 A (三螢幕跨屏大畫布)
+        </button>
+      </div>
+      <button id="btnTogglePatrol" class="flex items-center space-x-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition">
+        <span>🏃</span>
+        <span id="patrolStatusText">啟動跨屏漫遊</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Stage -->
+  <main class="flex-1 p-6 flex flex-col items-center justify-center max-w-7xl mx-auto w-full">
+    <!-- Monitor Configuration Overview Badges -->
+    <div class="w-full flex justify-between items-center mb-3 text-xs text-slate-400 px-2">
+      <div class="flex items-center space-x-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>實體環境已偵測：3 台顯示器 (虛擬桌面總寬度 6,400px)</span>
+      </div>
+      <div id="statusTip" class="text-cyan-400 font-mono">
+        人偶位置: X = 0px (中央主螢幕)
+      </div>
+    </div>
+
+    <!-- Multi-Monitor Virtual Workspace Viewport -->
+    <div class="w-full bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 shadow-2xl relative">
+      <!-- 3 Physical Monitors Simulation Container -->
+      <div class="relative w-full h-[360px] flex items-end justify-center gap-2">
+        
+        <!-- Monitor 3: Left Screen (DISPLAY6) -->
+        <div id="monLeft" class="screen-bezel flex-1 h-[320px] rounded-xl flex flex-col justify-between p-3 border-slate-700">
+          <div class="flex justify-between items-center text-[11px] text-slate-400">
+            <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-medium">螢幕 3 (左側)</span>
+            <span class="font-mono text-[10px]">X: -1920 ~ 0</span>
+          </div>
+          <div class="flex-1 flex items-center justify-center text-slate-600 text-xs font-medium">
+            DISPLAY6 (1920 × 1080)
+          </div>
+          <div class="text-[10px] text-slate-500 text-center py-1 bg-slate-900/50 rounded">左側延伸輔助螢幕</div>
+        </div>
+
+        <!-- Monitor 1: Primary Screen (DISPLAY1) -->
+        <div id="monCenter" class="screen-bezel flex-1 h-[340px] rounded-xl flex flex-col justify-between p-3 border-cyan-500/50 ring-2 ring-cyan-500/20">
+          <div class="flex justify-between items-center text-[11px] text-cyan-300">
+            <span class="px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-300 font-mono font-medium border border-cyan-500/40">★ 主螢幕 1 (中央)</span>
+            <span class="font-mono text-[10px]">X: 0 ~ 1707</span>
+          </div>
+          <div class="flex-1 flex items-center justify-center text-slate-600 text-xs font-medium">
+            DISPLAY1 (1707 × 1067)
+          </div>
+          <div class="text-[10px] text-cyan-500/70 text-center py-1 bg-cyan-950/40 rounded">主要工作桌面與主工具列位置</div>
+        </div>
+
+        <!-- Monitor 2: Right Screen (DISPLAY5) -->
+        <div id="monRight" class="screen-bezel flex-1 h-[320px] rounded-xl flex flex-col justify-between p-3 border-slate-700">
+          <div class="flex justify-between items-center text-[11px] text-slate-400">
+            <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-medium">螢幕 2 (右側)</span>
+            <span class="font-mono text-[10px]">X: 2560 ~ 4480</span>
+          </div>
+          <div class="flex-1 flex items-center justify-center text-slate-600 text-xs font-medium">
+            DISPLAY5 (1920 × 1080)
+          </div>
+          <div class="text-[10px] text-slate-500 text-center py-1 bg-slate-900/50 rounded">右側延伸輔助螢幕</div>
+        </div>
+
+        <!-- Canvas Frustum Overlay (Visualizes Active Transparent Electron Window) -->
+        <div id="canvasFrustum" class="frustum-overlay rounded-xl border-2 border-dashed transition-all duration-300">
+          <div id="canvasLabel" class="absolute top-2 left-2 text-[10px] font-mono px-2 py-0.5 rounded font-bold"></div>
+        </div>
+
+        <!-- Interactive Avatar (Draggable & Patrol Target) -->
+        <div id="avatar" class="absolute bottom-6 cursor-grab active:cursor-grabbing transition-transform select-none z-30 flex flex-col items-center">
+          <!-- Speech / Emote Bubble -->
+          <div id="avatarBubble" class="mb-1 px-2.5 py-1 rounded-full bg-slate-900/90 text-cyan-300 text-xs border border-cyan-500/50 shadow-lg whitespace-nowrap opacity-0 transition-opacity">
+            我可以在三台螢幕散步囉！✨
+          </div>
+          <!-- Avatar Visual Representation -->
+          <div class="w-16 h-28 relative flex items-center justify-center">
+            <div class="text-4xl filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] transform hover:scale-110 transition-transform">
+              👧
+            </div>
+            <!-- Selection / Ground Ring -->
+            <div class="absolute bottom-0 w-12 h-3 rounded-full border border-cyan-400/80 bg-cyan-400/20 blur-[0.5px]"></div>
+          </div>
+        </div>
+
+        <!-- Primary Docked Toolbar (Centered on Primary Monitor) -->
+        <div id="mockToolbar" class="absolute bottom-5 z-20 px-4 py-2 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700 shadow-xl flex items-center space-x-3 text-xs text-slate-300">
+          <span>🎤 語音</span>
+          <span>💬 對話</span>
+          <span>👗 換裝</span>
+          <span>💃 動作</span>
+          <span class="text-cyan-400 font-medium">✨ 桌寵工具列</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Comparative Breakdown Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full mt-6">
+      <!-- Card 1: 現狀限制分析 -->
+      <div class="bg-slate-900/50 p-4 rounded-xl border border-rose-500/20 text-xs space-y-2">
+        <div class="flex items-center space-x-2 text-rose-400 font-bold">
+          <span>⚠️</span>
+          <span>現狀限制（為何人偶只能在單一螢幕且範圍變小）</span>
+        </div>
+        <ul class="text-slate-400 space-y-1.5 list-disc pl-4 leading-relaxed">
+          <li><strong>畫布僅抓取主螢幕</strong>：Electron 原先在切換全螢幕時僅使用 <code class="text-rose-300 font-mono">screen.getPrimaryDisplay()</code>，透明畫布完全無法跨足螢幕 2 與 螢幕 3。</li>
+          <li><strong>3D 射線拾取限制</strong>：滑鼠拖曳人偶改為 3D 空間位移，人偶被拘束在當前 WebGL 畫布視窗邊界內，不再如同以往移動整座 OS 視窗。</li>
+          <li><strong>漫遊視錐邊界縮水</strong>：相機漫遊範圍 <code class="text-rose-300 font-mono">visibleW</code> 是依單一螢幕長寬比計算並扣除安全邊距，因此折返範圍顯著變小。</li>
+        </ul>
+      </div>
+
+      <!-- Card 2: 方案 A 實施後效益 -->
+      <div class="bg-slate-900/50 p-4 rounded-xl border border-cyan-500/20 text-xs space-y-2">
+        <div class="flex items-center space-x-2 text-cyan-400 font-bold">
+          <span>✨</span>
+          <span>方案 A 實施後（三螢幕全域透明巨幅畫布）</span>
+        </div>
+        <ul class="text-slate-400 space-y-1.5 list-disc pl-4 leading-relaxed">
+          <li><strong>總邊界動態聯集</strong>：Electron 主進程動態計算所有連線顯示器 <code class="text-cyan-300 font-mono">screen.getAllDisplays()</code> 的外接矩形（X: -1920 ~ 4480，寬 6400px）。</li>
+          <li><strong>相機長寬比與視錐延伸</strong>：Three.js 相機視錐水平寬度動態放寬至多螢幕總跨度，漫遊範圍（Patrol Range）自動擴展至 3 台螢幕。</li>
+          <li><strong>自由拖曳穿梭</strong>：使用者點擊人偶即可隨心所欲拖至左側螢幕或右側螢幕，放下後自由著陸或開啟巡邏。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Quick Action Buttons -->
+    <div class="flex items-center justify-center space-x-3 mt-4 text-xs">
+      <span class="text-slate-400">快速傳送人偶測試：</span>
+      <button id="btnTpLeft" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">傳送到螢幕 3 (左)</button>
+      <button id="btnTpCenter" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">傳送回主螢幕 1 (中)</button>
+      <button id="btnTpRight" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">傳送到螢幕 2 (右)</button>
+    </div>
+  </main>
+
+  <script>
+    // Elements
+    const btnModeSingle = document.getElementById('btnModeSingle');
+    const btnModeMulti = document.getElementById('btnModeMulti');
+    const btnTogglePatrol = document.getElementById('btnTogglePatrol');
+    const patrolStatusText = document.getElementById('patrolStatusText');
+    const canvasFrustum = document.getElementById('canvasFrustum');
+    const canvasLabel = document.getElementById('canvasLabel');
+    const avatar = document.getElementById('avatar');
+    const avatarBubble = document.getElementById('avatarBubble');
+    const statusTip = document.getElementById('statusTip');
+    const mockToolbar = document.getElementById('mockToolbar');
+
+    const monLeft = document.getElementById('monLeft');
+    const monCenter = document.getElementById('monCenter');
+    const monRight = document.getElementById('monRight');
+
+    let currentMode = 'multi'; // 'single' | 'multi'
+    let isPatrolling = false;
+    let patrolDirection = 1;
+    let patrolAnimId = null;
+
+    // Simulation Bounds (Percentages across the 3-monitor container)
+    // Left Mon: ~0% - 32%
+    // Center Mon: ~34% - 66%
+    // Right Mon: ~68% - 100%
+    const SINGLE_BOUNDS = { min: 38, max: 62 }; // Restricted to center monitor
+    const MULTI_BOUNDS = { min: 4, max: 96 };   // Spans all 3 monitors
+
+    let avatarPosPercent = 50; // Center
+
+    function updateModeUI() {
+      if (currentMode === 'single') {
+        btnModeSingle.className = 'px-3 py-1.5 rounded-lg transition font-medium bg-rose-500 text-white shadow-md shadow-rose-500/30';
+        btnModeMulti.className = 'px-3 py-1.5 rounded-lg transition font-medium text-slate-400 hover:text-white';
+        
+        // Frustum restricted to center monitor
+        canvasFrustum.style.left = '33.8%';
+        canvasFrustum.style.width = '32.4%';
+        canvasFrustum.className = 'frustum-overlay rounded-xl border-2 border-rose-500/60 bg-rose-500/5 transition-all duration-300';
+        canvasLabel.className = 'absolute top-2 left-2 text-[10px] font-mono px-2 py-0.5 rounded font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40';
+        canvasLabel.innerText = '單螢幕透明畫布 (僅限 DISPLAY1: 1707×1067)';
+
+        // Position toolbar
+        mockToolbar.style.left = '50%';
+        mockToolbar.style.transform = 'translateX(-50%)';
+
+        // Clamp avatar if outside
+        if (avatarPosPercent < SINGLE_BOUNDS.min) setAvatarPos(SINGLE_BOUNDS.min);
+        if (avatarPosPercent > SINGLE_BOUNDS.max) setAvatarPos(SINGLE_BOUNDS.max);
+      } else {
+        btnModeMulti.className = 'px-3 py-1.5 rounded-lg transition font-medium bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30';
+        btnModeSingle.className = 'px-3 py-1.5 rounded-lg transition font-medium text-slate-400 hover:text-white';
+
+        // Frustum covers entire 3 monitors
+        canvasFrustum.style.left = '0%';
+        canvasFrustum.style.width = '100%';
+        canvasFrustum.className = 'frustum-overlay rounded-xl border-2 border-cyan-500/70 bg-cyan-500/5 transition-all duration-300';
+        canvasLabel.className = 'absolute top-2 left-2 text-[10px] font-mono px-2 py-0.5 rounded font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/40';
+        canvasLabel.innerText = '三螢幕聯集透明巨幅畫布 (涵蓋 DISPLAY6 + DISPLAY1 + DISPLAY5: 6400×1147)';
+
+        // Position toolbar (Anchored to primary monitor center)
+        mockToolbar.style.left = '50%';
+        mockToolbar.style.transform = 'translateX(-50%)';
+      }
+    }
+
+    function setAvatarPos(percent) {
+      const bounds = currentMode === 'single' ? SINGLE_BOUNDS : MULTI_BOUNDS;
+      avatarPosPercent = Math.max(bounds.min, Math.min(bounds.max, percent));
+      avatar.style.left = `${avatarPosPercent}%`;
+
+      // Identify which screen avatar is on
+      let screenName = '螢幕 1 (中央主螢幕)';
+      let screenColor = 'text-cyan-400';
+      if (avatarPosPercent < 33) {
+        screenName = '螢幕 3 (左側 DISPLAY6)';
+        screenColor = 'text-amber-400';
+      } else if (avatarPosPercent > 67) {
+        screenName = '螢幕 2 (右側 DISPLAY5)';
+        screenColor = 'text-emerald-400';
+      }
+      statusTip.innerHTML = `人偶目前位置: <span class="${screenColor} font-semibold">${screenName}</span> (跨屏坐標: ${(avatarPosPercent * 64 - 1920).toFixed(0)}px)`;
+    }
+
+    function showBubble(text) {
+      avatarBubble.innerText = text;
+      avatarBubble.style.opacity = '1';
+      setTimeout(() => {
+        avatarBubble.style.opacity = '0';
+      }, 2500);
+    }
+
+    // Dragging Logic
+    let isDragging = false;
+    let dragStartX = 0;
+    let startPercent = 0;
+
+    avatar.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      if (isPatrolling) stopPatrol();
+      dragStartX = e.clientX;
+      startPercent = avatarPosPercent;
+      document.body.style.cursor = 'grabbing';
+      showBubble('抓到我了～要把我放到哪個螢幕呢？');
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const containerRect = canvasFrustum.parentElement.getBoundingClientRect();
+      const deltaX = e.clientX - dragStartX;
+      const deltaPercent = (deltaX / containerRect.width) * 100;
+      setAvatarPos(startPercent + deltaPercent);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        document.body.style.cursor = 'default';
+        showBubble('著陸完畢！✨');
+      }
+    });
+
+    // Patrol Roaming Loop
+    function startPatrol() {
+      isPatrolling = true;
+      patrolStatusText.innerText = '停止漫遊';
+      showBubble('開始跨螢幕散步囉～');
+      const step = () => {
+        const bounds = currentMode === 'single' ? SINGLE_BOUNDS : MULTI_BOUNDS;
+        const speed = currentMode === 'single' ? 0.12 : 0.22;
+        avatarPosPercent += patrolDirection * speed;
+
+        if (avatarPosPercent >= bounds.max) {
+          avatarPosPercent = bounds.max;
+          patrolDirection = -1;
+          avatar.querySelector('.text-4xl').style.transform = 'scaleX(-1)';
+        } else if (avatarPosPercent <= bounds.min) {
+          avatarPosPercent = bounds.min;
+          patrolDirection = 1;
+          avatar.querySelector('.text-4xl').style.transform = 'scaleX(1)';
+        }
+
+        setAvatarPos(avatarPosPercent);
+        patrolAnimId = requestAnimationFrame(step);
+      };
+      patrolAnimId = requestAnimationFrame(step);
+    }
+
+    function stopPatrol() {
+      isPatrolling = false;
+      patrolStatusText.innerText = '啟動跨屏漫遊';
+      if (patrolAnimId) cancelAnimationFrame(patrolAnimId);
+    }
+
+    btnTogglePatrol.addEventListener('click', () => {
+      if (isPatrolling) {
+        stopPatrol();
+      } else {
+        startPatrol();
+      }
+    });
+
+    btnModeSingle.addEventListener('click', () => {
+      currentMode = 'single';
+      updateModeUI();
+    });
+
+    btnModeMulti.addEventListener('click', () => {
+      currentMode = 'multi';
+      updateModeUI();
+    });
+
+    // Teleport Buttons
+    document.getElementById('btnTpLeft').addEventListener('click', () => {
+      if (currentMode === 'single') {
+        currentMode = 'multi';
+        updateModeUI();
+      }
+      setAvatarPos(16);
+      showBubble('已瞬間移動至左側螢幕！🚀');
+    });
+
+    document.getElementById('btnTpCenter').addEventListener('click', () => {
+      setAvatarPos(50);
+      showBubble('回到中央主螢幕啦～✨');
+    });
+
+    document.getElementById('btnTpRight').addEventListener('click', () => {
+      if (currentMode === 'single') {
+        currentMode = 'multi';
+        updateModeUI();
+      }
+      setAvatarPos(84);
+      showBubble('已瞬間移動至右側螢幕！🚀');
+    });
+
+    // Initialize
+    updateModeUI();
+    setAvatarPos(50);
+  </script>
+</body>
+</html>

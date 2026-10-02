@@ -62,8 +62,12 @@ export class SceneManager {
       antialias: true,
       powerPreference: 'high-performance'
     });
-    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    this.renderer.setSize(width, height);
+    // Smart Pixel Ratio: for multi-monitor canvases (> 3000px), cap to 1.25 to prevent GPU fill-rate drop
+    const maxRatio = width > 3000 ? 1.25 : 2.0;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxRatio));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -554,6 +558,11 @@ export class SceneManager {
     this.camera.aspect = width / height;
     this._updateCameraViewOffset();
     this.camera.updateProjectionMatrix();
+
+    // Adjust pixel ratio for multi-monitor canvases (> 3000px)
+    const maxRatio = width > 3000 ? 1.25 : 2.0;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxRatio));
+
     this.renderer.setSize(width, height);
   }
 
