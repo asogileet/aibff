@@ -6,12 +6,18 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
  * AvatarSlot data structure representing an individual avatar instance in the scene.
  */
 export class AvatarSlot {
-  constructor(id, title, vrm, costumeKey = 'casual', position = new THREE.Vector3(0, 0, 0)) {
+  constructor(id, title, vrm, costumeKey = 'casual', position = new THREE.Vector3(0, 0, 0), scale = 1.0) {
     this.id = id;
     this.title = title;
     this.vrm = vrm;
     this.costumeKey = costumeKey;
     this.position = position;
+    this.scale = scale;
+    this.velocity = new THREE.Vector3(0, 0, 0);
+    this.physicsState = 'idle'; // 'idle', 'grabbed', 'falling', 'impact', 'patrol'
+    this.impactTimer = 0;
+    this.patrolDir = 1;
+    this.patrolSpeed = 0.85;
     this.customBoneRotations = {};
     this.isSculpted = false;
   }
@@ -101,6 +107,61 @@ export class AvatarManager {
   }
 
   /**
+   * Sets the scale of an avatar slot and updates 3D model scale.
+   */
+  setScale(index, scale) {
+    if (index < 0 || index >= this.slots.length) return;
+    const slot = this.slots[index];
+    const clampedScale = THREE.MathUtils.clamp(scale, 0.3, 3.0);
+    slot.scale = clampedScale;
+
+    if (slot.vrm && slot.vrm.scene) {
+      slot.vrm.scene.scale.setScalar(clampedScale);
+    }
+
+    this.updateSelectionRing();
+    if (this.onSlotsChanged) this.onSlotsChanged(this.slots, this.activeIndex);
+  }
+
+  getScale(index = this.activeIndex) {
+    return this.slots[index]?.scale || 1.0;
+  }
+
+  /**
+   * Drops an avatar from high above into free fall.
+   */
+  dropAvatarFromHigh(index = this.activeIndex, height = 2.2) {
+    const slot = this.slots[index];
+    if (!slot || !slot.vrm?.scene) return;
+
+    slot.vrm.scene.position.y = height;
+    slot.position.y = height;
+    slot.velocity.set((Math.random() - 0.5) * 0.4, 0, 0);
+    slot.physicsState = 'falling';
+    this.updateSelectionRing();
+  }
+
+  /**
+   * Toggles patrol mode for the specified avatar.
+   */
+  togglePatrol(index = this.activeIndex) {
+    const slot = this.slots[index];
+    if (!slot) return false;
+
+    if (slot.physicsState === 'patrol') {
+      slot.physicsState = 'idle';
+      if (slot.vrm?.scene) {
+        slot.vrm.scene.rotation.y = this.getFrontRotation(slot.costumeKey);
+      }
+      return false;
+    } else {
+      slot.physicsState = 'patrol';
+      slot.velocity.set(0, 0, 0);
+      return true;
+    }
+  }
+
+  /**
    * Creates the visual ground ring indicator for the selected avatar.
    */
   _createSelectionRing() {
@@ -152,7 +213,9 @@ export class AvatarManager {
     if (this.selectionRing) {
       this.selectionRing.visible = true;
       const pos = activeSlot.vrm.scene.position;
+      const scale = activeSlot.scale || 1.0;
       this.selectionRing.position.set(pos.x, 0.005, pos.z);
+      this.selectionRing.scale.set(scale, 1, scale);
     }
   }
 
@@ -260,6 +323,9 @@ export class AvatarManager {
         }
 
         vrm.scene.position.copy(currentPos);
+        if (activeSlot.scale !== undefined) {
+          vrm.scene.scale.setScalar(activeSlot.scale);
+        }
         activeSlot.vrm = vrm;
         activeSlot.costumeKey = costumeKey;
         activeSlot.position = currentPos;
@@ -278,7 +344,8 @@ export class AvatarManager {
           '人偶 ① (主身)',
           vrm,
           costumeKey,
-          new THREE.Vector3(0, 0, 0)
+          new THREE.Vector3(0, 0, 0),
+          1.0
         );
         this.slots.push(slot);
         this.activeIndex = 0;
@@ -319,7 +386,7 @@ export class AvatarManager {
     const slotId = `avatar_slot_${this.nextSlotId++}`;
     const title = `人偶 ⓪${cloneSlotNumber} (分身)`.replace('⓪', '');
 
-    const newSlot = new AvatarSlot(slotId, title, vrm, targetCostume, newPos);
+    const newSlot = new AvatarSlot(slotId, title, vrm, targetCostume, newPos, 1.0);
     this.slots.push(newSlot);
 
     this.sceneManager.scene.add(vrm.scene);
@@ -388,6 +455,11 @@ export class AvatarManager {
     if (count === 1) {
       this.slots[0].vrm.scene.position.set(0, 0, 0);
       this.slots[0].position.set(0, 0, 0);
+      this.slots[0].physicsState = 'idle';
+      this.slots[0].velocity.set(0, 0, 0);
+      if (this.slots[0].vrm?.scene) {
+        this.slots[0].vrm.scene.rotation.y = this.getFrontRotation(this.slots[0].costumeKey);
+      }
     } else {
       const spacing = 0.72; // Meters between avatars
       const totalWidth = spacing * (count - 1);
@@ -395,10 +467,13 @@ export class AvatarManager {
 
       this.slots.forEach((slot, i) => {
         const targetX = startX + i * spacing;
-        slot.vrm.scene.position.x = targetX;
-        slot.vrm.scene.position.z = 0;
-        slot.position.x = targetX;
-        slot.position.z = 0;
+        slot.vrm.scene.position.set(targetX, 0, 0);
+        slot.position.set(targetX, 0, 0);
+        slot.physicsState = 'idle';
+        slot.velocity.set(0, 0, 0);
+        if (slot.vrm?.scene) {
+          slot.vrm.scene.rotation.y = this.getFrontRotation(slot.costumeKey);
+        }
       });
     }
 

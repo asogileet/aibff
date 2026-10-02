@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>影分身自由擺放、縮放與重力物理碰撞原型概念 (Interactive Mockup)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: radial-gradient(circle at 50% 30%, #1e1e2f, #0f0f17 90%);
+      color: #f1f5f9;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation / Status Header */
+    header {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 20;
+    }
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge {
+      background: linear-gradient(135deg, #ec4899, #8b5cf6);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .status-text {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    /* Main Desktop Stage */
+    #desktop-stage {
+      flex: 1;
+      position: relative;
+      background-image: 
+        radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(56, 189, 248, 0.02), rgba(168, 85, 247, 0.04));
+      background-size: 32px 32px, 100% 100%;
+      overflow: hidden;
+      cursor: default;
+    }
+
+    /* Simulated Ground Line / Taskbar */
+    #ground-line {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 56px;
+      background: rgba(15, 23, 42, 0.85);
+      border-top: 2px solid rgba(56, 189, 248, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      color: #64748b;
+      font-size: 13px;
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+      z-index: 10;
+    }
+
+    /* Floating Control Panel */
+    .control-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 320px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .panel-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .control-label {
+      font-size: 12px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    button {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    button:hover {
+      background: #334155;
+      border-color: #38bdf8;
+      transform: translateY(-1px);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button.primary {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      border: none;
+    }
+    button.primary:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: #38bdf8;
+      cursor: pointer;
+    }
+
+    /* Instructions Bubble */
+    .hint-bubble {
+      position: absolute;
+      left: 24px;
+      top: 20px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 12px;
+      padding: 14px 18px;
+      max-width: 360px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #cbd5e1;
+      z-index: 20;
+    }
+    .hint-bubble h4 {
+      color: #38bdf8;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Avatar Canvas Entity */
+    canvas#gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-title">
+      <span class="badge">PROTOTYPE DEMO</span>
+      <h2>影分身自由擺放、縮放與全螢幕物理互動原型</h2>
+    </div>
+    <div class="status-text">
+      滑鼠左鍵「抓起」人偶可懸空拋擲 | 滾輪調整大小
+    </div>
+  </header>
+
+  <div id="desktop-stage">
+    <!-- Overlay Hint Box -->
+    <div class="hint-bubble">
+      <h4>💡 互動操作指南</h4>
+      <p>• <b>任意位置擺放</b>：點住任意人偶直接拖曳至桌面上任何位置。</p>
+      <p>• <b>高處掉落與拋擲</b>：拖曳往上拉放手，角色會隨重力下墜；快速甩動放開可將人偶拋擲出拋物線！</p>
+      <p>• <b>衝擊反彈與摔倒</b>：高速墜地時會反彈並觸發跌倒/著地緩衝。</p>
+      <p>• <b>個別縮放</b>：點選角色後，使用滾輪或右側滑桿可自由縮小 (Q版) 或放大。</p>
+      <p>• <b>全螢幕橫向巡邏</b>：點擊「螢幕巡邏奔跑」觀看角色在桌面底端從左走到右。</p>
+    </div>
+
+    <!-- Canvas Simulation -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Bottom Ground -->
+    <div id="ground-line">
+      <span>🖥️ 桌面底部模擬 (Windows 11 工作列頂端碰撞面)</span>
+      <span id="stat-info">當前人偶數量: 3 | 選取中: 人偶 1</span>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+      <div class="panel-title">
+        <span>⚙️ 物理與分身控制</span>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>切換選取人偶</span>
+          <span id="selected-label">人偶 ① (主身)</span>
+        </div>
+        <div class="btn-row" id="avatar-selector-btns">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>個別縮放比例 (Scale)</span>
+          <span id="scale-val">1.0x</span>
+        </div>
+        <input type="range" id="scale-slider" min="0.4" max="2.2" step="0.05" value="1.0">
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>重力強度 (Gravity)</span>
+          <span id="grav-val">980 px/s²</span>
+        </div>
+        <input type="range" id="grav-slider" min="0" max="2000" step="50" value="980">
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>彈跳彈性 (Bounciness)</span>
+          <span id="bounce-val">0.35</span>
+        </div>
+        <input type="range" id="bounce-slider" min="0" max="0.8" step="0.05" value="0.35">
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">動作與巡邏指令</div>
+        <div class="btn-row">
+          <button id="btn-patrol">🏃 螢幕巡邏奔跑</button>
+          <button id="btn-drop-high">🪂 從螢幕頂部掉落</button>
+        </div>
+        <div class="btn-row">
+          <button id="btn-add-clone">➕ 招喚影分身</button>
+          <button id="btn-reset-pos">🔄 重置排隊位置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const groundLineHeight = 56;
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Physics parameters
+    let gravity = 980;
+    let bounciness = 0.35;
+    const floorYOffset = groundLineHeight;
+
+    // Avatar Model State Class
+    class MascotAvatar {
+      constructor(id, title, x, y, color, scale = 1.0) {
+        this.id = id;
+        this.title = title;
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.scale = scale;
+
+        this.vx = 0;
+        this.vy = 0;
+        this.width = 70;
+        this.height = 140;
+
+        // States: 'idle', 'grabbed', 'falling', 'impact', 'running'
+        this.state = 'idle';
+        this.isGrabbed = false;
+        this.impactTimer = 0;
+        this.squashFactor = 1.0; // For bounce squash & stretch
+
+        // Patrol behavior
+        this.patrolSpeed = 160;
+        this.patrolDir = 1; // 1 = right, -1 = left
+        this.runCycle = 0;
+      }
+
+      get floorY() {
+        return canvas.height - floorYOffset - (this.height * this.scale);
+      }
+
+      containsPoint(px, py) {
+        const w = this.width * this.scale;
+        const h = this.height * this.scale;
+        return px >= this.x - w/2 && px <= this.x + w/2 && py >= this.y && py <= this.y + h;
+      }
+
+      update(dt) {
+        this.runCycle += dt * 8;
+
+        if (this.isGrabbed) {
+          this.state = 'grabbed';
+          this.squashFactor += (1.0 - this.squashFactor) * 0.15;
+          return;
+        }
+
+        if (this.state === 'impact') {
+          this.impactTimer -= dt;
+          this.squashFactor += (1.0 - this.squashFactor) * 0.1;
+          if (this.impactTimer <= 0) {
+            this.state = 'idle';
+          }
+          return;
+        }
+
+        if (this.state === 'running') {
+          // Horizontal running across screen
+          this.x += this.patrolDir * this.patrolSpeed * dt;
+          const w = this.width * this.scale;
+          if (this.x > canvas.width - w/2 - 20) {
+            this.patrolDir = -1;
+          } else if (this.x < w/2 + 20) {
+            this.patrolDir = 1;
+          }
+          // Ground clamp
+          this.y = this.floorY;
+          this.vy = 0;
+          return;
+        }
+
+        // Apply gravity & physics
+        this.vy += gravity * dt;
+        this.y += this.vy * dt;
+        this.x += this.vx * dt;
+        this.vx *= 0.98; // Air resistance
+
+        // Floor collision
+        if (this.y >= this.floorY) {
+          const impactSpeed = this.vy;
+          this.y = this.floorY;
+
+          if (impactSpeed > 400) {
+            // High impact! Trigger bounce and squash
+            this.vy = -impactSpeed * bounciness;
+            this.squashFactor = 0.65; // Squash down
+
+            if (impactSpeed > 800) {
+              // Very hard impact: dizzy / butt fall
+              this.state = 'impact';
+              this.impactTimer = 1.2;
+              this.vy = 0;
+              this.vx = 0;
+            } else {
+              this.state = 'falling';
+            }
+          } else if (Math.abs(this.vy) < 40) {
+            this.vy = 0;
+            this.state = 'idle';
+          } else {
+            this.vy = -this.vy * bounciness;
+          }
+        } else {
+          this.state = 'falling';
+        }
+
+        // Recover squash factor
+        this.squashFactor += (1.0 - this.squashFactor) * 0.15;
+
+        // Screen horizontal boundaries
+        const halfW = (this.width * this.scale) / 2;
+        if (this.x < halfW) {
+          this.x = halfW;
+          this.vx = -this.vx * 0.4;
+        } else if (this.x > canvas.width - halfW) {
+          this.x = canvas.width - halfW;
+          this.vx = -this.vx * 0.4;
+        }
+      }
+
+      draw(ctx, isSelected) {
+        ctx.save();
+        ctx.translate(this.x, this.y + (this.height * this.scale));
+        ctx.scale(this.scale / this.squashFactor, this.scale * this.squashFactor);
+
+        // Ground shadow if near floor
+        const distFromFloor = (this.floorY - this.y);
+        const shadowAlpha = Math.max(0.1, 0.5 - (distFromFloor / 600));
+        const shadowW = 35 * Math.max(0.3, 1 - (distFromFloor / 700));
+        ctx.beginPath();
+        ctx.ellipse(0, 0, shadowW, 8, 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`;
+        ctx.fill();
+
+        // 3D Selection Ring
+        if (isSelected) {
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 42, 12, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+          ctx.fill();
+        }
+
+        // Draw Avatar Figure (Chibi Stylized Representation)
+        const h = this.height;
+        const w = this.width;
+
+        // Body Group
+        ctx.translate(0, -h);
+
+        // Name tag
+        ctx.fillStyle = isSelected ? '#38bdf8' : '#e2e8f0';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(this.title, 0, -16);
+
+        // State Badge
+        let stateTag = '站立';
+        let tagColor = '#10b981';
+        if (this.state === 'grabbed') { stateTag = '✊ 被拎起懸空中'; tagColor = '#f59e0b'; }
+        else if (this.state === 'falling') { stateTag = '🪂 自由落體中'; tagColor = '#ec4899'; }
+        else if (this.state === 'impact') { stateTag = '😵 屁屁著地！暈乎乎'; tagColor = '#ef4444'; }
+        else if (this.state === 'running') { stateTag = '🏃 全螢幕奔跑中'; tagColor = '#8b5cf6'; }
+
+        ctx.font = '10px sans-serif';
+        ctx.fillStyle = tagColor;
+        ctx.fillText(stateTag, 0, -32);
+
+        // Head
+        ctx.beginPath();
+        ctx.arc(0, 28, 24, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffedd5'; // Skin tone
+        ctx.fill();
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Hair
+        ctx.beginPath();
+        ctx.arc(0, 22, 26, Math.PI * 0.8, Math.PI * 2.2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+
+        // Eyes & Expression
+        if (this.state === 'impact') {
+          // Dizzy cross eyes
+          ctx.strokeStyle = '#475569';
+          ctx.lineWidth = 2;
+          ctx.strokeText('x x', 0, 32);
+        } else if (this.state === 'grabbed') {
+          // Panic / wide eyes
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.arc(-8, 28, 3, 0, Math.PI * 2);
+          ctx.arc(8, 28, 3, 0, Math.PI * 2);
+          ctx.fill();
+          // Small 'o' mouth
+          ctx.beginPath();
+          ctx.arc(0, 38, 3, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          // Cheerful anime eyes
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.arc(-7, 28, 2.5, 0, Math.PI * 2);
+          ctx.arc(7, 28, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          // Smile
+          ctx.beginPath();
+          ctx.arc(0, 34, 5, 0.1 * Math.PI, 0.9 * Math.PI);
+          ctx.strokeStyle = '#e11d48';
+          ctx.stroke();
+        }
+
+        // Torso / Outfit
+        ctx.beginPath();
+        ctx.roundRect(-16, 52, 32, 45, 8);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.stroke();
+
+        // Arms & Legs depending on state
+        const armWiggle = this.state === 'grabbed' ? Math.sin(Date.now() * 0.015) * 12 : 0;
+        const legRun = this.state === 'running' ? Math.sin(this.runCycle) * 16 : 0;
+
+        // Left Leg
+        ctx.beginPath();
+        ctx.roundRect(-12, 97, 10, 42 + legRun, 4);
+        ctx.fillStyle = '#334155';
+        ctx.fill();
+
+        // Right Leg
+        ctx.beginPath();
+        ctx.roundRect(2, 97, 10, 42 - legRun, 4);
+        ctx.fillStyle = '#334155';
+        ctx.fill();
+
+        // Arms (Held up when grabbed, or swinging when running)
+        if (this.state === 'grabbed') {
+          // Arms dangling / flapping
+          ctx.strokeStyle = '#ffedd5';
+          ctx.lineWidth = 7;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-16, 60);
+          ctx.lineTo(-28 + armWiggle, 45);
+          ctx.moveTo(16, 60);
+          ctx.lineTo(28 - armWiggle, 45);
+          ctx.stroke();
+        } else {
+          ctx.strokeStyle = '#ffedd5';
+          ctx.lineWidth = 7;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-16, 60);
+          ctx.lineTo(-24 - legRun * 0.5, 85);
+          ctx.moveTo(16, 60);
+          ctx.lineTo(24 + legRun * 0.5, 85);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+    }
+
+    // Populate Initial Avatars
+    const avatars = [
+      new MascotAvatar(1, '人偶 ① (主身)', 250, 200, '#38bdf8', 1.1),
+      new MascotAvatar(2, '人偶 ② (分身)', 450, 250, '#f43f5e', 0.85),
+      new MascotAvatar(3, '人偶 ③ (迷你分身)', 650, 150, '#a855f7', 0.6)
+    ];
+
+    let selectedIndex = 0;
+    let draggedAvatar = null;
+    let dragOffset = { x: 0, y: 0 };
+    let lastMousePos = { x: 0, y: 0, t: 0 };
+    let mouseVelocity = { vx: 0, vy: 0 };
+
+    function getSelectedAvatar() {
+      return avatars[selectedIndex] || avatars[0];
+    }
+
+    // UI elements
+    const scaleSlider = document.getElementById('scale-slider');
+    const scaleVal = document.getElementById('scale-val');
+    const gravSlider = document.getElementById('grav-slider');
+    const gravVal = document.getElementById('grav-val');
+    const bounceSlider = document.getElementById('bounce-slider');
+    const bounceVal = document.getElementById('bounce-val');
+    const selectedLabel = document.getElementById('selected-label');
+    const statInfo = document.getElementById('stat-info');
+    const btnSelectorContainer = document.getElementById('avatar-selector-btns');
+
+    function updateSelectorButtons() {
+      btnSelectorContainer.innerHTML = '';
+      avatars.forEach((av, idx) => {
+        const btn = document.createElement('button');
+        btn.textContent = av.title.split(' ')[0] + ' ' + av.title.split(' ')[1];
+        if (idx === selectedIndex) btn.classList.add('primary');
+        btn.onclick = () => selectAvatar(idx);
+        btnSelectorContainer.appendChild(btn);
+      });
+      selectedLabel.textContent = getSelectedAvatar().title;
+      statInfo.textContent = `當前人偶數量: ${avatars.length} | 選取中: ${getSelectedAvatar().title}`;
+      scaleSlider.value = getSelectedAvatar().scale;
+      scaleVal.textContent = getSelectedAvatar().scale.toFixed(2) + 'x';
+    }
+
+    function selectAvatar(idx) {
+      if (idx >= 0 && idx < avatars.length) {
+        selectedIndex = idx;
+        updateSelectorButtons();
+      }
+    }
+
+    scaleSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      const av = getSelectedAvatar();
+      if (av) {
+        av.scale = val;
+        scaleVal.textContent = val.toFixed(2) + 'x';
+      }
+    });
+
+    gravSlider.addEventListener('input', (e) => {
+      gravity = parseInt(e.target.value);
+      gravVal.textContent = `${gravity} px/s²`;
+    });
+
+    bounceSlider.addEventListener('input', (e) => {
+      bounciness = parseFloat(e.target.value);
+      bounceVal.textContent = bounciness.toFixed(2);
+    });
+
+    document.getElementById('btn-patrol').addEventListener('click', () => {
+      const av = getSelectedAvatar();
+      if (av) {
+        av.state = (av.state === 'running') ? 'idle' : 'running';
+      }
+    });
+
+    document.getElementById('btn-drop-high').addEventListener('click', () => {
+      const av = getSelectedAvatar();
+      if (av) {
+        av.y = 40;
+        av.vy = 0;
+        av.vx = (Math.random() - 0.5) * 200;
+        av.state = 'falling';
+      }
+    });
+
+    document.getElementById('btn-add-clone').addEventListener('click', () => {
+      if (avatars.length >= 5) {
+        alert('已達到最多 5 個人偶上限');
+        return;
+      }
+      const newId = avatars.length + 1;
+      const colors = ['#10b981', '#f59e0b', '#06b6d4', '#e11d48'];
+      const pickColor = colors[(newId - 1) % colors.length];
+      const newAv = new MascotAvatar(newId, `人偶 ${newId} (分身)`, canvas.width/2 + (newId * 40), 100, pickColor, 0.8);
+      avatars.push(newAv);
+      selectAvatar(avatars.length - 1);
+    });
+
+    document.getElementById('btn-reset-pos').addEventListener('click', () => {
+      const spacing = 140;
+      const startX = (canvas.width - (avatars.length - 1) * spacing) / 2;
+      avatars.forEach((av, i) => {
+        av.x = startX + i * spacing;
+        av.y = av.floorY;
+        av.vx = 0;
+        av.vy = 0;
+        av.state = 'idle';
+      });
+    });
+
+    // Mouse Interaction for Dragging, Throwing, Scaling
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      // Check hit starting from top rendered avatar
+      for (let i = avatars.length - 1; i >= 0; i--) {
+        const av = avatars[i];
+        if (av.containsPoint(mx, my)) {
+          selectAvatar(i);
+          draggedAvatar = av;
+          av.isGrabbed = true;
+          dragOffset.x = mx - av.x;
+          dragOffset.y = my - av.y;
+          lastMousePos = { x: mx, y: my, t: performance.now() };
+          mouseVelocity = { vx: 0, vy: 0 };
+          return;
+        }
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const now = performance.now();
+
+      if (draggedAvatar) {
+        draggedAvatar.x = mx - dragOffset.x;
+        draggedAvatar.y = my - dragOffset.y;
+
+        // Compute throw velocity
+        const dt = (now - lastMousePos.t) / 1000;
+        if (dt > 0.01) {
+          mouseVelocity.vx = (mx - lastMousePos.x) / dt;
+          mouseVelocity.vy = (my - lastMousePos.y) / dt;
+          lastMousePos = { x: mx, y: my, t: now };
+        }
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (draggedAvatar) {
+        draggedAvatar.isGrabbed = false;
+        // Impart mouse release velocity (toss)
+        draggedAvatar.vx = Math.max(-1200, Math.min(1200, mouseVelocity.vx * 0.8));
+        draggedAvatar.vy = Math.max(-1200, Math.min(1200, mouseVelocity.vy * 0.8));
+        draggedAvatar.state = 'falling';
+        draggedAvatar = null;
+      }
+    });
+
+    // Mouse Wheel Scaling on Avatar
+    canvas.addEventListener('wheel', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      for (let i = avatars.length - 1; i >= 0; i--) {
+        const av = avatars[i];
+        if (av.containsPoint(mx, my)) {
+          e.preventDefault();
+          selectAvatar(i);
+          const delta = e.deltaY < 0 ? 0.08 : -0.08;
+          av.scale = Math.max(0.35, Math.min(2.5, av.scale + delta));
+          scaleSlider.value = av.scale;
+          scaleVal.textContent = av.scale.toFixed(2) + 'x';
+          return;
+        }
+      }
+    }, { passive: false });
+
+    // Main Animation Loop
+    let lastTime = performance.now();
+    function loop(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.05);
+      lastTime = time;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw Avatars
+      avatars.forEach((av, idx) => {
+        av.update(dt);
+        av.draw(ctx, idx === selectedIndex);
+      });
+
+      requestAnimationFrame(loop);
+    }
+
+    updateSelectorButtons();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

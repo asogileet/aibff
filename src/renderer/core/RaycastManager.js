@@ -16,6 +16,17 @@ export class RaycastManager {
     this.DRAG_THRESHOLD = 5; // Pixels
     this.puppetController = null;
 
+    // Avatar physics drag & throw state
+    this.draggedSlot = null;
+    this.draggedSlotIndex = -1;
+    this.initialHitPoint = null;
+    this.dragPlane = null;
+    this.dragIntersection = new THREE.Vector3();
+    this.dragOffset = new THREE.Vector3();
+    this.lastDragPos = new THREE.Vector3();
+    this.lastDragTime = 0;
+    this.dragVelocity = new THREE.Vector3();
+
     this._bindEvents();
   }
 
@@ -23,15 +34,60 @@ export class RaycastManager {
     this.puppetController = puppetController;
   }
 
+  /**
+   * Raycasts into the scene against all active VRM avatars.
+   */
+  _getHitAvatar(e) {
+    const dom = this.sceneManager.renderer.domElement;
+    const rect = dom.getBoundingClientRect();
+    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
+
+    const slots = this.avatarController?.getAllSlots ? this.avatarController.getAllSlots() : [];
+    let closestHit = null;
+    let hitSlot = null;
+    let hitSlotIndex = -1;
+
+    slots.forEach((slot, idx) => {
+      if (!slot.vrm?.scene) return;
+      const intersects = this.raycaster.intersectObjects(slot.vrm.scene.children, true);
+      if (intersects.length > 0) {
+        if (!closestHit || intersects[0].distance < closestHit.distance) {
+          closestHit = intersects[0];
+          hitSlot = slot;
+          hitSlotIndex = idx;
+        }
+      }
+    });
+
+    return { hit: closestHit, slot: hitSlot, index: hitSlotIndex };
+  }
+
   _bindEvents() {
     const dom = this.sceneManager.renderer.domElement;
 
-    dom.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return; // Left click only; right-click and middle-click belong strictly to camera controls
+    // 1. Mouse Wheel on Avatar: Independent scaling without zooming camera
+    dom.addEventListener('wheel', (e) => {
+      const hitRes = this._getHitAvatar(e);
+      if (hitRes && hitRes.slot) {
+        e.preventDefault();
+        e.stopPropagation();
+        const curScale = hitRes.slot.scale || 1.0;
+        const delta = e.deltaY < 0 ? 0.08 : -0.08;
+        const newScale = THREE.MathUtils.clamp(curScale + delta, 0.35, 2.5);
+        this.avatarController.setScale(hitRes.index, newScale);
+      }
+    }, { capture: true, passive: false });
 
-      // When puppet mode is active, ordinary left-click pulls joints; Alt + Left-click allows window moving
+    // 2. Mouse Down: Hit check for avatar drag vs window drag vs joint puppet
+    dom.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // Left click only
+
+      // When puppet mode is active, ordinary left-click pulls joints; Alt + Left-click allows avatar moving
       if (this.puppetController && this.puppetController.isEnabled) {
-        if (e.altKey && window.innerWidth <= 600) {
+        if (e.altKey && window.innerWidth <= 600 && window.electronAPI) {
           this.isMouseDown = true;
           this.isDragging = false;
           this.startPos = { x: e.screenX, y: e.screenY };
@@ -44,8 +100,41 @@ export class RaycastManager {
       this.isDragging = false;
       this.startPos = { x: e.screenX, y: e.screenY };
       this.startTime = Date.now();
+
+      // Check if clicking directly on an avatar
+      const hitRes = this._getHitAvatar(e);
+      if (hitRes && hitRes.slot) {
+        this.draggedSlot = hitRes.slot;
+        this.draggedSlotIndex = hitRes.index;
+        this.initialHitPoint = hitRes.hit.point.clone();
+
+        // Switch active selection if different
+        if (this.avatarController.activeIndex !== hitRes.index) {
+          this.avatarController.selectAvatar(hitRes.index);
+        }
+
+        // Create camera-facing drag plane through avatar position
+        const cam = this.sceneManager.camera;
+        const camDir = new THREE.Vector3();
+        cam.getWorldDirection(camDir);
+        this.dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+          camDir.clone().negate(),
+          hitRes.slot.vrm.scene.position
+        );
+
+        this.raycaster.ray.intersectPlane(this.dragPlane, this.dragIntersection);
+        this.dragOffset.subVectors(hitRes.slot.vrm.scene.position, this.dragIntersection);
+        this.lastDragPos.copy(hitRes.slot.vrm.scene.position);
+        this.lastDragTime = performance.now();
+        this.dragVelocity.set(0, 0, 0);
+      } else {
+        this.draggedSlot = null;
+        this.draggedSlotIndex = -1;
+        this.initialHitPoint = null;
+      }
     });
 
+    // 3. Mouse Move: Avatar translation or Electron window repositioning
     window.addEventListener('mousemove', (e) => {
       if (!this.isMouseDown) return;
 
@@ -53,31 +142,89 @@ export class RaycastManager {
       const deltaY = e.screenY - this.startPos.y;
       const distance = Math.hypot(deltaX, deltaY);
 
-      if (distance > this.DRAG_THRESHOLD) {
-        this.isDragging = true;
-        // Request Electron main process to move transparent window only in small window mode
-        if (window.innerWidth <= 600 && window.electronAPI && typeof window.electronAPI.moveWindow === 'function') {
-          window.electronAPI.moveWindow({ mouseX: deltaX, mouseY: deltaY });
-          this.startPos = { x: e.screenX, y: e.screenY };
+      if (this.draggedSlot && this.dragPlane) {
+        if (distance > this.DRAG_THRESHOLD) {
+          this.isDragging = true;
+          this.draggedSlot.physicsState = 'grabbed';
+          this.draggedSlot.velocity.set(0, 0, 0);
+
+          const domElem = this.sceneManager.renderer.domElement;
+          const rect = domElem.getBoundingClientRect();
+          this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+          this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+          this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
+          if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragIntersection)) {
+            const targetPos = this.dragIntersection.clone().add(this.dragOffset);
+            targetPos.y = Math.max(0, targetPos.y); // Floor boundary
+
+            this.draggedSlot.vrm.scene.position.copy(targetPos);
+            this.draggedSlot.position.copy(targetPos);
+            this.avatarController.updateSelectionRing();
+
+            const now = performance.now();
+            const dt = (now - this.lastDragTime) / 1000;
+            if (dt > 0.012) {
+              this.dragVelocity.subVectors(targetPos, this.lastDragPos).divideScalar(dt);
+              this.lastDragPos.copy(targetPos);
+              this.lastDragTime = now;
+            }
+          }
+        }
+      } else {
+        // Dragging on empty background in small window mode moves the Electron window
+        if (distance > this.DRAG_THRESHOLD) {
+          this.isDragging = true;
+          if (window.innerWidth <= 600 && window.electronAPI && typeof window.electronAPI.moveWindow === 'function') {
+            window.electronAPI.moveWindow({ mouseX: deltaX, mouseY: deltaY });
+            this.startPos = { x: e.screenX, y: e.screenY };
+          }
         }
       }
     });
 
+    // 4. Mouse Up: Head pat vs drop/throw into free fall
     window.addEventListener('mouseup', (e) => {
       if (!this.isMouseDown) return;
+
       const clickDuration = Date.now() - this.startTime;
       const wasDragging = this.isDragging;
 
       this.isMouseDown = false;
       this.isDragging = false;
 
-      // If it wasn't a drag and was a quick click, perform raycasting for head pat
-      if (!wasDragging && clickDuration < 400) {
-        this._checkHeadClick(e);
+      if (this.draggedSlot) {
+        if (!wasDragging && clickDuration < 380) {
+          // Quick click: check head pat
+          const headThreshold = 1.15 * (this.draggedSlot.scale || 1.0);
+          if (this.initialHitPoint && this.initialHitPoint.y >= headThreshold) {
+            if (typeof this.onHeadPat === 'function') {
+              this.onHeadPat(this.initialHitPoint);
+            }
+          }
+          this.draggedSlot.physicsState = 'idle';
+        } else {
+          // Released from drag / throw!
+          const curY = this.draggedSlot.vrm.scene.position.y;
+          if (curY > 0.05 || Math.abs(this.dragVelocity.y) > 0.25) {
+            this.draggedSlot.physicsState = 'falling';
+            // Clamp release velocity to safe values
+            this.dragVelocity.x = THREE.MathUtils.clamp(this.dragVelocity.x, -5.5, 5.5);
+            this.dragVelocity.y = THREE.MathUtils.clamp(this.dragVelocity.y, -7.5, 7.5);
+            this.dragVelocity.z = 0;
+            this.draggedSlot.velocity.copy(this.dragVelocity);
+          } else {
+            this.draggedSlot.physicsState = 'idle';
+          }
+        }
+
+        this.draggedSlot = null;
+        this.draggedSlotIndex = -1;
+        this.initialHitPoint = null;
       }
     });
 
-    // Mobile touch tap detection for head pat
+    // Mobile touch detection for head pat
     let touchStartTime = 0;
     let touchStartPos = { x: 0, y: 0 };
     dom.addEventListener('touchstart', (e) => {
@@ -92,65 +239,14 @@ export class RaycastManager {
         const touch = e.changedTouches[0];
         const dist = Math.hypot(touch.clientX - touchStartPos.x, touch.clientY - touchStartPos.y);
         if (dist < 10) {
-          this._checkHeadClick({ clientX: touch.clientX, clientY: touch.clientY });
+          const hitRes = this._getHitAvatar(touch);
+          if (hitRes && hitRes.hit && hitRes.hit.point.y >= 1.15) {
+            if (typeof this.onHeadPat === 'function') {
+              this.onHeadPat(hitRes.hit.point);
+            }
+          }
         }
       }
     }, { passive: true });
   }
-
-  _checkHeadClick(e) {
-    const rect = this.sceneManager.renderer.domElement.getBoundingClientRect();
-    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-    this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
-
-    const slots = this.avatarController?.getAllSlots ? this.avatarController.getAllSlots() : null;
-
-    if (slots && slots.length > 0) {
-      let closestHit = null;
-      let hitSlotIndex = -1;
-
-      slots.forEach((slot, idx) => {
-        if (!slot.vrm?.scene) return;
-        const intersects = this.raycaster.intersectObjects(slot.vrm.scene.children, true);
-        if (intersects.length > 0) {
-          if (!closestHit || intersects[0].distance < closestHit.distance) {
-            closestHit = intersects[0];
-            hitSlotIndex = idx;
-          }
-        }
-      });
-
-      if (closestHit && hitSlotIndex !== -1) {
-        // Switch active selection if clicked avatar is not currently selected
-        if (this.avatarController.activeIndex !== hitSlotIndex) {
-          this.avatarController.selectAvatar(hitSlotIndex);
-        }
-
-        // Check if clicked point is in upper head region (y >= 1.25)
-        if (closestHit.point.y >= 1.25) {
-          if (typeof this.onHeadPat === 'function') {
-            this.onHeadPat(closestHit.point);
-          }
-        }
-      }
-      return;
-    }
-
-    // Fallback for single avatar controller
-    const vrm = this.avatarController ? this.avatarController.getCurrentVRM() : null;
-    if (!vrm) return;
-
-    const intersects = this.raycaster.intersectObjects(vrm.scene.children, true);
-    if (intersects.length > 0) {
-      const hit = intersects[0];
-      if (hit.point.y >= 1.25) {
-        if (typeof this.onHeadPat === 'function') {
-          this.onHeadPat(hit.point);
-        }
-      }
-    }
-  }
 }
-

@@ -12,6 +12,7 @@ import { EyeTrackingController } from './vrm/EyeTrackingController.js';
 import { ActionController } from './vrm/ActionController.js';
 import { PoseManager } from './vrm/PoseManager.js';
 import { PuppetController } from './vrm/PuppetController.js';
+import { MascotPhysicsController } from './vrm/MascotPhysicsController.js';
 
 import { Toolbar } from './ui/Toolbar.js';
 import { ChatBox } from './ui/ChatBox.js';
@@ -68,12 +69,21 @@ window.addEventListener('DOMContentLoaded', async () => {
   const emotionController = new EmotionController(avatarController);
   const lipSyncController = new LipSyncController(avatarController);
   const eyeTrackingController = new EyeTrackingController(sceneManager, avatarController);
+  const mascotPhysicsController = new MascotPhysicsController(sceneManager, avatarManager, {
+    onAvatarImpact: (slot, speed) => {
+      showBubble(`${slot.title}：哇啊！好痛痛～屁屁著地了😵`, 'surprised');
+    },
+    onAvatarLanded: (slot) => {
+      // Gentle landing settled
+    }
+  });
 
   sceneManager.addUpdatable(avatarController);
   sceneManager.addUpdatable(animationController);
   sceneManager.addUpdatable(emotionController);
   sceneManager.addUpdatable(lipSyncController);
   sceneManager.addUpdatable(eyeTrackingController);
+  sceneManager.addUpdatable(mascotPhysicsController);
 
   // Mobile Web Audio autoplay policy unlock on first user gesture
   const unlockAudio = () => {
@@ -375,6 +385,43 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
       return true;
     }
+    if (trimmed === '/patrol' || trimmed === '/roam') {
+      const isPatrol = mascotPhysicsController.togglePatrol();
+      const slot = avatarManager.getActiveSlot();
+      showBubble(isPatrol ? `${slot?.title}：出發～在螢幕桌面上小跑步巡邏囉！🏃` : `${slot?.title}：巡邏暫停，原地休息中～🍵`, 'happy');
+      chatBox.addAssistantMessage(isPatrol ? `已啟動「${slot?.title}」的全螢幕漫步巡邏模式。` : `已停止「${slot?.title}」的巡邏。`);
+      multiAvatarBar.update();
+      return true;
+    }
+    if (trimmed === '/drop' || trimmed === '/fall') {
+      const slot = avatarManager.getActiveSlot();
+      mascotPhysicsController.dropAvatar();
+      showBubble(`${slot?.title}：呀啊啊！從高空掉下來啦！🪂`, 'surprised');
+      chatBox.addAssistantMessage(`已將「${slot?.title}」從螢幕頂部高空拋落，觸發重力下墜與地面彈跳物理。`);
+      return true;
+    }
+    if (trimmed.startsWith('/scale ')) {
+      const val = parseFloat(trimmed.replace('/scale ', '').trim());
+      if (!isNaN(val) && val >= 0.2 && val <= 3.5) {
+        avatarManager.setScale(avatarManager.activeIndex, val);
+        const slot = avatarManager.getActiveSlot();
+        showBubble(`${slot?.title}：大小縮放為 ${val.toFixed(2)}x！`, 'happy');
+        chatBox.addAssistantMessage(`已將「${slot?.title}」的縮放比例設定為 ${val.toFixed(2)}x。`);
+        multiAvatarBar.update();
+      } else {
+        chatBox.addAssistantMessage('請輸入有效數值（0.3 ~ 3.0），例如：/scale 1.5 或 /scale 0.8');
+      }
+      return true;
+    }
+    if (trimmed.startsWith('/gravity ')) {
+      const val = parseFloat(trimmed.replace('/gravity ', '').trim());
+      if (!isNaN(val) && val >= 0) {
+        mascotPhysicsController.setGravity(val);
+        showBubble(`物理重力已設定為 ${val} m/s²！`, 'happy');
+        chatBox.addAssistantMessage(`物理引擎重力已更新為 ${val} m/s²（設定為 0 可體驗無重力漂浮太空模式）。`);
+      }
+      return true;
+    }
     return false;
   };
 
@@ -568,6 +615,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     animationController,
     actionController,
     emotionController,
+    mascotPhysicsController,
     sceneManager,
     poseManager,
     poseModal,
