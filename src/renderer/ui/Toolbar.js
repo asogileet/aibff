@@ -47,6 +47,10 @@ export class Toolbar {
         <span class="text-lg">🤏</span>
         <span class="text-xs hidden md:inline">玩偶</span>
       </button>
+      <button id="btnMocap" class="flex items-center space-x-1 text-slate-300 hover:text-violet-300 p-2 rounded-full hover:bg-white/5 transition" title="開關視訊鏡頭動作捕捉（角色跟著你動）">
+        <span class="text-lg">🕺</span>
+        <span class="text-xs hidden md:inline">動捕</span>
+      </button>
       <button id="btnClone" class="flex items-center space-x-1 text-slate-300 hover:text-cyan-300 p-2 rounded-full hover:bg-white/5 transition" title="開關影分身控制列（多人偶同台）">
         <span class="text-lg">👥</span>
         <span class="text-xs hidden md:inline">分身</span>
@@ -76,6 +80,7 @@ export class Toolbar {
     this.element.querySelector('#btnSnapshot').addEventListener('click', () => this.handlers.onSnapshot?.());
     this.element.querySelector('#btnAR').addEventListener('click', () => this.handlers.onAR?.());
     this.element.querySelector('#btnPuppet').addEventListener('click', () => this.handlers.onPuppet?.());
+    this.element.querySelector('#btnMocap').addEventListener('click', () => this.handlers.onMocap?.());
     this.element.querySelector('#btnClone').addEventListener('click', () => this.handlers.onClone?.());
     this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
     this.element.querySelector('#btnLeave').addEventListener('click', () => this.handlers.onLeave?.());
@@ -145,6 +150,18 @@ export class Toolbar {
       btn.classList.remove('text-cyan-300', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60', 'animate-pulse');
       btn.title = '開關手指/滑鼠人偶肢體拉扯互動 (開啟時鎖定視窗)';
       if (txt) txt.textContent = '玩偶';
+    }
+  }
+
+  setMocapActive(active) {
+    const btn = this.element.querySelector('#btnMocap');
+    if (!btn) return;
+    if (active) {
+      btn.classList.add('text-violet-200', 'bg-violet-500/30', 'ring-2', 'ring-violet-400/60', 'animate-pulse');
+      btn.title = '動作捕捉運作中 (點擊關閉鏡頭並恢復待機動作)';
+    } else {
+      btn.classList.remove('text-violet-200', 'bg-violet-500/30', 'ring-2', 'ring-violet-400/60', 'animate-pulse');
+      btn.title = '開關視訊鏡頭動作捕捉（角色跟著你動）';
     }
   }
 

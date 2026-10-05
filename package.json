@@ -20,6 +20,7 @@
   "author": "AI Desktop Team",
   "license": "MIT",
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@pixiv/three-vrm": "^3.3.0",
     "three": "^0.174.0"
   },

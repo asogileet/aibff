@@ -2,6 +2,7 @@ import { SceneManager } from './core/SceneManager.js';
 import { SnapshotService } from './core/SnapshotService.js';
 import { ARManager } from './core/ARManager.js';
 import { HandTracker } from './core/HandTracker.js';
+import { MotionTracker } from './core/MotionTracker.js';
 import { RaycastManager } from './core/RaycastManager.js';
 import { AvatarManager } from './vrm/AvatarManager.js';
 import { AvatarController } from './vrm/AvatarController.js';
@@ -13,6 +14,7 @@ import { ActionController } from './vrm/ActionController.js';
 import { PoseManager } from './vrm/PoseManager.js';
 import { PuppetController } from './vrm/PuppetController.js';
 import { MascotPhysicsController } from './vrm/MascotPhysicsController.js';
+import { MotionCaptureController } from './vrm/MotionCaptureController.js';
 
 import { Toolbar } from './ui/Toolbar.js';
 import { ChatBox } from './ui/ChatBox.js';
@@ -24,6 +26,7 @@ import { HeartWidget } from './ui/HeartWidget.js';
 import { SettingsModal } from './ui/SettingsModal.js';
 import { PuppetPoseBar } from './ui/PuppetPoseBar.js';
 import { MultiAvatarBar } from './ui/MultiAvatarBar.js';
+import { MocapPreview } from './ui/MocapPreview.js';
 
 import { ConversationManager } from './services/ConversationManager.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
@@ -332,6 +335,10 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const togglePuppetMode = async (forceState = null) => {
     isPuppetMode = forceState !== null ? forceState : !isPuppetMode;
+    if (isPuppetMode && isMocapMode) {
+      // Dragging limbs and motion capture both drive the same bones
+      await toggleMocapMode(false, true);
+    }
     puppetController.setEnabled(isPuppetMode);
     puppetVisualizer.setVisible(isPuppetMode);
     if (puppetPoseBar) puppetPoseBar.setVisible(isPuppetMode);
@@ -353,6 +360,56 @@ window.addEventListener('DOMContentLoaded', async () => {
       chatBox.addAssistantMessage('已退出玩偶拉扯模式，現在按住滑鼠可以移動應用程式視窗。');
     }
     return isPuppetMode;
+  };
+
+  // Webcam motion capture: the avatar mirrors the body and face of the person on camera
+  let isMocapMode = false;
+  const motionCaptureController = new MotionCaptureController(avatarController, animationController, {
+    lipSyncController
+  });
+  const mocapPreview = new MocapPreview(uiContainer);
+  const motionTracker = new MotionTracker({
+    onResults: (result) => {
+      motionCaptureController.applyResults(result);
+      mocapPreview.setStatus(result.pose ? (result.face ? '✅ 追蹤中：身體＋臉部' : '✅ 追蹤中：身體') : '👀 找不到人，請退後一點');
+    },
+    onStatus: (text) => mocapPreview.setStatus(text)
+  });
+
+  const toggleMocapMode = async (forceState = null, silent = false) => {
+    const next = forceState !== null ? forceState : !isMocapMode;
+    if (next === isMocapMode) return isMocapMode;
+
+    if (next) {
+      if (isPuppetMode) await togglePuppetMode(false);
+      mocapPreview.show(null, motionCaptureController.isMirror);
+      try {
+        await motionTracker.start({ deviceId: arManager.selectedDeviceId });
+      } catch (err) {
+        mocapPreview.hide();
+        showBubble('無法啟動動作捕捉，請檢查鏡頭權限與網路連線', 'surprised');
+        chatBox.addAssistantMessage('⚠️ 動作捕捉啟動失敗：無法開啟鏡頭，或辨識模型下載失敗（首次使用需要網路）。');
+        return false;
+      }
+      isMocapMode = true;
+      motionCaptureController.setEnabled(true);
+      mocapPreview.show(motionTracker.mediaStream, motionCaptureController.isMirror);
+      if (!silent) {
+        showBubble('🕺 動作捕捉已開啟！我會跟著主人一起動～', 'happy');
+        chatBox.addAssistantMessage('🕺 動作捕捉已開啟！請讓上半身出現在鏡頭中，退後到全身入鏡時腿部也會跟著動。輸入 /mocap mirror 可切換鏡像。');
+      }
+    } else {
+      isMocapMode = false;
+      motionTracker.stop();
+      motionCaptureController.setEnabled(false);
+      mocapPreview.hide();
+      if (!silent) {
+        showBubble('動作捕捉已關閉，恢復待機動作～', 'happy');
+        chatBox.addAssistantMessage('已關閉動作捕捉並釋放鏡頭。');
+      }
+    }
+    if (toolbar) toolbar.setMocapActive(isMocapMode);
+    return isMocapMode;
   };
 
   const snapshotService = new SnapshotService(sceneManager, arManager);
@@ -391,6 +448,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     if (trimmed === '/puppet off') {
       await togglePuppetMode(false);
+      return true;
+    }
+    if (trimmed === '/mocap' || trimmed === '/mocap toggle') {
+      await toggleMocapMode();
+      return true;
+    }
+    if (trimmed === '/mocap on') {
+      await toggleMocapMode(true);
+      return true;
+    }
+    if (trimmed === '/mocap off') {
+      await toggleMocapMode(false);
+      return true;
+    }
+    if (trimmed === '/mocap mirror') {
+      const isMirror = motionCaptureController.setMirror();
+      mocapPreview.setMirror(isMirror);
+      showBubble(isMirror ? '🪞 動作捕捉：鏡像模式' : '🔄 動作捕捉：左右對應模式', 'happy');
+      chatBox.addAssistantMessage(isMirror ? '🪞 鏡像模式：你舉右手，畫面同一側的手會舉起（像照鏡子）。' : '🔄 左右對應模式：你舉右手，角色也舉她自己的右手。');
       return true;
     }
     if (trimmed === '/fullscreen' || trimmed === '/fs') {
@@ -748,6 +824,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     onPuppet: () => {
       togglePuppetMode();
     },
+    onMocap: () => {
+      toggleMocapMode();
+    },
     onClone: () => {
       const isVis = multiAvatarBar.toggle();
       toolbar.setCloneActive(isVis);
@@ -797,6 +876,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     heartWidget.element,
     settingsModal.element,
     puppetPoseBar.element,
+    mocapPreview.element,
     multiAvatarBar.element,
     multiAvatarBar.miniElement
   ].forEach(el => {
@@ -828,6 +908,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
         if (arManager.isActive) {
           arManager.stop();
+        }
+        if (isMocapMode) {
+          toggleMocapMode(false, true);
         }
         canvasContainer.style.display = 'none';
         toolbar.element.style.display = 'none';
@@ -871,6 +954,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   }, avatarManager);
   raycastManager.setPuppetController(puppetController);
   raycastManager.setMascotPhysicsController(mascotPhysicsController);
+
+  // Registered last so captured motion overrides idle / eye-tracking / action bone writes
+  sceneManager.addUpdatable(motionCaptureController);
   toolbar.setPuppetActive(false);
 
   // Expose controllers for testing and inspection
@@ -888,6 +974,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     puppetController,
     handTracker,
     arManager,
+    motionTracker,
+    motionCaptureController,
+    toggleMocapMode,
     multiAvatarBar,
     toolbar,
     chatBox,

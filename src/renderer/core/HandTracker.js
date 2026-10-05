@@ -4,6 +4,8 @@
  * Tracks index fingertips (Landmark 8) for up to two hands simultaneously,
  * with pinch detection (Thumb Landmark 4) and seamless mouse/touch fallback.
  */
+import { loadVision, createWithFallback, MODEL_SOURCES } from './mediapipeVision.js';
+
 export class HandTracker {
   constructor(options = {}) {
     this.videoElement = options.videoElement || null;
@@ -150,7 +152,7 @@ export class HandTracker {
 
   /**
    * Starts camera tracking for dual hands index fingers.
-   * Dynamically loads MediaPipe Hands if not present.
+   * Uses the MediaPipe Tasks hand landmarker (shared runtime with motion capture).
    * @param {HTMLVideoElement} [videoEl]
    * @returns {Promise<boolean>}
    */
@@ -161,72 +163,67 @@ export class HandTracker {
       return false;
     }
 
-    // Dynamic loading of MediaPipe scripts
-    const loaded = await this._ensureMediaPipeLoaded();
-    if (!loaded || !window.Hands) {
-      console.warn('[HandTracker] MediaPipe Hands unavailable, falling back to mouse/touch mode');
-      this.isCameraTracking = false;
-      return false;
-    }
-
+    this._wantCameraTracking = true;
     try {
-      this.handsInstance = new window.Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-      });
-
-      // Track up to 2 hands simultaneously
-      this.handsInstance.setOptions({
-        maxNumHands: 2,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
-
-      this.handsInstance.onResults((results) => this._onMediaPipeResults(results));
-
-      this.isCameraTracking = true;
-
-      // Start processing loop capped at ~30 FPS to save CPU/GPU cycles
-      const processLoop = async () => {
-        if (!this.isCameraTracking) return;
-        const now = performance.now();
-        if (now - this._lastProcessTime >= 33 && this.videoElement && this.videoElement.readyState >= 2) {
-          this._lastProcessTime = now;
-          try {
-            await this.handsInstance.send({ image: this.videoElement });
-          } catch (e) {
-            // Ignore send frame intermittent error
-          }
-        }
-        this._animationFrameId = requestAnimationFrame(processLoop);
-      };
-
-      this._animationFrameId = requestAnimationFrame(processLoop);
-      console.log('[HandTracker] Dual-hand index finger camera tracking started successfully');
-      return true;
+      if (!this._handsPromise) {
+        // Shared by concurrent callers (AR start and puppet toggle both request tracking)
+        this._handsPromise = loadVision().then(({ vision, fileset }) =>
+          // Track up to 2 hands simultaneously
+          createWithFallback(MODEL_SOURCES.hand, (modelAssetPath, delegate) =>
+            vision.HandLandmarker.createFromOptions(fileset, {
+              baseOptions: { modelAssetPath, delegate },
+              runningMode: 'VIDEO',
+              numHands: 2,
+              minHandDetectionConfidence: 0.5,
+              minHandPresenceConfidence: 0.5,
+              minTrackingConfidence: 0.5
+            })));
+      }
+      this.handsInstance = await this._handsPromise;
     } catch (err) {
-      console.error('[HandTracker] Failed to start MediaPipe Hands camera tracking:', err);
+      console.warn('[HandTracker] MediaPipe hand landmarker unavailable, falling back to mouse/touch mode:', err);
+      this._handsPromise = null;
       this.isCameraTracking = false;
       return false;
     }
+
+    // Stopped while the model was loading
+    if (!this._wantCameraTracking) return false;
+    if (this.isCameraTracking) return true;
+    this.isCameraTracking = true;
+    let lastVideoTime = -1;
+
+    // Processing loop capped at ~30 FPS to save CPU/GPU cycles
+    const processLoop = () => {
+      if (!this.isCameraTracking) return;
+      const now = performance.now();
+      const video = this.videoElement;
+      if (now - this._lastProcessTime >= 33 && video && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+        this._lastProcessTime = now;
+        lastVideoTime = video.currentTime;
+        try {
+          this._onMediaPipeResults(this.handsInstance.detectForVideo(video, now));
+        } catch (e) {
+          // Ignore intermittent frame errors
+        }
+      }
+      this._animationFrameId = requestAnimationFrame(processLoop);
+    };
+
+    this._animationFrameId = requestAnimationFrame(processLoop);
+    console.log('[HandTracker] Dual-hand index finger camera tracking started successfully');
+    return true;
   }
 
   /**
-   * Stops camera tracking and clears resources.
+   * Stops camera tracking. The landmarker is kept so tracking can resume instantly.
    */
   stopCameraTracking() {
+    this._wantCameraTracking = false;
     this.isCameraTracking = false;
     if (this._animationFrameId) {
       cancelAnimationFrame(this._animationFrameId);
       this._animationFrameId = null;
-    }
-    if (this.handsInstance) {
-      try {
-        this.handsInstance.close();
-      } catch (e) {
-        // Ignore close error
-      }
-      this.handsInstance = null;
     }
     this.hands = [];
     console.log('[HandTracker] Camera tracking stopped');
@@ -239,11 +236,11 @@ export class HandTracker {
   _onMediaPipeResults(results) {
     if (!this.isCameraTracking) return;
 
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    if (results.landmarks && results.landmarks.length > 0) {
       const detectedHands = [];
 
-      for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-        const landmarks = results.multiHandLandmarks[i];
+      for (let i = 0; i < results.landmarks.length; i++) {
+        const landmarks = results.landmarks[i];
         const indexTip = landmarks[8]; // Index finger tip
         const thumbTip = landmarks[4]; // Thumb tip for pinch detection
 
@@ -262,7 +259,7 @@ export class HandTracker {
           y: screenY,
           isPinching: isPinching,
           name: `食指 ${i + 1}`,
-          handedness: results.multiHandedness && results.multiHandedness[i] ? results.multiHandedness[i].label : `Hand ${i + 1}`
+          handedness: results.handedness?.[i]?.[0]?.categoryName || `Hand ${i + 1}`
         });
       }
 
@@ -298,28 +295,5 @@ export class HandTracker {
         source
       });
     }
-  }
-
-  /**
-   * Dynamically loads MediaPipe Hands script tags into document head if needed.
-   * @returns {Promise<boolean>}
-   */
-  async _ensureMediaPipeLoaded() {
-    if (window.Hands) return true;
-
-    return new Promise((resolve) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
-      script.crossOrigin = 'anonymous';
-      script.onload = () => {
-        console.log('[HandTracker] MediaPipe Hands script loaded dynamically');
-        resolve(true);
-      };
-      script.onerror = () => {
-        console.warn('[HandTracker] Failed to load MediaPipe Hands from CDN');
-        resolve(false);
-      };
-      document.head.appendChild(script);
-    });
   }
 }
