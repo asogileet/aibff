@@ -6,6 +6,9 @@ import * as THREE from 'three';
  * Supports dual-hand simultaneous index finger tracking and direct screen-delta mapping
  * for hands, legs, head, and lifting the entire body (hips).
  */
+// Joints that are dragged by solving the limb toward the pointer: [side, grabbed joint]
+const LIMB_JOINT = /^(left|right)(Hand|LowerArm|Foot|LowerLeg)$/;
+
 export class PuppetController {
   constructor(avatarController, animationController, sceneManager, options = {}) {
     this.avatarController = avatarController;
@@ -216,6 +219,12 @@ export class PuppetController {
     } else if (jointKey === 'chest' || jointKey === 'spine') {
       saveBone('chest');
       saveBone('spine');
+    }
+
+    // Limb joints are dragged in world space: remember where the grabbed joint started
+    if (LIMB_JOINT.test(jointKey)) {
+      const grabbed = humanoid.getNormalizedBoneNode(jointKey);
+      if (grabbed) startBoneRots._startWorld = grabbed.getWorldPosition(new THREE.Vector3());
     }
     return startBoneRots;
   }
@@ -510,6 +519,13 @@ export class PuppetController {
     const dx = delta.x;
     const dy = delta.y;
 
+    // Arms and legs follow the pointer exactly (full reach: overhead, high kicks);
+    // the per-axis mapping below is only a fallback when that can't be solved.
+    const limb = LIMB_JOINT.exec(jointKey);
+    if (limb && this._dragLimbToPointer(limb[1], limb[2], vrm, dx, dy, baseRots)) {
+      return;
+    }
+
     if (jointKey === 'hips') {
       if (vrm.scene) {
         vrm.scene.position.x = modelPos.x + dx * 0.0035;
@@ -701,6 +717,86 @@ export class PuppetController {
       }
       return;
     }
+  }
+
+  /**
+   * Moves the grabbed hand / foot (two-bone IK) or elbow / knee (aim the upper
+   * bone) to the point under the pointer, at the depth the joint had when grabbed.
+   * @param {string} side 'left' | 'right'
+   * @param {string} joint 'Hand' | 'LowerArm' | 'Foot' | 'LowerLeg'
+   * @returns {boolean} false if the limb could not be solved
+   */
+  _dragLimbToPointer(side, joint, vrm, dx, dy, baseRots) {
+    const camera = this.sceneManager?.camera;
+    const startWorld = baseRots?._startWorld;
+    const humanoid = vrm.humanoid;
+    const isArm = joint === 'Hand' || joint === 'LowerArm';
+    const isTip = joint === 'Hand' || joint === 'Foot';
+    const upper = humanoid.getNormalizedBoneNode(side + (isArm ? 'UpperArm' : 'UpperLeg'));
+    const lower = humanoid.getNormalizedBoneNode(side + (isArm ? 'LowerArm' : 'LowerLeg'));
+    const tip = humanoid.getNormalizedBoneNode(side + (isArm ? 'Hand' : 'Foot'));
+    if (!camera || !startWorld || !upper || !lower || !tip || !upper.parent) return false;
+
+    // Pointer movement in screen space -> world target on the grabbed joint's depth plane
+    const target = startWorld.clone().project(camera);
+    target.x += (dx / window.innerWidth) * 2;
+    target.y -= (dy / window.innerHeight) * 2;
+    target.unproject(camera);
+
+    const root = upper.getWorldPosition(new THREE.Vector3());
+    const parentQuat = upper.parent.getWorldQuaternion(new THREE.Quaternion());
+    const scale = upper.getWorldScale(new THREE.Vector3()).x;
+    const upperLen = lower.position.length() * scale;
+    const lowerLen = tip.position.length() * scale;
+    if (upperLen < 1e-5 || lowerLen < 1e-5) return false;
+
+    // Normalized bones have identity rest rotations: a child's offset is its parent's rest direction
+    const upperRest = lower.position.clone().normalize();
+    const lowerRest = tip.position.clone().normalize();
+
+    const toTarget = target.sub(root);
+    const dist = toTarget.length();
+    if (dist < 1e-5) return false;
+    const dir = toTarget.divideScalar(dist);
+
+    if (!isTip) {
+      // Elbow / knee grabbed: point the upper bone at the pointer, keep the existing bend
+      upper.quaternion.setFromUnitVectors(upperRest, dir.clone().applyQuaternion(parentQuat.clone().invert()));
+      return true;
+    }
+
+    // Hand / foot grabbed: bend the middle joint so the tip reaches the target (or stretch toward it)
+    const reach = THREE.MathUtils.clamp(dist, Math.abs(upperLen - lowerLen) + 1e-4, (upperLen + lowerLen) * 0.999);
+    const along = (upperLen * upperLen - lowerLen * lowerLen + reach * reach) / (2 * reach);
+    const bend = Math.sqrt(Math.max(0, upperLen * upperLen - along * along));
+
+    // The avatar's own outward / forward directions, from where its two limbs attach
+    const otherUpper = humanoid.getNormalizedBoneNode((side === 'left' ? 'right' : 'left') + (isArm ? 'UpperArm' : 'UpperLeg'));
+    const outward = otherUpper
+      ? root.clone().sub(otherUpper.getWorldPosition(new THREE.Vector3())).normalize()
+      : new THREE.Vector3(1, 0, 0);
+    const forward = new THREE.Vector3().crossVectors(outward, new THREE.Vector3(0, 1, 0));
+    if (side === 'right') forward.negate();
+
+    // Which way the middle joint bulges. Elbows: down / out / slightly back.
+    // Knees: toward the front of the leg wherever it points (up on a front kick,
+    // down on a back kick), so they never bend the wrong way.
+    const avatarLeft = side === 'left' ? outward : outward.clone().negate();
+    const pole = isArm
+      ? new THREE.Vector3(0, -1, 0).addScaledVector(outward, 0.6).addScaledVector(forward, -0.3)
+      : new THREE.Vector3().crossVectors(dir, avatarLeft).addScaledVector(forward, 0.2);
+    pole.addScaledVector(dir, -pole.dot(dir));
+    if (pole.lengthSq() < 1e-8) pole.copy(outward).addScaledVector(dir, -outward.dot(dir));
+    pole.normalize();
+
+    const middle = dir.clone().multiplyScalar(along).addScaledVector(pole, bend);
+    const upperDir = middle.clone().normalize();
+    const lowerDir = dir.clone().multiplyScalar(reach).sub(middle).normalize();
+
+    upper.quaternion.setFromUnitVectors(upperRest, upperDir.applyQuaternion(parentQuat.clone().invert()));
+    const upperWorldQuat = parentQuat.multiply(upper.quaternion);
+    lower.quaternion.setFromUnitVectors(lowerRest, lowerDir.applyQuaternion(upperWorldQuat.invert()));
+    return true;
   }
 
   _springBonesToDefault(vrm, t) {
