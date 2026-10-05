@@ -23,7 +23,7 @@ export class PuppetPoseBar {
   _render() {
     this.element = document.createElement('div');
     this.element.id = 'puppetPoseBar';
-    this.element.className = 'hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto glass-panel rounded-full px-3 py-1.5 flex items-center space-x-2 shadow-2xl border border-pink-500/40 text-xs text-slate-200 transition-all duration-300 backdrop-blur-md bg-slate-950/80';
+    this.element.className = 'hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto glass-panel rounded-full px-3 py-1.5 flex items-center space-x-2 shadow-2xl border border-pink-500/40 text-xs text-slate-200 transition-all duration-300 backdrop-blur-md bg-slate-950/80 whitespace-nowrap max-w-[95vw] overflow-x-auto no-scrollbar';
 
     this.element.innerHTML = `
       <div class="flex items-center space-x-1 pl-1 pr-2 border-r border-white/10 font-bold text-pink-300 select-none">
