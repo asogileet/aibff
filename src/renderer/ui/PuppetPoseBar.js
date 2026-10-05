@@ -4,13 +4,14 @@
  * directly saving them as custom poses, and resetting stand.
  */
 export class PuppetPoseBar {
-  constructor(container, puppetController, poseManager, poseModal, onShowBubble, sceneManager = null) {
+  constructor(container, puppetController, poseManager, poseModal, onShowBubble, sceneManager = null, motionEditor = null) {
     this.container = container;
     this.puppetController = puppetController;
     this.poseManager = poseManager;
     this.poseModal = poseModal;
     this.onShowBubble = onShowBubble;
     this.sceneManager = sceneManager;
+    this.motionEditor = motionEditor;
 
     this.element = null;
     this.isVisible = false;
@@ -76,6 +77,12 @@ export class PuppetPoseBar {
           </div>
         </div>
       </div>
+
+      <!-- Open Motion Editor -->
+      <button id="btnOpenMotionEditor" class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-violet-600/30 text-violet-200 hover:bg-violet-600/50 hover:text-white border border-violet-500/40 transition font-semibold text-[11px]" title="把多個姿勢串成動作並播放">
+        <span>🎬</span>
+        <span>動作編輯</span>
+      </button>
 
       <!-- Reset Stand Button -->
       <button id="btnResetPuppetPose" class="flex items-center space-x-1 px-2 py-1 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition text-[11px]" title="平滑復位至標準待機站姿">
@@ -230,6 +237,10 @@ export class PuppetPoseBar {
       if (this.poseModal) {
         this.poseModal.toggle(true);
       }
+    });
+
+    this.element.querySelector('#btnOpenMotionEditor').addEventListener('click', () => {
+      this.motionEditor?.toggle();
     });
   }
 

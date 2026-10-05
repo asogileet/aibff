@@ -12,6 +12,7 @@ import { LipSyncController } from './vrm/LipSyncController.js';
 import { EyeTrackingController } from './vrm/EyeTrackingController.js';
 import { ActionController } from './vrm/ActionController.js';
 import { PoseManager } from './vrm/PoseManager.js';
+import { MotionManager } from './vrm/MotionManager.js';
 import { PuppetController } from './vrm/PuppetController.js';
 import { MascotPhysicsController } from './vrm/MascotPhysicsController.js';
 import { MotionCaptureController } from './vrm/MotionCaptureController.js';
@@ -21,6 +22,7 @@ import { ChatBox } from './ui/ChatBox.js';
 import { CostumeSelector } from './ui/CostumeSelector.js';
 import { ActionSelector } from './ui/ActionSelector.js';
 import { PoseModal } from './ui/PoseModal.js';
+import { MotionEditor } from './ui/MotionEditor.js';
 import { PuppetVisualizer } from './ui/PuppetVisualizer.js';
 import { HeartWidget } from './ui/HeartWidget.js';
 import { SettingsModal } from './ui/SettingsModal.js';
@@ -389,6 +391,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     if (next) {
       if (isPuppetMode) await togglePuppetMode(false);
+      motionManager.stop();
       mocapPreview.show(null, motionCaptureController.isMirror);
       try {
         await motionTracker.start({ deviceId: arManager.selectedDeviceId });
@@ -423,6 +426,19 @@ window.addEventListener('DOMContentLoaded', async () => {
   const poseManager = new PoseManager(avatarController, animationController);
   const poseModal = new PoseModal(uiContainer, poseManager, sceneManager, showBubble);
 
+  // Custom motions: several poses played back in sequence
+  const motionManager = new MotionManager(avatarController, animationController, poseManager, {
+    // Grabbing a limb or springing back to the stand takes the bones away from playback
+    isInterrupted: () => puppetController.isRecovering
+      || puppetController.getActivePointers().some((p) => p.grabbedJointKey),
+    onBeforePlay: () => {
+      puppetController.isRecovering = false;
+    },
+    onStateChanged: () => motionEditor.refresh()
+  });
+  const motionEditor = new MotionEditor(uiContainer, motionManager, poseManager, showBubble);
+  sceneManager.addUpdatable(motionManager);
+
   puppetController.setPoseManager(poseManager);
   const puppetPoseBar = new PuppetPoseBar(
     uiContainer,
@@ -430,7 +446,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     poseManager,
     poseModal,
     (text, emotion) => showBubble(text, emotion),
-    sceneManager
+    sceneManager,
+    motionEditor
   );
 
   const multiAvatarBar = new MultiAvatarBar(
@@ -544,6 +561,32 @@ window.addEventListener('DOMContentLoaded', async () => {
         chatBox.addAssistantMessage(`好呀！馬上為主人擺出「${found.name}」的姿勢～✨`);
       } else {
         chatBox.addAssistantMessage(`找不到名為「${nameQuery}」的姿勢。可以使用 /pose list 查看所有姿勢，或使用「🦴 姿勢」面板儲存新姿勢喔！`);
+      }
+      return true;
+    }
+    if (trimmed === '/motion list') {
+      const motions = motionManager.getSavedMotions();
+      const listStr = motions.map(m => `• ${m.name}`).join('\n');
+      chatBox.addAssistantMessage(motions.length
+        ? `目前已儲存的動作列表：\n${listStr}`
+        : '還沒有儲存任何動作，可以在玩偶捏人模式點「🎬 動作編輯」製作喔！');
+      return true;
+    }
+    if (trimmed === '/motion stop') {
+      motionManager.stop();
+      chatBox.addAssistantMessage('已停止播放動作～');
+      return true;
+    }
+    if (trimmed.startsWith('/motion ')) {
+      const nameQuery = trimmed.replace('/motion ', '').trim();
+      const found = motionManager.findMotionByName(nameQuery);
+      if (found) {
+        motionManager.loadMotion(found.id);
+        motionManager.play({ loop: found.loop });
+        showBubble(`開始表演「${found.name}」！`, 'happy');
+        chatBox.addAssistantMessage(`好呀！馬上為主人表演「${found.name}」～✨${found.loop ? '（循環播放中，輸入 /motion stop 停止）' : ''}`);
+      } else {
+        chatBox.addAssistantMessage(`找不到名為「${nameQuery}」的動作。可以使用 /motion list 查看所有動作喔！`);
       }
       return true;
     }
@@ -880,6 +923,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     costumeSelector.element,
     actionSelector.element,
     poseModal.element,
+    motionEditor.element,
     heartWidget.element,
     settingsModal.element,
     puppetPoseBar.element,
@@ -925,6 +969,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         costumeSelector.toggle(false);
         actionSelector.toggle(false);
         poseModal.toggle(false);
+        motionManager.stop();
+        motionEditor.toggle(false);
         puppetPoseBar.setVisible(false);
         heartWidget.show();
         if (window.electronAPI?.setRestingMode) {
@@ -977,6 +1023,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     sceneManager,
     poseManager,
     poseModal,
+    motionManager,
+    motionEditor,
     puppetPoseBar,
     puppetController,
     handTracker,
