@@ -1,18 +1,20 @@
 /**
  * MotionTracker
- * Webcam body + face landmark provider for avatar motion capture.
- * Runs MediaPipe Pose Landmarker (3D world landmarks) and Face Landmarker
- * (ARKit blendshapes + head transform) on its own low-resolution camera stream,
- * so it works with or without the AR background video.
+ * Webcam body + face + hand landmark provider for avatar motion capture.
+ * Runs MediaPipe Pose Landmarker (3D world landmarks), Face Landmarker
+ * (ARKit blendshapes + head transform) and Hand Landmarker (finger joints)
+ * on its own low-resolution camera stream, so it works with or without the
+ * AR background video.
  */
 
 import { loadVision, createWithFallback, MODEL_SOURCES } from './mediapipeVision.js';
 
 export class MotionTracker {
   constructor(options = {}) {
-    this.onResults = options.onResults || null; // Callback: ({ pose, face, timestamp }) => {}
+    this.onResults = options.onResults || null; // Callback: ({ pose, face, hands, timestamp }) => {}
     this.onStatus = options.onStatus || null;   // Callback: (text) => {}
     this.enableFace = options.enableFace !== false;
+    this.enableHands = options.enableHands !== false;
     this.targetFps = options.targetFps || 30;
 
     this.isActive = false;
@@ -20,6 +22,7 @@ export class MotionTracker {
     this.videoElement = null;
     this.poseLandmarker = null;
     this.faceLandmarker = null;
+    this.handLandmarker = null;
 
     this._ownsVideo = false;
     this._animationFrameId = null;
@@ -97,13 +100,14 @@ export class MotionTracker {
   }
 
   /**
-   * Runs both landmarkers on one frame and emits a plain result object.
+   * Runs the landmarkers on one frame and emits a plain result object.
    * @param {HTMLVideoElement|HTMLImageElement|HTMLCanvasElement} source
    * @param {number} timestamp Monotonic milliseconds
    */
   _processFrame(source, timestamp) {
     let pose = null;
     let face = null;
+    let hands = [];
     try {
       const poseResult = this.poseLandmarker.detectForVideo(source, timestamp);
       if (poseResult.worldLandmarks && poseResult.worldLandmarks.length > 0) {
@@ -120,6 +124,14 @@ export class MotionTracker {
           face = { blendshapes, matrix: matrix ? matrix.data : null };
         }
       }
+      // Fingers are only useful once there is a body to attach the hands to
+      if (this.handLandmarker && pose) {
+        const handResult = this.handLandmarker.detectForVideo(source, timestamp);
+        const count = handResult.worldLandmarks ? handResult.worldLandmarks.length : 0;
+        for (let i = 0; i < count; i++) {
+          hands.push({ world: handResult.worldLandmarks[i], image: handResult.landmarks[i] });
+        }
+      }
     } catch (err) {
       // A single bad frame must not kill the loop
       console.warn('[MotionTracker] Frame processing error:', err);
@@ -127,7 +139,7 @@ export class MotionTracker {
     }
 
     if (typeof this.onResults === 'function') {
-      this.onResults({ pose, face, timestamp });
+      this.onResults({ pose, face, hands, timestamp });
     }
   }
 
@@ -160,6 +172,23 @@ export class MotionTracker {
         // Body tracking still works without the face model
         console.warn('[MotionTracker] Face landmarker unavailable, continuing with body only:', err);
         this.faceLandmarker = null;
+      }
+    }
+
+    if (this.enableHands) {
+      try {
+        this.handLandmarker = await createWithFallback(MODEL_SOURCES.hand, (modelAssetPath, delegate) =>
+          vision.HandLandmarker.createFromOptions(fileset, {
+            baseOptions: { modelAssetPath, delegate },
+            runningMode: 'VIDEO',
+            numHands: 2,
+            minHandDetectionConfidence: 0.5,
+            minHandPresenceConfidence: 0.5,
+            minTrackingConfidence: 0.5
+          }));
+      } catch (err) {
+        console.warn('[MotionTracker] Hand landmarker unavailable, continuing without fingers:', err);
+        this.handLandmarker = null;
       }
     }
   }

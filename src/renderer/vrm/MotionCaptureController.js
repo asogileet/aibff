@@ -3,8 +3,8 @@ import * as THREE from 'three';
 /**
  * MotionCaptureController
  * Retargets MediaPipe body / face tracking results onto the active VRM:
- * torso, arms, legs and head follow the person in front of the webcam, and
- * blinking / mouth shapes follow their face.
+ * torso, arms, legs, head and fingers follow the person in front of the webcam,
+ * and blinking / mouth shapes follow their face.
  *
  * Must be registered as the LAST updatable so its bone writes win over the
  * idle, eye-tracking and action animations while capture is enabled.
@@ -18,15 +18,31 @@ const LM = {
   leftHip: 23, rightHip: 24, leftKnee: 25, rightKnee: 26, leftAnkle: 27, rightAnkle: 28
 };
 
+// MediaPipe Hand landmark indices
+const HAND = { wrist: 0, indexMcp: 5, middleMcp: 9, pinkyMcp: 17 };
+
+// Finger bone suffix -> [from, to] hand landmarks whose segment the bone follows.
+// (three-vrm names the three thumb bones Metacarpal / Proximal / Distal.)
+const FINGER_SEGMENTS = {
+  ThumbMetacarpal: [1, 2], ThumbProximal: [2, 3], ThumbDistal: [3, 4],
+  IndexProximal: [5, 6], IndexIntermediate: [6, 7], IndexDistal: [7, 8],
+  MiddleProximal: [9, 10], MiddleIntermediate: [10, 11], MiddleDistal: [11, 12],
+  RingProximal: [13, 14], RingIntermediate: [14, 15], RingDistal: [15, 16],
+  LittleProximal: [17, 18], LittleIntermediate: [18, 19], LittleDistal: [19, 20]
+};
+const FINGER_BONES = ['left', 'right'].flatMap((side) => Object.keys(FINGER_SEGMENTS).map((f) => side + f));
+
 const DRIVEN_BONES = [
   'hips', 'spine', 'chest', 'neck', 'head',
   'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand',
-  'leftUpperLeg', 'leftLowerLeg', 'rightUpperLeg', 'rightLowerLeg'
+  'leftUpperLeg', 'leftLowerLeg', 'rightUpperLeg', 'rightLowerLeg',
+  ...FINGER_BONES
 ];
 
 const VISIBLE = 0.5;        // Landmark visibility needed to drive a limb
 const LEG_VISIBLE = 0.65;   // Legs are usually out of frame at a desk, so be stricter
 const LOST_TIMEOUT = 1.0;   // Seconds without a body before easing back to the rest pose
+const HAND_MATCH_DIST = 0.2; // Max image-space distance (0..1) between a detected hand and a body wrist
 const FOLLOW_SPEED = 16.0;  // Bone smoothing rate (higher = snappier, noisier)
 const FACE_SPEED = 22.0;
 
@@ -79,7 +95,7 @@ export class MotionCaptureController {
 
   /**
    * Feed one tracking result from MotionTracker.
-   * @param {{ pose: { world: Array }|null, face: { blendshapes: Object, matrix: Array|null }|null }} result
+   * @param {{ pose: { world: Array, image: Array }|null, face: { blendshapes: Object, matrix: Array|null }|null, hands: Array<{ world: Array, image: Array }> }} result
    */
   applyResults(result) {
     if (!this.isEnabled || !result) return;
@@ -92,6 +108,7 @@ export class MotionCaptureController {
     const world = result.pose?.world;
     if (world && world.length > LM.rightAnkle) {
       this._solveBody(vrm, rig, world, targets);
+      this._solveHands(vrm, rig, result, targets);
       this._lastBodyTime = performance.now();
     }
     if (result.face) {
@@ -163,6 +180,19 @@ export class MotionCaptureController {
         restDir[bone] = childNode.position.clone().normalize();
       } else if (bone.endsWith('Hand')) {
         restDir[bone] = left.clone().multiplyScalar(bone.startsWith('left') ? 1 : -1);
+      }
+    }
+
+    // Finger bones: a distal bone has no humanoid child, so it reuses the direction it was reached by
+    for (const side of ['left', 'right']) {
+      const suffixes = Object.keys(FINGER_SEGMENTS);
+      for (let i = 0; i < suffixes.length; i++) {
+        const node = humanoid.getNormalizedBoneNode(side + suffixes[i]);
+        if (!node) continue;
+        const isTip = i % 3 === 2;
+        const next = isTip ? null : humanoid.getNormalizedBoneNode(side + suffixes[i + 1]);
+        const offset = next && next.position.lengthSq() > 1e-10 ? next.position : node.position;
+        if (offset.lengthSq() > 1e-10) restDir[side + suffixes[i]] = offset.clone().normalize();
       }
     }
 
@@ -347,6 +377,81 @@ export class MotionCaptureController {
     this._aim(vrm, rig, targets, 'leftUpperArm', this._hangDir(rig, 1));
     this._aim(vrm, rig, targets, 'rightUpperArm', this._hangDir(rig, -1));
     return targets;
+  }
+
+  // ---------------------------------------------------------------- hands
+
+  /**
+   * Matches detected hands to the body's wrists (the hand model's own left / right
+   * label is unreliable on mirrored video) and drives palm orientation and fingers.
+   */
+  _solveHands(vrm, rig, result, targets) {
+    const hands = result.hands || [];
+    const poseImage = result.pose?.image;
+    const assigned = {};
+
+    if (poseImage && hands.length > 0) {
+      for (const hand of hands) {
+        const w = hand.image?.[HAND.wrist];
+        if (!w || !hand.world) continue;
+        for (const personSide of ['left', 'right']) {
+          const pw = poseImage[LM[personSide + 'Wrist']];
+          if (!pw || this._vis(pw) < VISIBLE) continue;
+          const dist = Math.hypot(w.x - pw.x, w.y - pw.y);
+          if (dist > HAND_MATCH_DIST) continue;
+          const other = personSide === 'left' ? 'right' : 'left';
+          const avatarSide = this.isMirror ? other : personSide;
+          if (!assigned[avatarSide] || dist < assigned[avatarSide].dist) {
+            assigned[avatarSide] = { hand, dist };
+          }
+        }
+      }
+      // One detected hand can't be both of the avatar's hands
+      if (assigned.left && assigned.right && assigned.left.hand === assigned.right.hand) {
+        delete assigned[assigned.left.dist <= assigned.right.dist ? 'right' : 'left'];
+      }
+    }
+
+    for (const side of ['left', 'right']) {
+      if (assigned[side]) {
+        this._solveHand(vrm, rig, side, assigned[side].hand.world, targets);
+      } else {
+        // Not seen: relax the fingers (the wrist keeps following the body model)
+        for (const suffix of Object.keys(FINGER_SEGMENTS)) targets[side + suffix] = new THREE.Quaternion();
+      }
+    }
+  }
+
+  _solveHand(vrm, rig, side, world, targets) {
+    const R = (i) => this._toRig(rig, world[i], new THREE.Vector3());
+    const sign = side === 'left' ? 1 : -1;
+
+    // Palm orientation. Rest (T-pose, palm down): fingers point sideways, index->pinky points backward.
+    const handNode = vrm.humanoid.getNormalizedBoneNode(side + 'Hand');
+    if (handNode) {
+      const along = R(HAND.middleMcp).sub(R(HAND.wrist));
+      const across = R(HAND.pinkyMcp).sub(R(HAND.indexMcp));
+      const normal = new THREE.Vector3().crossVectors(along, across);
+      if (normal.lengthSq() > 1e-12) {
+        along.normalize(); normal.normalize();
+        across.crossVectors(normal, along);
+        const target = new THREE.Quaternion().setFromRotationMatrix(_m.makeBasis(along, across, normal));
+
+        const restAlong = rig.left.clone().multiplyScalar(sign);
+        const restAcross = rig.forward.clone().negate();
+        const restNormal = new THREE.Vector3().crossVectors(restAlong, restAcross);
+        const rest = new THREE.Quaternion().setFromRotationMatrix(_m.makeBasis(restAlong, restAcross, restNormal));
+
+        const worldQuat = target.multiply(rest.invert());
+        const parentQuat = this._parentQuat(vrm, handNode, targets, new THREE.Quaternion());
+        targets[side + 'Hand'] = parentQuat.invert().multiply(worldQuat);
+      }
+    }
+
+    // Fingers, base to tip so each bone sees its parent's new orientation
+    for (const [suffix, [from, to]] of Object.entries(FINGER_SEGMENTS)) {
+      this._aim(vrm, rig, targets, side + suffix, R(to).sub(R(from)));
+    }
   }
 
   // ---------------------------------------------------------------- head

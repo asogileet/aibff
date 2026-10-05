@@ -371,7 +371,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   const motionTracker = new MotionTracker({
     onResults: (result) => {
       motionCaptureController.applyResults(result);
-      mocapPreview.setStatus(result.pose ? (result.face ? '✅ 追蹤中：身體＋臉部' : '✅ 追蹤中：身體') : '👀 找不到人，請退後一點');
+      if (result.pose) {
+        const parts = ['身體'];
+        if (result.face) parts.push('臉部');
+        if (result.hands?.length) parts.push(`手指×${result.hands.length}`);
+        mocapPreview.setStatus(`✅ 追蹤中：${parts.join('＋')}`);
+      } else {
+        mocapPreview.setStatus('👀 找不到人，請退後一點');
+      }
     },
     onStatus: (text) => mocapPreview.setStatus(text)
   });
