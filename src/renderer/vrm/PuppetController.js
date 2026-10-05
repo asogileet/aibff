@@ -9,6 +9,23 @@ import * as THREE from 'three';
 // Joints that are dragged by solving the limb toward the pointer: [side, grabbed joint]
 const LIMB_JOINT = /^(left|right)(Hand|LowerArm|Foot|LowerLeg)$/;
 
+// Joints that are rotated by dragging an invisible handle on the bone.
+//   mode    - where the handle sits. 'tilt': on top of the bone - seen from the front, sideways
+//             tilts it, down bends it forward, up leans it back. 'turn': on the front of the
+//             bone - seen from the front, sideways turns it, up / down nods or bows.
+//             (Seen from the side the two swap roles, so the drag always matches the view.)
+//   radius  - handle distance in metres (pointer travel for a quarter turn); never less than
+//             TRACKBALL_MIN_PIXELS on screen, so small / distant avatars stay controllable
+//   max     - rotation limit in radians, so the body can't be folded in half
+//   share   - other bones that take a fraction of the rotation
+const TRACKBALL_JOINTS = {
+  head: { mode: 'tilt', radius: 0.11, max: 0.9, share: { neck: 0.3 } },
+  neck: { mode: 'turn', radius: 0.10, max: 0.75 },
+  chest: { mode: 'turn', radius: 0.15, max: 0.7 },
+  spine: { mode: 'tilt', radius: 0.18, max: 0.8 }
+};
+const TRACKBALL_MIN_PIXELS = 70;
+
 export class PuppetController {
   constructor(avatarController, animationController, sceneManager, options = {}) {
     this.avatarController = avatarController;
@@ -225,6 +242,27 @@ export class PuppetController {
     if (LIMB_JOINT.test(jointKey)) {
       const grabbed = humanoid.getNormalizedBoneNode(jointKey);
       if (grabbed) startBoneRots._startWorld = grabbed.getWorldPosition(new THREE.Vector3());
+    }
+
+    // Trackball joints: remember the bone's orientation and where its handle pointed
+    const trackball = TRACKBALL_JOINTS[jointKey];
+    const node = trackball ? humanoid.getNormalizedBoneNode(jointKey) : null;
+    if (node) {
+      const worldQuat = node.getWorldQuaternion(new THREE.Quaternion());
+      // The avatar's own forward axis (VRM 0.x and 1.0 face opposite ways)
+      const leftLowerArm = humanoid.getNormalizedBoneNode('leftLowerArm');
+      const forwardZ = leftLowerArm && leftLowerArm.position.x < 0 ? -1 : 1;
+      const local = trackball.mode === 'tilt' ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, forwardZ);
+      const shareQuats = {};
+      for (const name of Object.keys(trackball.share || {})) {
+        const shared = humanoid.getNormalizedBoneNode(name);
+        if (shared) shareQuats[name] = shared.quaternion.clone();
+      }
+      startBoneRots._trackball = {
+        handleDir: local.applyQuaternion(worldQuat).normalize(),
+        startQuat: node.quaternion.clone(),
+        shareQuats
+      };
     }
     return startBoneRots;
   }
@@ -525,6 +563,9 @@ export class PuppetController {
     if (limb && this._dragLimbToPointer(limb[1], limb[2], vrm, dx, dy, baseRots)) {
       return;
     }
+    if (TRACKBALL_JOINTS[jointKey] && this._dragTrackball(jointKey, vrm, dx, dy, baseRots)) {
+      return;
+    }
 
     if (jointKey === 'hips') {
       if (vrm.scene) {
@@ -797,6 +838,113 @@ export class PuppetController {
     const upperWorldQuat = parentQuat.multiply(upper.quaternion);
     lower.quaternion.setFromUnitVectors(lowerRest, lowerDir.applyQuaternion(upperWorldQuat.invert()));
     return true;
+  }
+
+  /**
+   * Rotates the head / neck / chest / spine so an invisible handle on the bone
+   * stays under the pointer, like turning a trackball.
+   * @returns {boolean} false if the joint could not be solved
+   */
+  _dragTrackball(jointKey, vrm, dx, dy, baseRots) {
+    const config = TRACKBALL_JOINTS[jointKey];
+    const start = baseRots?._trackball;
+    const camera = this.sceneManager?.camera;
+    const humanoid = vrm.humanoid;
+    const node = humanoid.getNormalizedBoneNode(jointKey);
+    if (!config || !start || !camera || !node || !node.parent) return false;
+
+    // The bone's position when grabbed (sharing the turn with the neck moves the head itself)
+    if (!start.pivot) start.pivot = node.getWorldPosition(new THREE.Vector3());
+    const pivot = start.pivot;
+    // How many screen pixels one world unit covers at the bone's depth
+    const pivotNdc = pivot.clone().project(camera);
+    const cameraRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const sideNdc = pivot.clone().add(cameraRight).project(camera);
+    const pixelsPerUnit = Math.abs(sideNdc.x - pivotNdc.x) * window.innerWidth * 0.5;
+    const radius = Math.max(
+      config.radius * node.getWorldScale(new THREE.Vector3()).x,
+      pixelsPerUnit > 1e-6 ? TRACKBALL_MIN_PIXELS / pixelsPerUnit : 0
+    );
+
+    // Camera-facing frame around the bone
+    const toCamera = camera.getWorldPosition(new THREE.Vector3()).sub(pivot).normalize();
+    const right = new THREE.Vector3().crossVectors(camera.up, toCamera).normalize();
+    const up = new THREE.Vector3().crossVectors(toCamera, right);
+    const radiusPixels = radius * pixelsPerUnit;
+    const pivotX = (pivotNdc.x + 1) * 0.5 * window.innerWidth;
+    const pivotY = (1 - pivotNdc.y) * 0.5 * window.innerHeight;
+
+    // Handle and pointer relative to the bone, in handle-radius units (x right, y up)
+    const handleNdc = pivot.clone().addScaledVector(start.handleDir, radius).project(camera);
+    const x0 = ((handleNdc.x + 1) * 0.5 * window.innerWidth - pivotX) / radiusPixels;
+    const y0 = -((1 - handleNdc.y) * 0.5 * window.innerHeight - pivotY) / radiusPixels;
+    const x1 = x0 + dx / radiusPixels;
+    const y1 = y0 - dy / radiusPixels;
+    const unit = (v) => THREE.MathUtils.clamp(v, -1, 1);
+    const turn = new THREE.Quaternion();
+
+    const len0 = Math.hypot(x0, y0);
+    if (len0 > 0.5) {
+      // The handle sticks out sideways from the bone as seen on screen (a 'tilt' handle from
+      // the front, a 'turn' handle from the side): move it like a clock hand.
+      // Swing: the handle keeps pointing from the bone toward the pointer
+      const len1 = Math.hypot(x1, y1);
+      const swing = len1 > 1e-4 ? Math.atan2(x0 * y1 - y0 * x1, x0 * x1 + y0 * y1) : 0;
+      // Bend: pulling the handle in toward the bone leans it toward the camera, pulling it
+      // out leans it away (a quarter turn per handle length). Only movement along the
+      // handle counts, so a purely sideways drag is a pure swing.
+      const bend = (len0 - (x1 * x0 + y1 * y0) / len0) * Math.PI * 0.5;
+      const radial = new THREE.Vector3().addScaledVector(right, x0 / len0).addScaledVector(up, y0 / len0);
+      const bendAxis = new THREE.Vector3().crossVectors(radial, toCamera).normalize();
+      turn.setFromAxisAngle(toCamera, swing).multiply(new THREE.Quaternion().setFromAxisAngle(bendAxis, bend));
+    } else {
+      // The handle points at the camera: it slides under the pointer, turning and nodding the bone
+      const yaw = Math.asin(unit(x1)) - Math.asin(unit(x0));
+      const pitch = Math.asin(unit(y1)) - Math.asin(unit(y0));
+      turn.setFromAxisAngle(up, yaw).multiply(new THREE.Quaternion().setFromAxisAngle(right, -pitch));
+    }
+
+    // Limit the turn to a natural range
+    const angle = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(turn.w), 0, 1));
+    if (angle > config.max) turn.copy(new THREE.Quaternion().slerp(turn, config.max / angle));
+
+    // Apply `amount` of the turn to a bone, on top of the rotation it had when grabbed
+    const applyTurn = (bone, startQuat, amount) => {
+      const parentQuat = bone.parent.getWorldQuaternion(new THREE.Quaternion());
+      const partial = amount >= 1 ? turn : new THREE.Quaternion().slerp(turn, amount);
+      const worldQuat = partial.clone().multiply(parentQuat.clone().multiply(startQuat));
+      bone.quaternion.copy(parentQuat.invert().multiply(worldQuat));
+    };
+
+    // Shared bones are this bone's ancestors, so the grabbed bone only adds what they left over
+    for (const [name, amount] of Object.entries(config.share || {})) {
+      const shared = humanoid.getNormalizedBoneNode(name);
+      if (shared && shared.parent && start.shareQuats[name]) applyTurn(shared, start.shareQuats[name], amount);
+    }
+    const parentQuat = node.parent.getWorldQuaternion(new THREE.Quaternion());
+    const startParentQuat = this._startParentQuat(node, start, config, humanoid);
+    const targetWorld = turn.clone().multiply(startParentQuat.multiply(start.startQuat));
+    node.quaternion.copy(parentQuat.invert().multiply(targetWorld));
+    return true;
+  }
+
+  /**
+   * World orientation the grabbed bone's parent had at grab time: the current
+   * chain, but with the shared bones put back to their starting rotations.
+   */
+  _startParentQuat(node, start, config, humanoid) {
+    const sharedNodes = new Map();
+    for (const name of Object.keys(config.share || {})) {
+      const shared = humanoid.getNormalizedBoneNode(name);
+      if (shared && start.shareQuats[name]) sharedNodes.set(shared, start.shareQuats[name]);
+    }
+    const chain = [];
+    for (let p = node.parent; p; p = p.parent) chain.push(p);
+    const out = new THREE.Quaternion();
+    for (let i = chain.length - 1; i >= 0; i--) {
+      out.multiply(sharedNodes.get(chain[i]) || chain[i].quaternion);
+    }
+    return out;
   }
 
   _springBonesToDefault(vrm, t) {
