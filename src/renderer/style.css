@@ -96,3 +96,12 @@ body.in-browser {
   top: 1.5rem !important;
 }
 
+#loginModal {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+#loginModal * {
+  pointer-events: auto !important;
+}
+

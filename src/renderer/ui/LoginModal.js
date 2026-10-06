@@ -45,6 +45,14 @@ export class LoginModal {
       </div>
     `;
 
+    // Crucial: Stop mouse and touch event propagation completely inside the modal
+    // so background Three.js Canvas and RaycastManager never capture clicks
+    ['pointerdown', 'mousedown', 'mouseup', 'click', 'touchstart', 'touchend'].forEach(evtType => {
+      this.element.addEventListener(evtType, (e) => {
+        e.stopPropagation();
+      }, { capture: true });
+    });
+
     this.container.appendChild(this.element);
   }
 
