@@ -63,7 +63,9 @@ class AppConfig(BaseModel):
     auth: AuthConfig = Field(default_factory=AuthConfig)
 
 def load_config() -> AppConfig:
-    """Load configuration from config.local.json (priority) or config.json."""
+    """Load configuration from config.local.json (priority) or config.json.
+    Never overwrites existing files if parsing fails, to protect API keys and whitelist.
+    """
     target_file = LOCAL_CONFIG_FILE if LOCAL_CONFIG_FILE.exists() else CONFIG_FILE
     if target_file.exists():
         try:
@@ -71,9 +73,17 @@ def load_config() -> AppConfig:
                 data = json.load(f)
                 return AppConfig(**data)
         except Exception as e:
-            print(f"[Config] Error loading {target_file.name}: {e}, falling back to defaults")
+            print(f"[Config] ⚠️ Error loading {target_file.name}: {e}")
+            print(f"[Config] ⚠️ Keeping {target_file.name} intact to prevent data loss. Falling back in-memory.")
+            # Do NOT call save_config here to avoid wiping user keys/settings!
+            return AppConfig()
+
+    # Only create a fresh file if neither config.local.json nor config.json exists
     config = AppConfig()
-    save_config(config)
+    try:
+        save_config(config)
+    except Exception as e:
+        print(f"[Config] Notice: Could not create initial config file: {e}")
     return config
 
 def save_config(config: AppConfig) -> None:
