@@ -164,6 +164,19 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  // Check auth requirement immediately on startup
+  authService.checkAuthStatus().then((status) => {
+    if (status.auth_enabled) {
+      if (status.logged_in && status.user) {
+        toolbar?.setAuthState(true, status.user);
+        if (canvasContainer) canvasContainer.style.pointerEvents = 'auto';
+      } else {
+        if (canvasContainer) canvasContainer.style.pointerEvents = 'none';
+        loginModal.show();
+      }
+    }
+  });
+
   // 1. Initialize 3D Engine & Scene
   const sceneManager = new SceneManager(canvasContainer);
 
@@ -1100,18 +1113,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }, authService);
   wsClient.connect();
 
-  // Check auth requirement from backend
-  authService.checkAuthStatus().then((status) => {
-    if (status.auth_enabled) {
-      if (status.logged_in && status.user) {
-        toolbar.setAuthState(true, status.user);
-        if (canvasContainer) canvasContainer.style.pointerEvents = 'auto';
-      } else {
-        if (canvasContainer) canvasContainer.style.pointerEvents = 'none';
-        loginModal.show();
-      }
-    }
-  });
+
 
   // 7. Initial Model Load
   try {
