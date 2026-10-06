@@ -138,6 +138,32 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  const apiBase = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://'))
+    ? window.location.origin
+    : 'http://127.0.0.1:8765';
+
+  const authService = new AuthService(apiBase);
+  const loginModal = new LoginModal(document.body, authService, (user) => {
+    toolbar?.setAuthState(true, user);
+    showBubble(`歡迎回來，${user.name || '主人'}！✨`, 'happy');
+    if (canvasContainer) canvasContainer.style.pointerEvents = 'auto';
+    wsClient?.connect();
+  });
+
+  authService.onAuthRequired = () => {
+    if (canvasContainer) canvasContainer.style.pointerEvents = 'none';
+    loginModal.show();
+  };
+
+  authService.onAuthChange = (isLoggedIn, user) => {
+    toolbar?.setAuthState(isLoggedIn, user);
+    if (!isLoggedIn && authService.authEnabled) {
+      if (canvasContainer) canvasContainer.style.pointerEvents = 'none';
+    } else {
+      if (canvasContainer) canvasContainer.style.pointerEvents = 'auto';
+    }
+  };
+
   // 1. Initialize 3D Engine & Scene
   const sceneManager = new SceneManager(canvasContainer);
 
@@ -820,26 +846,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  const apiBase = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://'))
-    ? window.location.origin
-    : 'http://127.0.0.1:8765';
-
-  const authService = new AuthService(apiBase);
-  const loginModal = new LoginModal(document.body, authService, (user) => {
-    toolbar.setAuthState(true, user);
-    showBubble(`歡迎回來，${user.name || '主人'}！✨`, 'happy');
-    // Reconnect ws with newly acquired token
-    wsClient.connect();
-  });
-
-  authService.onAuthRequired = () => {
-    loginModal.show();
-  };
-
-  authService.onAuthChange = (isLoggedIn, user) => {
-    toolbar.setAuthState(isLoggedIn, user);
-  };
-
   const settingsModal = new SettingsModal(uiContainer, async (newConfig) => {
     try {
       const headers = {
@@ -1099,7 +1105,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (status.auth_enabled) {
       if (status.logged_in && status.user) {
         toolbar.setAuthState(true, status.user);
+        if (canvasContainer) canvasContainer.style.pointerEvents = 'auto';
       } else {
+        if (canvasContainer) canvasContainer.style.pointerEvents = 'none';
         loginModal.show();
       }
     }

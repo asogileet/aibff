@@ -145,6 +145,8 @@ export class LoginModal {
 
   show() {
     this.element.classList.remove('hidden');
+    const canvasContainer = document.getElementById('canvas-container');
+    if (canvasContainer) canvasContainer.style.pointerEvents = 'none';
     if (this.gisLoaded) {
       this._initGoogleButton();
     }
@@ -152,6 +154,8 @@ export class LoginModal {
 
   hide() {
     this.element.classList.add('hidden');
+    const canvasContainer = document.getElementById('canvas-container');
+    if (canvasContainer) canvasContainer.style.pointerEvents = 'auto';
   }
 
   isVisible() {
