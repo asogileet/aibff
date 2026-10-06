@@ -67,6 +67,10 @@ export class Toolbar {
         <span class="text-lg">⚙️</span>
         <span class="text-xs hidden md:inline">設定</span>
       </button>
+      <button id="btnAuth" class="hidden flex items-center space-x-1 text-slate-300 hover:text-rose-400 p-2 rounded-full hover:bg-white/5 transition" title="帳號與登出">
+        <span class="text-lg">👤</span>
+        <span class="text-xs hidden md:inline">帳號</span>
+      </button>
     `;
 
     this.container.appendChild(this.element);
@@ -85,6 +89,18 @@ export class Toolbar {
     this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
     this.element.querySelector('#btnLeave').addEventListener('click', () => this.handlers.onLeave?.());
     this.element.querySelector('#btnSettings').addEventListener('click', () => this.handlers.onSettings?.());
+    this.element.querySelector('#btnAuth')?.addEventListener('click', () => this.handlers.onAuth?.());
+  }
+
+  setAuthState(enabled, user) {
+    const btn = this.element.querySelector('#btnAuth');
+    if (!btn) return;
+    if (enabled && user) {
+      btn.classList.remove('hidden');
+      btn.title = `已登入: ${user.name || user.email} (點擊登出)`;
+    } else {
+      btn.classList.add('hidden');
+    }
   }
 
   _bindAutoHide() {

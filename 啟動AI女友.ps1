@@ -1,6 +1,7 @@
 # 3D 桌面 AI 女友 (Windows 11 PowerShell 啟動腳本)
 $Host.UI.RawUI.WindowTitle = "3D 桌面 AI 女友"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+Set-Location $PSScriptRoot
 
 Write-Host "========================================================" -ForegroundColor Magenta
 Write-Host "       ✨ 3D 桌面 AI 女友 (Windows 11 專屬版本) ✨" -ForegroundColor Cyan
@@ -43,7 +44,7 @@ Write-Host ""
 
 # 2. 啟動 Python 後端語音與 AI 服務
 Write-Host "[2/4] 正在啟動 Python 後端語音與 AI 服務 (Port: 8765)..." -ForegroundColor Yellow
-Start-Process -FilePath "python" -ArgumentList "-m", "uvicorn", "backend.app:app", "--host", "127.0.0.1", "--port", "8765" -WindowStyle Minimized -ErrorAction SilentlyContinue
+Start-Process -FilePath "python" -ArgumentList "-m", "uvicorn", "backend.app:app", "--host", "127.0.0.1", "--port", "8765" -WorkingDirectory $PSScriptRoot -WindowStyle Minimized -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 Write-Host "[成功] 後端語音與 AI 服務已就緒。" -ForegroundColor Green
 Write-Host ""

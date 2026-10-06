@@ -1,7 +1,8 @@
 export class ConversationManager {
-  constructor(actionController, chatBox, backendBaseUrl = null) {
+  constructor(actionController, chatBox, backendBaseUrl = null, authService = null) {
     this.actionController = actionController;
     this.chatBox = chatBox;
+    this.authService = authService;
     if (backendBaseUrl) {
       this.baseUrl = backendBaseUrl;
     } else if (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://')) {
@@ -91,13 +92,32 @@ export class ConversationManager {
         this.actionController.uiCallbacks.showDialogue("小櫻正在思考中... 💭", "thinking");
       }
 
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(this.authService ? this.authService.getAuthHeaders() : {})
+      };
+
       const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ message: trimmed })
       });
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData.detail || '存取被拒絕，請確認登入帳號是否在白名單中。';
+          if (this.chatBox) {
+            this.chatBox.removeLastMessage();
+            this.chatBox.addAssistantMessage(`🔒 ${errMsg}`);
+          }
+          if (typeof this.actionController.uiCallbacks?.showDialogue === 'function') {
+            this.actionController.uiCallbacks.showDialogue(`🔒 ${errMsg}`, 'shy');
+          }
+          this.authService?.onAuthRequired?.();
+          this.isProcessing = false;
+          return;
+        }
         throw new Error(`HTTP error ${response.status}`);
       }
 
@@ -147,9 +167,13 @@ export class ConversationManager {
 
   async speakText(text) {
     try {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(this.authService ? this.authService.getAuthHeaders() : {})
+      };
       const response = await fetch(`${this.baseUrl}/api/tts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ text })
       });
       if (response.ok) {

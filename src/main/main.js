@@ -6,6 +6,11 @@ const fs = require('fs');
 app.commandLine.appendSwitch('high-dpi-support', '1');
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 
+// GPU compatibility flags for legacy GPUs (GT 640M / Intel HD 4000) and virtual display adapters
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-webgl');
+
 let mainWindow = null;
 let tray = null;
 let isResting = false;

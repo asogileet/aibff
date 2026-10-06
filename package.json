@@ -4,7 +4,7 @@
   "description": "3D Desktop AI Girlfriend with Three.js, VRM 3.3, Faster-Whisper, and Edge-TTS",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node ./node_modules/electron/cli.js .",
     "backend": "python backend/app.py"
   },
   "keywords": [

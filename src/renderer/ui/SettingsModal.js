@@ -640,6 +640,11 @@ export class SettingsModal {
         vp_offset_y: parseFloat(this.element.querySelector('#cfgVpY')?.value) || 0.0,
         show_grid: this.element.querySelector('#cfgShowGrid')?.checked || false,
         grid_style: this.element.querySelector('#cfgGridStyle')?.value || 'pink'
+      },
+      auth: this.currentConfig?.auth || {
+        enabled: false,
+        google_client_id: "",
+        allowed_emails: []
       }
     };
 

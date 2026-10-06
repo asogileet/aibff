@@ -47,6 +47,11 @@ class CameraPerspectiveConfig(BaseModel):
     show_grid: bool = False
     grid_style: str = "pink"
 
+class AuthConfig(BaseModel):
+    enabled: bool = False
+    google_client_id: str = ""
+    allowed_emails: list[str] = Field(default_factory=list)
+
 class AppConfig(BaseModel):
     server_port: int = 8765
     server_host: str = "0.0.0.0"
@@ -55,6 +60,7 @@ class AppConfig(BaseModel):
     tts: TTSConfig = Field(default_factory=TTSConfig)
     stt: STTConfig = Field(default_factory=STTConfig)
     camera_perspective: CameraPerspectiveConfig = Field(default_factory=CameraPerspectiveConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
 
 def load_config() -> AppConfig:
     """Load configuration from config.local.json (priority) or config.json."""

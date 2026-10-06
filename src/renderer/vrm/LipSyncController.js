@@ -34,10 +34,28 @@ export class LipSyncController {
     }
   }
 
+  unlock() {
+    if (!this.audioContext) this._initAudioContext();
+    if (!this.audioContext) return;
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+    // Safari/iOS Web Audio unlock pattern: play 1-sample silent buffer
+    try {
+      const buffer = this.audioContext.createBuffer(1, 1, 22050);
+      const source = this.audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.audioContext.destination);
+      source.start(0);
+    } catch (_) {}
+  }
+
   async playAudioBase64(base64Audio) {
     if (!this.audioContext) this._initAudioContext();
-    if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+      } catch (_) {}
     }
 
     // Convert Base64 to ArrayBuffer
@@ -48,7 +66,16 @@ export class LipSyncController {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer);
+    // Use buffer slice to prevent iOS Safari detachment errors and handle callback fallback
+    let audioBuffer;
+    const arrayBuffer = bytes.buffer.slice(0);
+    try {
+      audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    } catch (err) {
+      audioBuffer = await new Promise((resolve, reject) => {
+        this.audioContext.decodeAudioData(bytes.buffer.slice(0), resolve, reject);
+      });
+    }
 
     return new Promise((resolve) => {
       if (this.audioSource) {

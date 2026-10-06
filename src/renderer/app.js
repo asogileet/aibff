@@ -29,9 +29,11 @@ import { SettingsModal } from './ui/SettingsModal.js';
 import { PuppetPoseBar } from './ui/PuppetPoseBar.js';
 import { MultiAvatarBar } from './ui/MultiAvatarBar.js';
 import { MocapPreview } from './ui/MocapPreview.js';
+import { LoginModal } from './ui/LoginModal.js';
 
 import { ConversationManager } from './services/ConversationManager.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
+import { AuthService } from './services/AuthService.js';
 
 window.addEventListener('DOMContentLoaded', async () => {
   // Apply in-browser styling if running outside Electron (e.g. mobile or web browser)
@@ -200,14 +202,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  // Mobile Web Audio autoplay policy unlock on first user gesture
+  // Mobile Web Audio autoplay policy unlock on user gesture
   const unlockAudio = () => {
-    if (lipSyncController.audioContext && lipSyncController.audioContext.state === 'suspended') {
-      lipSyncController.audioContext.resume();
+    if (lipSyncController) {
+      lipSyncController.unlock();
     }
   };
-  window.addEventListener('touchstart', unlockAudio, { once: true });
-  window.addEventListener('click', unlockAudio, { once: true });
+  window.addEventListener('touchstart', unlockAudio, { passive: true });
+  window.addEventListener('touchend', unlockAudio, { passive: true });
+  window.addEventListener('click', unlockAudio);
 
   // Multi-Monitor UI Alignment Helper
   const updateUIPositioning = (layout) => {
@@ -788,8 +791,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   const chatBox = new ChatBox(uiContainer, (msg) => {
+    lipSyncController?.unlock();
     conversationManager.handleUserMessage(msg);
-  }, handleSlashCommand);
+  }, (cmd) => {
+    lipSyncController?.unlock();
+    handleSlashCommand(cmd);
+  });
 
   const costumeSelector = new CostumeSelector(uiContainer, (costumeId) => {
     const targetTitle = avatarManager.getActiveSlot()?.title || '人偶';
@@ -817,13 +824,39 @@ window.addEventListener('DOMContentLoaded', async () => {
     ? window.location.origin
     : 'http://127.0.0.1:8765';
 
+  const authService = new AuthService(apiBase);
+  const loginModal = new LoginModal(uiContainer, authService, (user) => {
+    toolbar.setAuthState(true, user);
+    showBubble(`歡迎回來，${user.name || '主人'}！✨`, 'happy');
+    // Reconnect ws with newly acquired token
+    wsClient.connect();
+  });
+
+  authService.onAuthRequired = () => {
+    loginModal.show();
+  };
+
+  authService.onAuthChange = (isLoggedIn, user) => {
+    toolbar.setAuthState(isLoggedIn, user);
+  };
+
   const settingsModal = new SettingsModal(uiContainer, async (newConfig) => {
     try {
-      await fetch(`${apiBase}/api/config`, {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...authService.getAuthHeaders()
+      };
+      const res = await fetch(`${apiBase}/api/config`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(newConfig)
       });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          loginModal.show();
+          return;
+        }
+      }
       showBubble('設定已成功儲存與更新！', 'happy');
     } catch (e) {
       console.warn('[App] Error saving config:', e);
@@ -832,6 +865,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const toolbar = new Toolbar(uiContainer, {
     onMic: async () => {
+      lipSyncController?.unlock();
       await wsClient.toggleListening((active) => {
         toolbar.setMicActive(active);
       });
@@ -897,6 +931,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     },
     onSettings: () => {
       settingsModal.toggle(true);
+    },
+    onAuth: async () => {
+      if (confirm(`目前登入帳號：${authService.getUser()?.email || '已授權用戶'}\n是否確定要登出？`)) {
+        await authService.logout();
+        toolbar.setAuthState(false, null);
+        showBubble('已登出帳號。', 'shy');
+        if (authService.authEnabled) {
+          loginModal.show();
+        }
+      }
     }
   });
 
@@ -1040,11 +1084,26 @@ window.addEventListener('DOMContentLoaded', async () => {
   };
 
   // 6. Services
-  const conversationManager = new ConversationManager(actionController, chatBox);
-  const wsClient = new WebSocketClient('ws://127.0.0.1:8765/ws', conversationManager, (connected) => {
+  const conversationManager = new ConversationManager(actionController, chatBox, apiBase, authService);
+  const wsProtocol = (typeof window !== 'undefined' && window.location?.protocol === 'https:') ? 'wss:' : 'ws:';
+  const wsUrl = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.startsWith('file://'))
+    ? `${wsProtocol}//${window.location.host}/ws`
+    : 'ws://127.0.0.1:8765/ws';
+  const wsClient = new WebSocketClient(wsUrl, conversationManager, (connected) => {
     console.log('[App] WebSocket connection status:', connected);
-  });
+  }, authService);
   wsClient.connect();
+
+  // Check auth requirement from backend
+  authService.checkAuthStatus().then((status) => {
+    if (status.auth_enabled) {
+      if (status.logged_in && status.user) {
+        toolbar.setAuthState(true, status.user);
+      } else {
+        loginModal.show();
+      }
+    }
+  });
 
   // 7. Initial Model Load
   try {

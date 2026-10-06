@@ -1,5 +1,6 @@
 # 3D Desktop AI Girlfriend Launcher
 $Host.UI.RawUI.WindowTitle = "3D Desktop AI Girlfriend"
+Set-Location $PSScriptRoot
 
 Write-Host "========================================================" -ForegroundColor Magenta
 Write-Host "       3D Desktop AI Girlfriend (Windows 11 Edition)   " -ForegroundColor Cyan
@@ -42,12 +43,12 @@ Write-Host ""
 
 # 2. Launch Python Backend Service
 Write-Host "[2/3] Starting Python backend service (Port: 8765)..." -ForegroundColor Yellow
-Start-Process -FilePath "python" -ArgumentList "-m", "uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8765" -WindowStyle Minimized -ErrorAction SilentlyContinue
+Start-Process -FilePath "python" -ArgumentList "-m", "uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8765" -WorkingDirectory $PSScriptRoot -WindowStyle Minimized -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 Write-Host "[SUCCESS] Backend service is running in background (0.0.0.0:8765)." -ForegroundColor Green
 
-$localIps = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback|vEthernet' -and $_.IPAddress -notmatch '^169\.254\.' } | Select-Object -ExpandProperty IPAddress
-if ($localIps) {
+$localIps = @(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback|vEthernet' -and $_.IPAddress -notmatch '^169\.254\.' } | Select-Object -ExpandProperty IPAddress)
+if ($localIps.Count -gt 0) {
     Write-Host "[MOBILE] Mobile Web URL: http://$($localIps[0]):8765/" -ForegroundColor Magenta
 }
 Write-Host ""
