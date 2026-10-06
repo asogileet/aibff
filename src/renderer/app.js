@@ -825,7 +825,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     : 'http://127.0.0.1:8765';
 
   const authService = new AuthService(apiBase);
-  const loginModal = new LoginModal(uiContainer, authService, (user) => {
+  const loginModal = new LoginModal(document.body, authService, (user) => {
     toolbar.setAuthState(true, user);
     showBubble(`歡迎回來，${user.name || '主人'}！✨`, 'happy');
     // Reconnect ws with newly acquired token

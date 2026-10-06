@@ -307,36 +307,39 @@ ipcMain.handle('app:open-path', async (event, targetPath) => {
 });
 
 const CONFIG_PATH = path.join(__dirname, '../../config.json');
+const LOCAL_CONFIG_PATH = path.join(__dirname, '../../config.local.json');
 
 ipcMain.handle('app:load-config', async () => {
   try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
+    const targetPath = fs.existsSync(LOCAL_CONFIG_PATH) ? LOCAL_CONFIG_PATH : CONFIG_PATH;
+    if (fs.existsSync(targetPath)) {
+      const raw = fs.readFileSync(targetPath, 'utf-8');
       return JSON.parse(raw);
     }
   } catch (err) {
-    console.error('[Main] Failed to load config.json:', err);
+    console.error('[Main] Failed to load config file:', err);
   }
   return null;
 });
 
 ipcMain.handle('app:save-config', async (event, newConfig) => {
   try {
+    const targetPath = fs.existsSync(LOCAL_CONFIG_PATH) ? LOCAL_CONFIG_PATH : (fs.existsSync(CONFIG_PATH) ? CONFIG_PATH : LOCAL_CONFIG_PATH);
     let baseConfig = {};
-    if (fs.existsSync(CONFIG_PATH)) {
+    if (fs.existsSync(targetPath)) {
       try {
-        baseConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+        baseConfig = JSON.parse(fs.readFileSync(targetPath, 'utf-8'));
       } catch (_) {}
     }
     const merged = { ...baseConfig, ...newConfig };
     if (newConfig.camera_perspective) {
       merged.camera_perspective = { ...(baseConfig.camera_perspective || {}), ...newConfig.camera_perspective };
     }
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8');
-    console.log('[Main] Saved config.json successfully');
+    fs.writeFileSync(LOCAL_CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+    console.log('[Main] Saved config.local.json successfully');
     return { success: true };
   } catch (err) {
-    console.error('[Main] Failed to save config.json:', err);
+    console.error('[Main] Failed to save config.local.json:', err);
     return { success: false, error: err.message };
   }
 });

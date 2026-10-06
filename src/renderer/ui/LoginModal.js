@@ -16,7 +16,7 @@ export class LoginModal {
   _render() {
     this.element = document.createElement('div');
     this.element.id = 'loginModal';
-    this.element.className = 'hidden fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 select-none';
+    this.element.className = 'hidden fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 select-none pointer-events-auto';
 
     this.element.innerHTML = `
       <div class="glass-panel w-full max-w-sm rounded-2xl p-6 border border-pink-500/30 shadow-2xl flex flex-col items-center text-center space-y-4">
