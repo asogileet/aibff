@@ -1,6 +1,7 @@
 import sys
 import base64
 import asyncio
+import ipaddress
 
 # Reconfigure stdout and stderr for UTF-8 on Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -75,6 +76,18 @@ class TTSRequest(BaseModel):
     text: str
     voice: Optional[str] = None
 
+def is_lan_ip(host: Optional[str]) -> bool:
+    """Check if the client host is localhost or a private LAN IP address."""
+    if not host:
+        return False
+    if host in ("127.0.0.1", "::1", "localhost", "testclient"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+        return ip.is_private or ip.is_loopback
+    except ValueError:
+        return False
+
 def is_auth_required() -> bool:
     """Return True if auth protection is activated in config."""
     return bool(config.auth and config.auth.enabled)
@@ -92,12 +105,18 @@ def verify_email_whitelist(email: str) -> bool:
     return email.strip().lower() in allowed
 
 async def get_current_user(
+    request: Request,
     authorization: Optional[str] = Header(None, alias="Authorization"),
     x_auth_token: Optional[str] = Header(None, alias="X-Auth-Token")
 ) -> Optional[Dict[str, Any]]:
     """Dependency that enforces authentication & whitelist if auth is enabled."""
     if not is_auth_required():
         return {"email": "local@user", "name": "Local User", "authenticated": False}
+
+    # Check if LAN bypass is active and client IP is inside private local network
+    client_host = request.client.host if request.client else None
+    if config.auth and config.auth.allow_lan_bypass and is_lan_ip(client_host):
+        return {"email": "lan@user", "name": "區域網路用戶", "authenticated": True, "auth_type": "lan_bypass"}
 
     token = None
     if authorization and authorization.startswith("Bearer "):
@@ -108,7 +127,7 @@ async def get_current_user(
     if not token:
         raise HTTPException(
             status_code=401,
-            detail="Authentication required. Please sign in with Google."
+            detail="Authentication required. Please sign in with Google or Access Code."
         )
 
     session = get_session(token)
@@ -117,6 +136,10 @@ async def get_current_user(
             status_code=401,
             detail="Invalid or expired session. Please sign in again."
         )
+
+    # Access Code session bypasses email whitelist
+    if session.get("auth_type") == "access_code":
+        return session
 
     user_email = session.get("email", "")
     if not verify_email_whitelist(user_email):
@@ -130,20 +153,31 @@ async def get_current_user(
 class GoogleLoginRequest(BaseModel):
     credential: str
 
+class AccessCodeLoginRequest(BaseModel):
+    code: str
+
 class AuthStatusResponse(BaseModel):
     auth_enabled: bool
     google_client_id: str
+    has_access_code: bool
+    allow_lan_bypass: bool
+    is_lan: bool
     logged_in: bool
     user: Optional[Dict[str, Any]] = None
 
 @app.get("/api/auth/status")
 async def get_auth_status(
+    request: Request,
     authorization: Optional[str] = Header(None, alias="Authorization"),
     x_auth_token: Optional[str] = Header(None, alias="X-Auth-Token")
 ):
     """Public endpoint to let frontend discover auth requirements & current user info."""
     auth_enabled = is_auth_required()
     google_client_id = config.auth.google_client_id if config.auth else ""
+    has_access_code = bool(config.auth and config.auth.access_code.strip())
+    allow_lan_bypass = bool(config.auth and config.auth.allow_lan_bypass)
+    client_host = request.client.host if request.client else None
+    client_is_lan = is_lan_ip(client_host)
 
     token = None
     if authorization and authorization.startswith("Bearer "):
@@ -155,15 +189,47 @@ async def get_auth_status(
     logged_in = False
     if token:
         sess = get_session(token)
-        if sess and verify_email_whitelist(sess.get("email", "")):
+        if sess and (sess.get("auth_type") == "access_code" or verify_email_whitelist(sess.get("email", ""))):
             current_user = sess
             logged_in = True
+    elif auth_enabled and allow_lan_bypass and client_is_lan:
+        logged_in = True
+        current_user = {"email": "lan@user", "name": "區域網路用戶", "auth_type": "lan_bypass"}
 
     return {
         "auth_enabled": auth_enabled,
         "google_client_id": google_client_id,
+        "has_access_code": has_access_code,
+        "allow_lan_bypass": allow_lan_bypass,
+        "is_lan": client_is_lan,
         "logged_in": logged_in,
         "user": current_user
+    }
+
+@app.post("/api/auth/code")
+async def login_access_code(req: AccessCodeLoginRequest):
+    """Authenticate with configured Access Code / PIN."""
+    if not is_auth_required():
+        return {"status": "success", "token": "local-dummy", "user": {"email": "local@user", "name": "Local User"}}
+
+    expected_code = config.auth.access_code.strip() if (config.auth and config.auth.access_code) else ""
+    if not expected_code:
+        raise HTTPException(status_code=400, detail="後端尚未配置存取碼 (access_code)，請在 config.local.json 設定。")
+
+    if req.code.strip() != expected_code:
+        raise HTTPException(status_code=403, detail="存取碼錯誤，請確認後端設定之 access_code。")
+
+    user_info = {
+        "email": "mobile@local",
+        "name": "行動裝置用戶 (PIN)",
+        "picture": "",
+        "auth_type": "access_code"
+    }
+    session_token = create_session(user_info)
+    return {
+        "status": "success",
+        "token": session_token,
+        "user": user_info
     }
 
 @app.post("/api/auth/google")
@@ -187,6 +253,7 @@ async def login_google(req: GoogleLoginRequest):
         "token": session_token,
         "user": user_info
     }
+
 
 @app.post("/api/auth/logout")
 async def logout(

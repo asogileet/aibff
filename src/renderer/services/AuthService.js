@@ -51,6 +51,7 @@ export class AuthService {
         const data = await res.json();
         this.authEnabled = !!data.auth_enabled;
         this.googleClientId = data.google_client_id || '';
+        this.authStatus = data;
         if (data.logged_in && data.user) {
           this.user = data.user;
           localStorage.setItem(this.userStorageKey, JSON.stringify(data.user));
@@ -64,6 +65,28 @@ export class AuthService {
       console.warn('[AuthService] checkAuthStatus failed:', e);
     }
     return { auth_enabled: false, logged_in: true, user: null };
+  }
+
+  async loginWithAccessCode(code) {
+    const res = await fetch(`${this.baseUrl}/api/auth/code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: '存取碼驗證失敗' }));
+      throw new Error(err.detail || `存取碼錯誤 (${res.status})`);
+    }
+
+    const data = await res.json();
+    this.token = data.token;
+    this.user = data.user;
+    localStorage.setItem(this.tokenStorageKey, this.token);
+    localStorage.setItem(this.userStorageKey, JSON.stringify(this.user));
+
+    this.onAuthChange?.(true, this.user);
+    return data;
   }
 
   async loginWithGoogleCredential(credential) {

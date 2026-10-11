@@ -51,6 +51,8 @@ class AuthConfig(BaseModel):
     enabled: bool = False
     google_client_id: str = ""
     allowed_emails: list[str] = Field(default_factory=list)
+    access_code: str = ""
+    allow_lan_bypass: bool = False
 
 class AppConfig(BaseModel):
     server_port: int = 8765

@@ -644,7 +644,9 @@ export class SettingsModal {
       auth: this.currentConfig?.auth || {
         enabled: false,
         google_client_id: "",
-        allowed_emails: []
+        allowed_emails: [],
+        access_code: "",
+        allow_lan_bypass: false
       }
     };
 

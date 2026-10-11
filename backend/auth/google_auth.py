@@ -16,6 +16,7 @@ def create_session(user_info: Dict[str, Any]) -> str:
         "email": user_info.get("email", "").lower(),
         "name": user_info.get("name", ""),
         "picture": user_info.get("picture", ""),
+        "auth_type": user_info.get("auth_type", "google"),
         "exp": time.time() + SESSION_EXPIRATION_SECONDS
     }
     return token
