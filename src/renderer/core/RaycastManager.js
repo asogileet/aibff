@@ -80,15 +80,15 @@ export class RaycastManager {
   _bindEvents() {
     const dom = this.sceneManager.renderer.domElement;
 
-    // 1. Mouse Wheel on Avatar: Independent scaling without zooming camera
+    // 1. Mouse Wheel: Ctrl+Wheel scales avatar body; regular Wheel smoothly zooms/flies camera
     dom.addEventListener('wheel', (e) => {
       const hitRes = this._getHitAvatar(e);
-      if (hitRes && hitRes.slot) {
+      if (hitRes && hitRes.slot && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         e.stopPropagation();
         const curScale = hitRes.slot.scale || 1.0;
-        const delta = e.deltaY < 0 ? 0.08 : -0.08;
-        const newScale = THREE.MathUtils.clamp(curScale + delta, 0.35, 2.5);
+        const delta = e.deltaY < 0 ? 0.12 : -0.12;
+        const newScale = THREE.MathUtils.clamp(curScale + delta, 0.2, 5.0);
         const mgr = this.avatarManager || this.avatarController;
         if (mgr && typeof mgr.setScale === 'function') {
           mgr.setScale(hitRes.index, newScale);
@@ -262,11 +262,21 @@ export class RaycastManager {
 
       if (this.draggedSlot) {
         if (!wasDragging && clickDuration < 380) {
-          // Quick click: check head pat
-          const headThreshold = 1.15 * (this.draggedSlot.scale || 1.0);
-          if (this.initialHitPoint && this.initialHitPoint.y >= headThreshold) {
-            if (typeof this.onHeadPat === 'function') {
-              this.onHeadPat(this.initialHitPoint);
+          // Check if mosquito fly mode is active or Alt key is held
+          if (this.initialHitPoint && (this.sceneManager?.isMosquitoMode || e.altKey)) {
+            this.sceneManager.flyTo({
+              targetX: this.initialHitPoint.x,
+              targetY: this.initialHitPoint.y,
+              targetZ: this.initialHitPoint.z,
+              distance: 0.28
+            });
+          } else {
+            // Quick click: check head pat
+            const headThreshold = 1.15 * (this.draggedSlot.scale || 1.0);
+            if (this.initialHitPoint && this.initialHitPoint.y >= headThreshold) {
+              if (typeof this.onHeadPat === 'function') {
+                this.onHeadPat(this.initialHitPoint);
+              }
             }
           }
           this.draggedSlot.physicsState = 'idle';

@@ -112,7 +112,7 @@ export class AvatarManager {
   setScale(index, scale) {
     if (index < 0 || index >= this.slots.length) return;
     const slot = this.slots[index];
-    const clampedScale = THREE.MathUtils.clamp(scale, 0.3, 3.0);
+    const clampedScale = THREE.MathUtils.clamp(scale, 0.1, 8.0);
     slot.scale = clampedScale;
 
     if (slot.vrm && slot.vrm.scene) {

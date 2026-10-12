@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🦟 蚊子微距飛航視角與三螢幕橫臥互動原型 (Mockup)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes mosquitoBuzz {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      25% { transform: translate(2px, -3px) rotate(4deg); }
+      50% { transform: translate(-2px, 2px) rotate(-3deg); }
+      75% { transform: translate(3px, 1px) rotate(2deg); }
+    }
+    .buzz-anim {
+      animation: mosquitoBuzz 0.18s infinite ease-in-out;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 114, 182, 0.3);
+    }
+    .monitor-frame {
+      border: 2px dashed rgba(56, 189, 248, 0.5);
+      position: relative;
+    }
+    .monitor-frame::after {
+      content: attr(data-label);
+      position: absolute;
+      top: 8px;
+      left: 12px;
+      font-size: 10px;
+      color: rgba(56, 189, 248, 0.8);
+      font-weight: bold;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
+
+  <!-- Header -->
+  <header class="border-b border-pink-500/20 bg-slate-900/90 px-6 py-3.5 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-pink-500 to-indigo-600 flex items-center justify-center text-lg shadow-lg shadow-pink-500/20">
+        🦟
+      </div>
+      <div>
+        <h1 class="text-sm font-bold bg-gradient-to-r from-pink-300 via-purple-200 to-cyan-300 bg-clip-text text-transparent">
+          蚊子微距飛航鏡頭 × 三螢幕橫臥原型展示
+        </h1>
+        <p class="text-[11px] text-slate-400">點到哪就飛到哪 · 極致滿版微距 · 跨屏水平躺臥伸展</p>
+      </div>
+    </div>
+
+    <!-- Mode Toggles -->
+    <div class="flex items-center space-x-2">
+      <button id="btnToggleDisplayMode" class="px-3 py-1.5 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 text-xs font-medium transition flex items-center space-x-1.5 shadow">
+        <span id="displayModeIcon">🖥️</span>
+        <span id="displayModeText">切換為「三螢幕跨屏畫布」</span>
+      </button>
+      <button id="btnResetView" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
+        🔄 鏡頭復位
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Viewport Container -->
+  <main class="flex-1 relative flex items-center justify-center p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
+
+    <!-- Screen Stage (Supports 1 Screen or 3-Monitor layout) -->
+    <div id="screenStage" class="relative w-[500px] h-[680px] rounded-2xl overflow-hidden border border-slate-700/60 shadow-2xl transition-all duration-700 bg-slate-900/40 flex items-center justify-center">
+
+      <!-- Monitor Dividers (Visible in 3-Monitor mode) -->
+      <div id="multiMonitorOverlay" class="hidden absolute inset-0 grid grid-cols-3 pointer-events-none z-10">
+        <div class="monitor-frame border-r border-cyan-500/30" data-label="螢幕 1 (左側顯示器)"></div>
+        <div class="monitor-frame border-r border-cyan-500/30" data-label="螢幕 2 (中央主螢幕)"></div>
+        <div class="monitor-frame" data-label="螢幕 3 (右側顯示器)"></div>
+      </div>
+
+      <!-- 3D Canvas Mockup Layer -->
+      <div id="cameraViewport" class="absolute inset-0 transition-transform duration-700 ease-out origin-center flex items-center justify-center">
+
+        <!-- Avatar Container -->
+        <div id="avatarContainer" class="relative transition-all duration-700 ease-in-out flex flex-col items-center">
+          
+          <!-- Avatar Visual Representation (SVG Vector Puppet) -->
+          <svg id="avatarSvg" class="w-[280px] h-[520px] filter drop-shadow-[0_10px_25px_rgba(244,114,182,0.25)] transition-all duration-700" viewBox="0 0 200 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Glow background -->
+            <ellipse cx="100" cy="380" rx="60" ry="12" fill="rgba(244,114,182,0.15)" />
+
+            <!-- Body Bones / Target Hitboxes (Clickable in Mosquito mode) -->
+            <!-- Head / Eyes / Face -->
+            <g id="hitboxHead" class="cursor-pointer group" onclick="flyToTarget('head')">
+              <circle cx="100" cy="70" r="32" fill="#fed7aa" class="group-hover:stroke-pink-400 group-hover:stroke-2 transition" />
+              <!-- Hair -->
+              <path d="M 68 75 C 65 35, 135 35, 132 75 C 130 50, 70 50, 68 75 Z" fill="#f472b6" />
+              <path d="M 65 70 C 60 95, 72 110, 75 110 C 76 95, 72 80, 72 70 Z" fill="#ec4899" />
+              <path d="M 135 70 C 140 95, 128 110, 125 110 C 124 95, 128 80, 128 70 Z" fill="#ec4899" />
+              <!-- Eyes -->
+              <ellipse cx="88" cy="70" rx="4" ry="6" fill="#1e1b4b" />
+              <ellipse cx="112" cy="70" rx="4" ry="6" fill="#1e1b4b" />
+              <circle cx="89" cy="68" r="1.5" fill="#ffffff" />
+              <circle cx="113" cy="68" r="1.5" fill="#ffffff" />
+              <!-- Blush & Smile -->
+              <ellipse cx="82" cy="77" rx="4" ry="2" fill="#fb7185" opacity="0.6" />
+              <ellipse cx="118" cy="77" rx="4" ry="2" fill="#fb7185" opacity="0.6" />
+              <path d="M 96 82 Q 100 86 104 82" stroke="#e11d48" stroke-width="1.8" stroke-linecap="round" fill="none" />
+              <!-- Focus indicator ring on hover -->
+              <circle cx="100" cy="70" r="36" stroke="rgba(244,114,182,0.6)" stroke-width="1.5" stroke-dasharray="4 4" class="opacity-0 group-hover:opacity-100 transition" />
+            </g>
+
+            <!-- Neck / Chest -->
+            <g id="hitboxChest" class="cursor-pointer group" onclick="flyToTarget('chest')">
+              <rect x="94" y="98" width="12" height="15" fill="#fed7aa" />
+              <!-- Upper Torso / Ribbon / Clothes -->
+              <path d="M 80 112 L 120 112 L 128 175 L 72 175 Z" fill="#ffffff" class="group-hover:stroke-pink-400 group-hover:stroke-2 transition" />
+              <!-- Sailor collar / Ribbon -->
+              <path d="M 82 112 L 100 135 L 118 112 Z" fill="#38bdf8" />
+              <circle cx="100" cy="135" r="5" fill="#ef4444" />
+              <path d="M 100 138 L 92 155 L 100 148 L 108 155 Z" fill="#ef4444" />
+              <!-- Focus indicator ring on hover -->
+              <circle cx="100" cy="140" r="30" stroke="rgba(244,114,182,0.6)" stroke-width="1.5" stroke-dasharray="4 4" class="opacity-0 group-hover:opacity-100 transition" />
+            </g>
+
+            <!-- Left & Right Arms & Hands -->
+            <g id="hitboxLeftHand" class="cursor-pointer group" onclick="flyToTarget('leftHand')">
+              <path d="M 74 115 L 56 165 L 50 205" stroke="#fed7aa" stroke-width="9" stroke-linecap="round" />
+              <circle cx="50" cy="205" r="7" fill="#fed7aa" class="group-hover:stroke-pink-400 group-hover:stroke-2 transition" />
+              <circle cx="50" cy="205" r="16" stroke="rgba(244,114,182,0.6)" stroke-width="1.5" stroke-dasharray="4 4" class="opacity-0 group-hover:opacity-100 transition" />
+            </g>
+            <g id="hitboxRightHand" class="cursor-pointer group" onclick="flyToTarget('rightHand')">
+              <path d="M 126 115 L 144 165 L 150 205" stroke="#fed7aa" stroke-width="9" stroke-linecap="round" />
+              <circle cx="150" cy="205" r="7" fill="#fed7aa" class="group-hover:stroke-pink-400 group-hover:stroke-2 transition" />
+              <circle cx="150" cy="205" r="16" stroke="rgba(244,114,182,0.6)" stroke-width="1.5" stroke-dasharray="4 4" class="opacity-0 group-hover:opacity-100 transition" />
+            </g>
+
+            <!-- Waist & Skirt -->
+            <g id="hitboxWaist" class="cursor-pointer group" onclick="flyToTarget('waist')">
+              <path d="M 70 175 L 130 175 L 142 215 L 58 215 Z" fill="#38bdf8" class="group-hover:stroke-pink-400 group-hover:stroke-2 transition" />
+              <path d="M 78 175 L 72 215 M 92 175 L 90 215 M 108 175 L 110 215 M 122 175 L 128 215" stroke="#0284c7" stroke-width="1.5" />
+            </g>
+
+            <!-- Legs & Feet -->
+            <g id="hitboxFeet" class="cursor-pointer group" onclick="flyToTarget('feet')">
+              <path d="M 85 215 L 83 310 L 82 360" stroke="#fed7aa" stroke-width="11" stroke-linecap="round" />
+              <path d="M 115 215 L 117 310 L 118 360" stroke="#fed7aa" stroke-width="11" stroke-linecap="round" />
+              <!-- Socks & Shoes -->
+              <rect x="76" y="325" width="14" height="25" rx="3" fill="#ffffff" />
+              <rect x="111" y="325" width="14" height="25" rx="3" fill="#ffffff" />
+              <ellipse cx="80" cy="360" rx="9" ry="5" fill="#475569" class="group-hover:stroke-pink-400 group-hover:stroke-2 transition" />
+              <ellipse cx="120" cy="360" rx="9" ry="5" fill="#475569" class="group-hover:stroke-pink-400 group-hover:stroke-2 transition" />
+              <circle cx="100" cy="360" r="30" stroke="rgba(244,114,182,0.6)" stroke-width="1.5" stroke-dasharray="4 4" class="opacity-0 group-hover:opacity-100 transition" />
+            </g>
+          </svg>
+
+          <!-- Current Focus Tag / Crosshair -->
+          <div id="crosshairTarget" class="hidden absolute pointer-events-none -translate-x-1/2 -translate-y-1/2 z-30 transition-all duration-500">
+            <div class="relative w-12 h-12 flex items-center justify-center">
+              <div class="absolute inset-0 rounded-full border border-pink-500 animate-ping opacity-60"></div>
+              <div class="w-8 h-8 rounded-full border-2 border-pink-400 flex items-center justify-center">
+                <div class="w-1.5 h-1.5 bg-pink-400 rounded-full"></div>
+              </div>
+              <span id="crosshairLabel" class="absolute top-full mt-1 px-2 py-0.5 rounded bg-slate-900/90 text-[10px] text-pink-300 font-bold border border-pink-500/40 whitespace-nowrap">
+                鎖定部位
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Mosquito Virtual Drone / Camera Indicator -->
+      <div id="mosquitoIndicator" class="absolute top-6 left-6 z-30 flex items-center space-x-2 bg-slate-950/80 px-3 py-1.5 rounded-full border border-pink-500/50 shadow-lg text-xs pointer-events-none">
+        <span class="text-base buzz-anim inline-block">🦟</span>
+        <div>
+          <span class="text-pink-300 font-bold">蚊子鏡頭定位中</span>：
+          <span id="currentStatusText" class="text-slate-300 font-medium">標準全身視角 (距離 2.8m)</span>
+        </div>
+      </div>
+
+      <!-- Live Zoom Level Badge -->
+      <div class="absolute bottom-6 left-6 z-30 bg-slate-950/80 px-3 py-1 rounded-full border border-slate-700 text-[11px] text-slate-300">
+        放大倍率：<span id="lblZoomLevel" class="text-cyan-300 font-bold">1.0x</span> · 距離：<span id="lblDist" class="text-pink-300 font-bold">2.8m</span>
+      </div>
+
+    </div>
+
+    <!-- Floating Mosquito Control Dock (Bottom-Right or Floating) -->
+    <div class="absolute bottom-6 right-6 z-40 glass-panel rounded-2xl p-3.5 shadow-2xl w-80 space-y-3">
+      <div class="flex items-center justify-between border-b border-pink-500/20 pb-2">
+        <div class="flex items-center space-x-1.5 font-bold text-xs text-pink-300">
+          <span>🦟</span>
+          <span>蚊子微距飛航控制台</span>
+        </div>
+        <span class="text-[10px] bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded-full border border-pink-500/30">
+          點到哪飛到哪
+        </span>
+      </div>
+
+      <!-- Quick Fly-To Bone Buttons -->
+      <div>
+        <label class="text-[11px] text-slate-400 mb-1.5 block">一鍵精準飛航對焦 (Preset Target)</label>
+        <div class="grid grid-cols-2 gap-1.5 text-xs">
+          <button onclick="flyToTarget('head')" class="px-2 py-1.5 rounded-lg bg-pink-950/40 hover:bg-pink-600/30 border border-pink-500/30 text-slate-200 text-left transition flex items-center space-x-1.5">
+            <span>🗣️</span>
+            <span>頭部滿版特寫</span>
+          </button>
+          <button onclick="flyToTarget('eyes')" class="px-2 py-1.5 rounded-lg bg-pink-950/40 hover:bg-pink-600/30 border border-pink-500/30 text-slate-200 text-left transition flex items-center space-x-1.5">
+            <span>👁️</span>
+            <span>眼部微距對視</span>
+          </button>
+          <button onclick="flyToTarget('chest')" class="px-2 py-1.5 rounded-lg bg-pink-950/40 hover:bg-pink-600/30 border border-pink-500/30 text-slate-200 text-left transition flex items-center space-x-1.5">
+            <span>🎀</span>
+            <span>胸口飾品特寫</span>
+          </button>
+          <button onclick="flyToTarget('rightHand')" class="px-2 py-1.5 rounded-lg bg-pink-950/40 hover:bg-pink-600/30 border border-pink-500/30 text-slate-200 text-left transition flex items-center space-x-1.5">
+            <span>🤲</span>
+            <span>手掌微距觀察</span>
+          </button>
+          <button onclick="flyToTarget('feet')" class="px-2 py-1.5 rounded-lg bg-pink-950/40 hover:bg-pink-600/30 border border-pink-500/30 text-slate-200 text-left transition flex items-center space-x-1.5">
+            <span>🦶</span>
+            <span>足部鞋襪特寫</span>
+          </button>
+          <button onclick="flyToTarget('reset')" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-left transition flex items-center space-x-1.5">
+            <span>🧍</span>
+            <span>全身正常視角</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Pose & Cross-Screen Recline -->
+      <div class="border-t border-slate-700/60 pt-2">
+        <label class="text-[11px] text-slate-400 mb-1.5 block">跨螢幕躺臥姿態 (Cross-Screen Lie)</label>
+        <button id="btnToggleRecline" class="w-full px-3 py-2 rounded-xl bg-gradient-to-r from-purple-900/60 to-pink-900/60 hover:from-purple-800 hover:to-pink-800 border border-pink-500/40 text-pink-200 text-xs font-bold transition flex items-center justify-center space-x-2 shadow">
+          <span id="reclineIcon">🛌</span>
+          <span id="reclineText">切換為「跨三螢幕水平橫躺」</span>
+        </button>
+      </div>
+
+      <!-- Distance Slider -->
+      <div class="border-t border-slate-700/60 pt-2 space-y-1">
+        <div class="flex items-center justify-between text-[11px] text-slate-300">
+          <span>相機微距推進距離</span>
+          <span id="sliderValText" class="text-cyan-300 font-mono">2.8m</span>
+        </div>
+        <input id="distSlider" type="range" min="0.15" max="3.5" step="0.05" value="2.8" class="w-full accent-pink-500 cursor-pointer" />
+        <div class="flex justify-between text-[9px] text-slate-500 font-mono">
+          <span>0.15m (滿版微距)</span>
+          <span>1.6m (原限制)</span>
+          <span>3.5m (遠景)</span>
+        </div>
+      </div>
+
+      <div class="text-[10px] text-slate-400 bg-slate-900/70 p-2 rounded-lg border border-slate-800 leading-relaxed">
+        💡 提示：在畫布上可直接點擊人偶任何部位，鏡頭將化身蚊子飛向目標，解除原先 1.6m 距離限制！
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // State
+    let isMultiMonitor = false;
+    let isReclining = false;
+    let currentTarget = 'reset';
+    let currentDist = 2.8;
+
+    const screenStage = document.getElementById('screenStage');
+    const multiMonitorOverlay = document.getElementById('multiMonitorOverlay');
+    const cameraViewport = document.getElementById('cameraViewport');
+    const avatarContainer = document.getElementById('avatarContainer');
+    const avatarSvg = document.getElementById('avatarSvg');
+    const crosshairTarget = document.getElementById('crosshairTarget');
+    const crosshairLabel = document.getElementById('crosshairLabel');
+    const currentStatusText = document.getElementById('currentStatusText');
+    const lblZoomLevel = document.getElementById('lblZoomLevel');
+    const lblDist = document.getElementById('lblDist');
+    const sliderValText = document.getElementById('sliderValText');
+    const distSlider = document.getElementById('distSlider');
+    const btnToggleDisplayMode = document.getElementById('btnToggleDisplayMode');
+    const displayModeText = document.getElementById('displayModeText');
+    const displayModeIcon = document.getElementById('displayModeIcon');
+    const btnToggleRecline = document.getElementById('btnToggleRecline');
+    const reclineText = document.getElementById('reclineText');
+    const btnResetView = document.getElementById('btnResetView');
+
+    // Target positions and zoom scales relative to SVG avatar
+    // Scale > 1 simulates zooming in to fill the screen
+    const targetConfigs = {
+      head: {
+        label: '頭部滿版特寫',
+        status: '已飛至臉部正前方 (距離 0.35m)',
+        dist: 0.35,
+        scale: 4.8,
+        originX: '50%',
+        originY: '18%',
+        crosshair: { x: 100, y: 70 }
+      },
+      eyes: {
+        label: '眼瞳微距凝視',
+        status: '微距對焦於雙眼 (距離 0.20m)',
+        dist: 0.20,
+        scale: 7.2,
+        originX: '50%',
+        originY: '18%',
+        crosshair: { x: 100, y: 70 }
+      },
+      chest: {
+        label: '胸部與蝴蝶結特寫',
+        status: '已飛至胸前領結 (距離 0.45m)',
+        dist: 0.45,
+        scale: 4.0,
+        originX: '50%',
+        originY: '36%',
+        crosshair: { x: 100, y: 140 }
+      },
+      leftHand: {
+        label: '左手手掌特寫',
+        status: '已貼近左手 (距離 0.25m)',
+        dist: 0.25,
+        scale: 5.5,
+        originX: '25%',
+        originY: '52%',
+        crosshair: { x: 50, y: 205 }
+      },
+      rightHand: {
+        label: '右手手掌特寫',
+        status: '已貼近右手 (距離 0.25m)',
+        dist: 0.25,
+        scale: 5.5,
+        originX: '75%',
+        originY: '52%',
+        crosshair: { x: 150, y: 205 }
+      },
+      waist: {
+        label: '腰部百褶裙特寫',
+        status: '飛至腰側 (距離 0.50m)',
+        dist: 0.50,
+        scale: 3.5,
+        originX: '50%',
+        originY: '50%',
+        crosshair: { x: 100, y: 195 }
+      },
+      feet: {
+        label: '足部鞋襪特寫',
+        status: '貼近地面足部 (距離 0.35m)',
+        dist: 0.35,
+        scale: 4.2,
+        originX: '50%',
+        originY: '90%',
+        crosshair: { x: 100, y: 360 }
+      },
+      reset: {
+        label: '標準全身視角',
+        status: '標準全身視角 (距離 2.8m)',
+        dist: 2.8,
+        scale: 1.0,
+        originX: '50%',
+        originY: '50%',
+        crosshair: null
+      }
+    };
+
+    function applyCameraTransform() {
+      const config = targetConfigs[currentTarget] || targetConfigs.reset;
+
+      // Adjust distance directly
+      lblDist.textContent = `${currentDist.toFixed(2)}m`;
+      sliderValText.textContent = `${currentDist.toFixed(2)}m`;
+      distSlider.value = currentDist;
+
+      // Calculate optical zoom factor based on distance
+      // standard dist = 2.8m
+      const zoomFactor = (2.8 / Math.max(0.15, currentDist)) * (config.scale || 1.0);
+      lblZoomLevel.textContent = `${(zoomFactor / 1.0).toFixed(1)}x`;
+
+      // Apply transform to Camera Viewport
+      cameraViewport.style.transformOrigin = `${config.originX} ${config.originY}`;
+      cameraViewport.style.transform = `scale(${zoomFactor})`;
+
+      // Crosshair display
+      if (config.crosshair) {
+        crosshairTarget.classList.remove('hidden');
+        crosshairTarget.style.left = `${config.crosshair.x * 1.4}px`;
+        crosshairTarget.style.top = `${config.crosshair.y * 1.3}px`;
+        crosshairLabel.textContent = config.label;
+      } else {
+        crosshairTarget.classList.add('hidden');
+      }
+
+      currentStatusText.textContent = config.status;
+    }
+
+    function flyToTarget(targetKey) {
+      currentTarget = targetKey;
+      const config = targetConfigs[targetKey];
+      if (config) {
+        currentDist = config.dist;
+      }
+      applyCameraTransform();
+    }
+
+    // Toggle 1 Screen vs 3 Screens
+    btnToggleDisplayMode.addEventListener('click', () => {
+      isMultiMonitor = !isMultiMonitor;
+      if (isMultiMonitor) {
+        screenStage.classList.remove('w-[500px]');
+        screenStage.classList.add('w-[96vw]', 'max-w-[1500px]');
+        multiMonitorOverlay.classList.remove('hidden');
+        displayModeText.textContent = '切換為「單螢幕桌面小視窗」';
+        displayModeIcon.textContent = '📱';
+      } else {
+        screenStage.classList.remove('w-[96vw]', 'max-w-[1500px]');
+        screenStage.classList.add('w-[500px]');
+        multiMonitorOverlay.classList.add('hidden');
+        displayModeText.textContent = '切換為「三螢幕跨屏畫布」';
+        displayModeIcon.textContent = '🖥️';
+      }
+    });
+
+    // Toggle Horizontal Recline (Lying down across 3 screens)
+    btnToggleRecline.addEventListener('click', () => {
+      isReclining = !isReclining;
+      if (isReclining) {
+        // Auto expand to multi-monitor if not already
+        if (!isMultiMonitor) {
+          btnToggleDisplayMode.click();
+        }
+        reclineText.textContent = '恢復「正常站立姿態」';
+        btnToggleRecline.classList.add('from-emerald-900/60', 'to-teal-900/60');
+        btnToggleRecline.classList.remove('from-purple-900/60', 'to-pink-900/60');
+
+        // Rotate SVG and stretch horizontally along bottom of 3 monitors
+        avatarContainer.style.transform = 'rotate(-90deg) translate(-100px, 0) scale(1.65)';
+        currentStatusText.textContent = '🛌 已平靜橫臥，身軀延伸橫跨 3 台顯示器！';
+      } else {
+        reclineText.textContent = '切換為「跨三螢幕水平橫躺」';
+        btnToggleRecline.classList.remove('from-emerald-900/60', 'to-teal-900/60');
+        btnToggleRecline.classList.add('from-purple-900/60', 'to-pink-900/60');
+
+        avatarContainer.style.transform = 'rotate(0deg) translate(0, 0) scale(1)';
+        currentStatusText.textContent = '已恢復站姿。';
+      }
+    });
+
+    // Slider adjustment
+    distSlider.addEventListener('input', (e) => {
+      currentDist = parseFloat(e.target.value);
+      applyCameraTransform();
+    });
+
+    // Wheel Zoom simulation
+    screenStage.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const step = 0.15;
+      if (e.deltaY < 0) {
+        currentDist = Math.max(0.15, currentDist - step);
+      } else {
+        currentDist = Math.min(3.5, currentDist + step);
+      }
+      applyCameraTransform();
+    }, { passive: false });
+
+    // Reset button
+    btnResetView.addEventListener('click', () => {
+      flyToTarget('reset');
+      if (isReclining) btnToggleRecline.click();
+    });
+
+    // Initial setup
+    applyCameraTransform();
+  </script>
+</body>
+</html>

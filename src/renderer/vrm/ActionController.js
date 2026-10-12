@@ -167,6 +167,10 @@ export class ActionController {
         this.animationController.playSupine();
         break;
 
+      case 'horizontal_recline':
+        this.animationController.playHorizontalRecline();
+        break;
+
       case 'jumping_jacks':
         this.sceneManager.spawnHeartParticles(6);
         this.animationController.playJumpingJacks();

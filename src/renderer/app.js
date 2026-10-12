@@ -648,12 +648,69 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     if (trimmed.startsWith('/camera ')) {
       const camPreset = trimmed.replace('/camera ', '').trim();
-      if (['bust', 'full', 'top', 'feet'].includes(camPreset)) {
+      if (['bust', 'full', 'top', 'feet', 'head', 'eyes', 'chest', 'hands'].includes(camPreset)) {
         sceneManager.setCameraPreset(camPreset);
         showBubble(`鏡頭已切換至：${camPreset}`, 'happy');
-        chatBox.addAssistantMessage(`已切換鏡頭至：${camPreset}`);
+        chatBox.addAssistantMessage(`已切換鏡頭至：${camPreset}。`);
         return true;
       }
+    }
+    if (trimmed === '/mosquito' || trimmed === '/mosquito toggle') {
+      const isMos = !sceneManager.isMosquitoMode;
+      sceneManager.setMosquitoMode(isMos);
+      showBubble(isMos ? '🦟 蚊子微距飛航模式已開啟！點擊人偶任意部位立即飛過去特寫～' : '已關閉蚊子微距飛航模式。', 'happy');
+      chatBox.addAssistantMessage(isMos
+        ? '🦟 蚊子微距飛航模式已啟動！點擊人偶身上任何地方（頭、眼、胸、手、腳），鏡頭會像蚊子一樣直接飛過去滿版特寫。滾輪可自由推進至極致 5cm 微距！'
+        : '已關閉蚊子飛航模式，恢復標準相機操作。');
+      return true;
+    }
+    if (trimmed === '/mosquito on') {
+      sceneManager.setMosquitoMode(true);
+      showBubble('🦟 蚊子微距飛航模式已開啟！點擊人偶任意部位立即飛過去特寫～', 'happy');
+      chatBox.addAssistantMessage('🦟 蚊子微距飛航模式已開啟！');
+      return true;
+    }
+    if (trimmed === '/mosquito off') {
+      sceneManager.setMosquitoMode(false);
+      showBubble('已關閉蚊子微距飛航模式。', 'happy');
+      chatBox.addAssistantMessage('已關閉蚊子微距飛航模式。');
+      return true;
+    }
+    if (trimmed === '/fly' || trimmed === '/fly head') {
+      sceneManager.setCameraPreset('head');
+      showBubble('🦟 鏡頭已化身蚊子飛至頭部前方（滿版特寫）！', 'happy');
+      chatBox.addAssistantMessage('🦟 鏡頭已飛至頭部正前方，頭部已放大滿版。按 R 或雙擊背景可復位。');
+      return true;
+    }
+    if (trimmed === '/fly eyes') {
+      sceneManager.setCameraPreset('eyes');
+      showBubble('🦟 鏡頭已飛至雙眼正前方（極致微距凝視）！', 'happy');
+      chatBox.addAssistantMessage('🦟 鏡頭已微距對焦於眼瞳。');
+      return true;
+    }
+    if (trimmed === '/fly chest') {
+      sceneManager.setCameraPreset('chest');
+      showBubble('🦟 鏡頭已飛至胸前飾品特寫！', 'happy');
+      chatBox.addAssistantMessage('🦟 鏡頭已飛至胸口領結特寫。');
+      return true;
+    }
+    if (trimmed === '/fly hands') {
+      sceneManager.setCameraPreset('hands');
+      showBubble('🦟 鏡頭已飛至手部特寫！', 'happy');
+      chatBox.addAssistantMessage('🦟 鏡頭已飛至手部特寫。');
+      return true;
+    }
+    if (trimmed === '/fly feet') {
+      sceneManager.setCameraPreset('feet');
+      showBubble('🦟 鏡頭已飛至足部地面特寫！', 'happy');
+      chatBox.addAssistantMessage('🦟 鏡頭已飛至足部特寫。');
+      return true;
+    }
+    if (trimmed === '/recline' || trimmed === '/lie' || trimmed === '/horizontal') {
+      actionController.dispatch({ action: 'horizontal_recline' });
+      showBubble('🛌 已擺出三螢幕水平橫臥姿態～按下 F11 可橫跨 3 台顯示器！', 'happy');
+      chatBox.addAssistantMessage('🛌 已為主人切換為「三螢幕水平橫臥姿態」！按下 F11 切換全螢幕透明畫布，身軀將橫向展開跨越所有螢幕。');
+      return true;
     }
     if (trimmed === '/reset' || trimmed === '/rescue') {
       sceneManager.resetCamera();
@@ -763,14 +820,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     if (trimmed.startsWith('/scale ')) {
       const val = parseFloat(trimmed.replace('/scale ', '').trim());
-      if (!isNaN(val) && val >= 0.2 && val <= 3.5) {
+      if (!isNaN(val) && val >= 0.1 && val <= 8.0) {
         avatarManager.setScale(avatarManager.activeIndex, val);
         const slot = avatarManager.getActiveSlot();
         showBubble(`${slot?.title}：大小縮放為 ${val.toFixed(2)}x！`, 'happy');
         chatBox.addAssistantMessage(`已將「${slot?.title}」的縮放比例設定為 ${val.toFixed(2)}x。`);
         multiAvatarBar.update();
       } else {
-        chatBox.addAssistantMessage('請輸入有效數值（0.3 ~ 3.0），例如：/scale 1.5 或 /scale 0.8');
+        chatBox.addAssistantMessage('請輸入有效數值（0.1 ~ 8.0），例如：/scale 2.5 或 /scale 0.5');
       }
       return true;
     }
@@ -939,6 +996,15 @@ window.addEventListener('DOMContentLoaded', async () => {
       sceneManager.setCameraPreset('toggle');
       const isFull = sceneManager.targetCameraDist > 2.6;
       toolbar.setViewMode(isFull ? 'full' : 'bust');
+    },
+    onMosquito: () => {
+      const isMos = !sceneManager.isMosquitoMode;
+      sceneManager.setMosquitoMode(isMos);
+      toolbar.setMosquitoActive(isMos);
+      showBubble(isMos ? '🦟 蚊子微距飛航模式已開啟！點擊人偶任意部位立即飛過去滿版特寫～' : '已關閉蚊子微距飛航模式。', 'happy');
+      chatBox.addAssistantMessage(isMos
+        ? '🦟 蚊子微距飛航模式已開啟！點擊人偶表面任意部位（頭部、眼睛、胸口、雙手、足部），鏡頭將化身蚊子飛向該處特寫！滾輪可自由微距推進（近至 5cm）！按 R 或雙擊背景復位。'
+        : '已關閉蚊子飛航模式。');
     },
     onLeave: () => {
       actionController.dispatch({

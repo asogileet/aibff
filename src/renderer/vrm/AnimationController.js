@@ -130,6 +130,10 @@ export class AnimationController {
     this.playAction('supine', onComplete);
   }
 
+  playHorizontalRecline(onComplete) {
+    this.playAction('horizontal_recline', onComplete);
+  }
+
   playJumpingJacks(onComplete) {
     this.playAction('jumping_jacks', onComplete);
   }
@@ -214,7 +218,7 @@ export class AnimationController {
     const sinVal = Math.sin(this.breathTime);
 
     // Subtle spine and chest movement
-    const ignoreBreathing = ['bow', 'stretch', 'jump', 'animal_crawl', 'prone', 'supine', 'jumping_jacks', 'dance'];
+    const ignoreBreathing = ['bow', 'stretch', 'jump', 'animal_crawl', 'prone', 'supine', 'horizontal_recline', 'jumping_jacks', 'dance'];
     if (!ignoreBreathing.includes(this.currentAction)) {
       const spine = vrm.humanoid?.getNormalizedBoneNode('spine');
       if (spine) {
@@ -777,6 +781,49 @@ export class AnimationController {
         if (rightUpperLeg) rightUpperLeg.rotation.set(0, 0, 0.10 * supineProg);
         if (leftLowerLeg) leftLowerLeg.rotation.set(0, 0, 0);
         if (rightLowerLeg) rightLowerLeg.rotation.set(0, 0, 0);
+        break;
+      }
+
+      case 'horizontal_recline': {
+        // Cross-screen horizontal recline: entire body lies flat along horizontal X-axis spanning displays
+        const reclineProg = Math.min(1.0, this.actionTime / 0.8);
+
+        if (hips) {
+          hips.position.y = baseHipsY - 0.72 * reclineProg;
+          hips.position.x = 0;
+          hips.position.z = 0;
+          // Rotate around Z to orient body horizontally (~-86 deg) along the X-axis
+          hips.rotation.z = -Math.PI * 0.48 * reclineProg;
+          hips.rotation.y = 0.25 * reclineProg;
+          hips.rotation.x = 0.05 * reclineProg;
+        }
+
+        if (spine) {
+          spine.rotation.z = -0.05 * reclineProg;
+          spine.rotation.y = 0.10 * reclineProg;
+        }
+
+        // Head gently tilted resting on arm/floor facing user
+        if (head) {
+          head.rotation.z = 0.28 * reclineProg;
+          head.rotation.y = 0.20 * reclineProg;
+          head.rotation.x = -0.15 * reclineProg;
+        }
+
+        // Left arm bent resting under head comfortably
+        if (leftUpperArm) leftUpperArm.rotation.set(-0.25 * reclineProg, 0, 1.85 * reclineProg);
+        if (leftLowerArm) leftLowerArm.rotation.set(1.45 * reclineProg, 0.40 * reclineProg, 0);
+        if (leftHand) leftHand.rotation.set(-0.20 * reclineProg, 0, 0);
+
+        // Right arm relaxed along torso/waist
+        if (rightUpperArm) rightUpperArm.rotation.set(0.15 * reclineProg, 0, -0.65 * reclineProg);
+        if (rightLowerArm) rightLowerArm.rotation.set(0.35 * reclineProg, 0, 0);
+
+        // Legs extended horizontally with natural subtle knee bend
+        if (leftUpperLeg) leftUpperLeg.rotation.set(0.12 * reclineProg, 0, -0.08 * reclineProg);
+        if (rightUpperLeg) rightUpperLeg.rotation.set(0.18 * reclineProg, 0, 0.12 * reclineProg);
+        if (leftLowerLeg) leftLowerLeg.rotation.set(-0.22 * reclineProg, 0, 0);
+        if (rightLowerLeg) rightLowerLeg.rotation.set(-0.35 * reclineProg, 0, 0);
         break;
       }
 

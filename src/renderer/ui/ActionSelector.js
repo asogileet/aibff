@@ -25,6 +25,7 @@ export class ActionSelector {
       { id: 'animal_crawl', name: '學小動物', icon: '🐾', desc: '四肢著地抬頭' },
       { id: 'prone', name: '趴下放鬆', icon: '🙇‍♀️', desc: '平趴地面' },
       { id: 'supine', name: '平靜躺下', icon: '🛏️', desc: '仰臥平躺' },
+      { id: 'horizontal_recline', name: '三螢幕橫臥', icon: '🛌', desc: '跨屏水平躺平' },
       { id: 'jumping_jacks', name: '開合跳躍', icon: '🤸‍♀️', desc: '有氧跳躍' },
       { id: 'dance', name: '元氣跳舞', icon: '💃', desc: '偶像舞蹈' }
     ];

@@ -59,6 +59,10 @@ export class Toolbar {
         <span class="text-lg">🧍</span>
         <span class="text-xs hidden md:inline">視角</span>
       </button>
+      <button id="btnMosquito" class="flex items-center space-x-1 text-slate-300 hover:text-cyan-400 p-2 rounded-full hover:bg-white/5 transition" title="開關蚊子微距飛航模式（點擊人偶部位立即飛航滿版特寫，支援 5cm 微距）">
+        <span class="text-lg">🦟</span>
+        <span class="text-xs hidden md:inline">蚊子</span>
+      </button>
       <button id="btnLeave" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="休息 / 召出愛心掛件">
         <span class="text-lg">👋</span>
         <span class="text-xs hidden md:inline">休息</span>
@@ -87,6 +91,7 @@ export class Toolbar {
     this.element.querySelector('#btnMocap').addEventListener('click', () => this.handlers.onMocap?.());
     this.element.querySelector('#btnClone').addEventListener('click', () => this.handlers.onClone?.());
     this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
+    this.element.querySelector('#btnMosquito').addEventListener('click', () => this.handlers.onMosquito?.());
     this.element.querySelector('#btnLeave').addEventListener('click', () => this.handlers.onLeave?.());
     this.element.querySelector('#btnSettings').addEventListener('click', () => this.handlers.onSettings?.());
     this.element.querySelector('#btnAuth')?.addEventListener('click', () => this.handlers.onAuth?.());
@@ -190,6 +195,18 @@ export class Toolbar {
     } else {
       btn.classList.remove('text-cyan-200', 'bg-cyan-500/30', 'ring-2', 'ring-cyan-400/60');
       btn.title = '開關影分身控制列（多人偶同台）';
+    }
+  }
+
+  setMosquitoActive(active) {
+    const btn = this.element.querySelector('#btnMosquito');
+    if (!btn) return;
+    if (active) {
+      btn.classList.add('text-pink-300', 'bg-pink-500/30', 'ring-2', 'ring-pink-400/60');
+      btn.title = '🦟 蚊子微距飛航模式中 (點擊人偶部位立即飛航特寫，點擊按鈕關閉)';
+    } else {
+      btn.classList.remove('text-pink-300', 'bg-pink-500/30', 'ring-2', 'ring-pink-400/60');
+      btn.title = '開關蚊子微距飛航模式（點擊人偶部位立即飛航滿版特寫，支援 5cm 微距）';
     }
   }
 }

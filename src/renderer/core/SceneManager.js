@@ -16,12 +16,15 @@ export class SceneManager {
     this.currentPanY = this.targetPanY;
     this.targetPanX = 0.0;
     this.currentPanX = 0.0;
+    this.targetPanZ = 0.0;
+    this.currentPanZ = 0.0;
     this.isCustomTargetY = false;
+    this.isMosquitoMode = false;
     this.cameraTarget = new THREE.Vector3(0.0, this.targetPanY, 0.0);
     this.currentCameraDist = isInitialFullscreen ? 3.3 : 1.8;
     this.targetCameraDist = this.currentCameraDist;
-    this.minDist = 1.6;  // Safe close-up bust framing without penetrating VRM model mesh
-    this.maxDist = 4.2;  // Safe full-body wide distance keeping avatar clearly visible and grounded
+    this.minDist = 0.05;  // Ultra macro distance supporting mosquito fly inspection
+    this.maxDist = 8.0;   // Wide multi-monitor and distant view
 
     // Orbit angles (azimuth & elevation)
     this.orbitTheta = 0.0;       // Horizontal angle
@@ -78,7 +81,7 @@ export class SceneManager {
   _initCamera() {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
-    this.camera = new THREE.PerspectiveCamera(this.fov, width / height, 0.1, 20.0);
+    this.camera = new THREE.PerspectiveCamera(this.fov, width / height, 0.02, 30.0);
     this._updateCameraViewOffset();
     this._updateCameraTransform();
   }
@@ -89,7 +92,8 @@ export class SceneManager {
     // 1. Mouse Wheel Zoom (In / Out)
     dom.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const zoomStep = 0.2;
+      // Adaptive zoom step: delicate close-up steps near face, larger steps when distant
+      const zoomStep = Math.max(0.04, this.targetCameraDist * 0.15);
       if (e.deltaY < 0) {
         // Zoom in towards face / detail
         this.targetCameraDist = Math.max(this.minDist, this.targetCameraDist - zoomStep);
@@ -229,11 +233,43 @@ export class SceneManager {
     this.targetPanY = THREE.MathUtils.clamp(y, -0.2, 2.2);
   }
 
-  setCameraPan(x, y) {
+  setCameraPan(x, y, z) {
     if (x !== undefined) this.targetPanX = THREE.MathUtils.clamp(x, -6.0, 6.0);
     if (y !== undefined) {
       this.isCustomTargetY = true;
       this.targetPanY = THREE.MathUtils.clamp(y, -0.5, 3.0);
+    }
+    if (z !== undefined) {
+      this.targetPanZ = THREE.MathUtils.clamp(z, -4.0, 4.0);
+    }
+  }
+
+  setMosquitoMode(enabled) {
+    this.isMosquitoMode = !!enabled;
+  }
+
+  /**
+   * Fly camera to specific 3D point like a mosquito with smooth interpolation
+   */
+  flyTo({ targetX, targetY, targetZ = 0, distance = 0.35, theta, phi, snap = false }) {
+    this.isCustomTargetY = true;
+    if (targetX !== undefined) this.targetPanX = THREE.MathUtils.clamp(targetX, -6.0, 6.0);
+    if (targetY !== undefined) this.targetPanY = THREE.MathUtils.clamp(targetY, -0.5, 3.0);
+    if (targetZ !== undefined) this.targetPanZ = THREE.MathUtils.clamp(targetZ, -4.0, 4.0);
+
+    const safeDist = THREE.MathUtils.clamp(distance, this.minDist, this.maxDist);
+    this.targetCameraDist = safeDist;
+
+    if (theta !== undefined) this.targetOrbitTheta = THREE.MathUtils.clamp(theta, -1.48, 1.48);
+    if (phi !== undefined) this.targetOrbitPhi = THREE.MathUtils.clamp(phi, -1.48, 1.48);
+
+    if (snap) {
+      this.currentPanX = this.targetPanX;
+      this.currentPanY = this.targetPanY;
+      this.currentPanZ = this.targetPanZ;
+      this.currentCameraDist = this.targetCameraDist;
+      if (theta !== undefined) this.orbitTheta = this.targetOrbitTheta;
+      if (phi !== undefined) this.orbitPhi = this.targetOrbitPhi;
     }
   }
 
@@ -248,7 +284,7 @@ export class SceneManager {
       this.setCameraPan(aspect * 0.55 * distFactor, this.targetPanY);
     } else {
       // Center
-      this.setCameraPan(0.0, this.targetPanY);
+      this.setCameraPan(0.0, this.targetPanY, 0.0);
     }
   }
 
@@ -262,12 +298,25 @@ export class SceneManager {
   }
 
   setCameraPreset(mode = 'toggle', snap = false) {
-    if (mode === 'bust') {
+    if (mode === 'head') {
+      // Full screen head close-up
+      this.flyTo({ targetX: 0.0, targetY: 1.38, targetZ: 0.0, distance: 0.42, theta: 0.0, phi: 0.0, snap });
+    } else if (mode === 'eyes') {
+      // Macro gaze directly onto eyes
+      this.flyTo({ targetX: 0.0, targetY: 1.38, targetZ: 0.0, distance: 0.22, theta: 0.0, phi: 0.0, snap });
+    } else if (mode === 'chest') {
+      // Torso & ribbon inspection
+      this.flyTo({ targetX: 0.0, targetY: 1.15, targetZ: 0.0, distance: 0.48, theta: 0.0, phi: 0.0, snap });
+    } else if (mode === 'hands') {
+      // Hands close-up
+      this.flyTo({ targetX: 0.0, targetY: 0.85, targetZ: 0.0, distance: 0.45, theta: 0.0, phi: 0.0, snap });
+    } else if (mode === 'bust') {
       this.targetCameraDist = 1.8;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 0.0;
       this.targetPanX = 0.0;
       this.targetPanY = this.bustTargetY;
+      this.targetPanZ = 0.0;
       this.isCustomTargetY = false;
     } else if (mode === 'full') {
       this.targetCameraDist = 3.3;
@@ -275,6 +324,7 @@ export class SceneManager {
       this.targetOrbitPhi = 0.0;
       this.targetPanX = 0.0;
       this.targetPanY = this.fullBodyTargetY;
+      this.targetPanZ = 0.0;
       this.isCustomTargetY = false;
     } else if (mode === 'top') {
       this.targetCameraDist = 1.1;
@@ -282,13 +332,15 @@ export class SceneManager {
       this.targetOrbitPhi = 1.35; // Looking directly down onto head top
       this.targetPanX = 0.0;
       this.targetPanY = 1.45;
+      this.targetPanZ = 0.0;
       this.isCustomTargetY = true;
     } else if (mode === 'feet') {
-      this.targetCameraDist = 1.2;
+      this.targetCameraDist = 0.45;
       this.targetOrbitTheta = 0.0;
-      this.targetOrbitPhi = -1.25; // Looking upward at feet from ground
+      this.targetOrbitPhi = -0.35; // Looking at feet from near ground
       this.targetPanX = 0.0;
-      this.targetPanY = 0.1;
+      this.targetPanY = 0.12;
+      this.targetPanZ = 0.0;
       this.isCustomTargetY = true;
     } else if (mode === 'toggle') {
       if (this.targetCameraDist > 2.6) {
@@ -303,6 +355,7 @@ export class SceneManager {
       this.currentCameraDist = this.targetCameraDist;
       this.currentPanX = this.targetPanX;
       this.currentPanY = this.targetPanY;
+      this.currentPanZ = this.targetPanZ;
       this.orbitTheta = 0.0;
       this.orbitPhi = 0.0;
       this.targetOrbitTheta = 0.0;
@@ -315,6 +368,8 @@ export class SceneManager {
   resetCamera() {
     this.targetPanX = 0.0;
     this.currentPanX = 0.0;
+    this.targetPanZ = 0.0;
+    this.currentPanZ = 0.0;
     this.orbitTheta = 0.0;
     this.orbitPhi = 0.0;
     this.targetOrbitTheta = 0.0;
@@ -497,6 +552,7 @@ export class SceneManager {
     }
     this.cameraTarget.x = this.currentPanX;
     this.cameraTarget.y = this.currentPanY;
+    this.cameraTarget.z = this.currentPanZ || 0.0;
 
     // Calculate spherical position relative to cameraTarget
     const cosPhi = Math.cos(this.orbitPhi);
@@ -626,10 +682,11 @@ export class SceneManager {
     const lerpAlpha = 1.0 - Math.exp(-8.0 * delta);
     const orbitAlpha = 1.0 - Math.exp(-10.0 * delta);
 
-    // Smooth camera distance, pan height & orbit angle lerp
+    // Smooth camera distance, pan coordinates & orbit angle lerp
     this.currentCameraDist = THREE.MathUtils.lerp(this.currentCameraDist, this.targetCameraDist, lerpAlpha);
     this.currentPanX = THREE.MathUtils.lerp(this.currentPanX, this.targetPanX, lerpAlpha);
     this.currentPanY = THREE.MathUtils.lerp(this.currentPanY, this.targetPanY, lerpAlpha);
+    this.currentPanZ = THREE.MathUtils.lerp(this.currentPanZ, this.targetPanZ, lerpAlpha);
     this.orbitTheta = THREE.MathUtils.lerp(this.orbitTheta, this.targetOrbitTheta, orbitAlpha);
     this.orbitPhi = THREE.MathUtils.lerp(this.orbitPhi, this.targetOrbitPhi, orbitAlpha);
 
