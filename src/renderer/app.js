@@ -994,7 +994,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     },
     onViewToggle: () => {
       sceneManager.setCameraPreset('toggle');
-      const isFull = sceneManager.targetCameraDist > 2.6;
+      const isFull = sceneManager.targetCameraDist > 2.5;
       toolbar.setViewMode(isFull ? 'full' : 'bust');
     },
     onMosquito: () => {
@@ -1028,6 +1028,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   });
+
+  // Synchronize initial camera view mode icon with sceneManager
+  toolbar.setViewMode(sceneManager.targetCameraDist > 2.5 ? 'full' : 'bust');
 
   // Synchronize clone bar active state with bottom toolbar
   toolbar.setCloneActive(multiAvatarBar.isVisible);
@@ -1231,7 +1234,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     window.electronAPI.onToggleView?.(() => {
       sceneManager.setCameraPreset('toggle');
-      const isFull = sceneManager.targetCameraDist > 2.6;
+      const isFull = sceneManager.targetCameraDist > 2.5;
       toolbar.setViewMode(isFull ? 'full' : 'bust');
     });
   }

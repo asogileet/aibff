@@ -9,10 +9,14 @@ export class SceneManager {
 
     // Camera control parameters
     this.defaultCameraPos = new THREE.Vector3(0.0, 1.35, 1.8);
-    const isInitialFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
+    // Only desktop Electron in small floating window mode defaults to bust close-up;
+    // mobile browsers, tablets, and desktop canvases default to full body framing.
+    const isElectronSmallWindow = typeof window !== 'undefined' && !!window.electronAPI && window.innerWidth <= 600;
     this.bustTargetY = 1.25;      // Target height for bust / face close-up
-    this.fullBodyTargetY = 0.72;  // Target height for full body standing grounded above floor
-    this.targetPanY = isInitialFullscreen ? this.fullBodyTargetY : this.bustTargetY;
+    this.fullBodyTargetY = 0.72;  // Target height for full body standing grounded above floor in widescreen
+
+    const initialFullConfig = this._getFullBodyConfig();
+    this.targetPanY = isElectronSmallWindow ? this.bustTargetY : initialFullConfig.targetY;
     this.currentPanY = this.targetPanY;
     this.targetPanX = 0.0;
     this.currentPanX = 0.0;
@@ -21,7 +25,7 @@ export class SceneManager {
     this.isCustomTargetY = false;
     this.isMosquitoMode = false;
     this.cameraTarget = new THREE.Vector3(0.0, this.targetPanY, 0.0);
-    this.currentCameraDist = isInitialFullscreen ? 3.3 : 1.8;
+    this.currentCameraDist = isElectronSmallWindow ? 1.8 : initialFullConfig.dist;
     this.targetCameraDist = this.currentCameraDist;
     this.minDist = 0.05;  // Ultra macro distance supporting mosquito fly inspection
     this.maxDist = 8.0;   // Wide multi-monitor and distant view
@@ -148,10 +152,14 @@ export class SceneManager {
       if (e.button === 1) this.isMiddleDragging = false;
     });
 
-    // 3. Mobile touch controls: single touch orbit, pinch-to-zoom & two-finger pan height
+    // 3. Mobile touch controls: single touch orbit, pinch-to-zoom & two-finger pan
     this.touchStartDist = null;
+    this.lastTouchMidX = null;
     this.lastTouchMidY = null;
+    this.touchStartMidX = null;
+    this.touchStartMidY = null;
     this.lastTouchPos = null;
+    this.isTwoFingerPanning = false;
     let lastTapTime = 0;
 
     dom.addEventListener('touchstart', (e) => {
@@ -162,7 +170,11 @@ export class SceneManager {
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
+        this.lastTouchMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         this.lastTouchMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        this.touchStartMidX = this.lastTouchMidX;
+        this.touchStartMidY = this.lastTouchMidY;
+        this.isTwoFingerPanning = false;
       }
     }, { passive: true });
 
@@ -186,12 +198,22 @@ export class SceneManager {
         this.targetCameraDist = THREE.MathUtils.clamp(this.targetCameraDist + distDiff, this.minDist, this.maxDist);
         this.touchStartDist = currentDist;
 
-        // Two-finger vertical pan to adjust height from feet to head
+        // Two-finger pan (X and Y) with intentional threshold to avoid locking target Y during simple pinch zoom
+        const currentMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const currentMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        if (this.lastTouchMidY !== null && this.lastTouchMidY !== undefined) {
-          const deltaMidY = currentMidY - this.lastTouchMidY;
-          this.setCameraTargetY(this.targetPanY + deltaMidY * 0.005);
+
+        if (this.lastTouchMidY !== null && this.lastTouchMidX !== null && this.touchStartMidX !== null && this.touchStartMidY !== null) {
+          const totalMidMove = Math.hypot(currentMidX - this.touchStartMidX, currentMidY - this.touchStartMidY);
+          // Only activate manual pan if user moved both fingers together by at least 16px
+          if (totalMidMove > 16 || this.isTwoFingerPanning) {
+            this.isTwoFingerPanning = true;
+            const deltaMidX = currentMidX - this.lastTouchMidX;
+            const deltaMidY = currentMidY - this.lastTouchMidY;
+            const panFactor = this.currentCameraDist * 0.0016;
+            this.setCameraPan(this.targetPanX - deltaMidX * panFactor, this.targetPanY + deltaMidY * panFactor);
+          }
         }
+        this.lastTouchMidX = currentMidX;
         this.lastTouchMidY = currentMidY;
       }
     }, { passive: true });
@@ -200,6 +222,8 @@ export class SceneManager {
       if (e.touches.length < 2) {
         this.touchStartDist = null;
         this.lastTouchMidY = null;
+        this.lastTouchMidX = null;
+        this.isTwoFingerPanning = false;
       }
       if (e.touches.length === 1) {
         this.lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -297,6 +321,30 @@ export class SceneManager {
     if (phi !== undefined) this.targetOrbitPhi = THREE.MathUtils.clamp(phi, -1.48, 1.48);
   }
 
+  /**
+   * Calculates optimal distance and target Y for full-body framing based on canvas aspect ratio.
+   * On mobile phones (aspect < 0.65) and tablets (aspect < 1.0), this ensures the avatar stands
+   * safely above the bottom floating toolbar and mobile home indicator without sinking.
+   */
+  _getFullBodyConfig() {
+    const width = this.container?.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 800);
+    const height = this.container?.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 600);
+    const aspect = width / (height || 1);
+
+    if (aspect < 0.65) {
+      // Mobile portrait (e.g. 9:19.5, 9:16)
+      // Toolbar occupies bottom ~12-14%. dist 3.9 & targetY 0.68 places ground floor at ~17.5% above bottom,
+      // completely clear of the bottom toolbar and leaving head clear of top dialogue bubble.
+      return { dist: 3.9, targetY: 0.68 };
+    } else if (aspect < 1.0) {
+      // Tablet portrait (e.g. iPad 3:4, 4:5)
+      return { dist: 3.6, targetY: 0.70 };
+    } else {
+      // Desktop / Landscape widescreen
+      return { dist: 3.3, targetY: this.fullBodyTargetY };
+    }
+  }
+
   setCameraPreset(mode = 'toggle', snap = false) {
     if (mode === 'head') {
       // Full screen head close-up
@@ -319,11 +367,12 @@ export class SceneManager {
       this.targetPanZ = 0.0;
       this.isCustomTargetY = false;
     } else if (mode === 'full') {
-      this.targetCameraDist = 3.3;
+      const fullConfig = this._getFullBodyConfig();
+      this.targetCameraDist = fullConfig.dist;
       this.targetOrbitTheta = 0.0;
       this.targetOrbitPhi = 0.0;
       this.targetPanX = 0.0;
-      this.targetPanY = this.fullBodyTargetY;
+      this.targetPanY = fullConfig.targetY;
       this.targetPanZ = 0.0;
       this.isCustomTargetY = false;
     } else if (mode === 'top') {
@@ -343,7 +392,7 @@ export class SceneManager {
       this.targetPanZ = 0.0;
       this.isCustomTargetY = true;
     } else if (mode === 'toggle') {
-      if (this.targetCameraDist > 2.6) {
+      if (this.targetCameraDist > 2.5) {
         this.setCameraPreset('bust', snap);
       } else {
         this.setCameraPreset('full', snap);
@@ -380,8 +429,8 @@ export class SceneManager {
     this.targetVpOffsetY = 0.0;
     this.camera?.clearViewOffset();
     this.camera?.updateProjectionMatrix();
-    const isFullscreen = typeof window !== 'undefined' && window.innerWidth > 600;
-    this.setCameraPreset(isFullscreen ? 'full' : 'bust', true);
+    const isElectronSmallWindow = typeof window !== 'undefined' && !!window.electronAPI && window.innerWidth <= 600;
+    this.setCameraPreset(isElectronSmallWindow ? 'bust' : 'full', true);
     if (typeof this.onCameraReset === 'function') {
       this.onCameraReset();
     }
@@ -547,8 +596,9 @@ export class SceneManager {
   _updateCameraTransform() {
     if (!this.isCustomTargetY) {
       // Dynamically calculate cameraTarget.y based on targetCameraDist
-      const t = THREE.MathUtils.clamp((this.targetCameraDist - 1.8) / (3.3 - 1.8), 0.0, 1.0);
-      this.targetPanY = THREE.MathUtils.lerp(this.bustTargetY, this.fullBodyTargetY, t);
+      const fullConfig = this._getFullBodyConfig();
+      const t = THREE.MathUtils.clamp((this.targetCameraDist - 1.8) / (fullConfig.dist - 1.8), 0.0, 1.0);
+      this.targetPanY = THREE.MathUtils.lerp(this.bustTargetY, fullConfig.targetY, t);
     }
     this.cameraTarget.x = this.currentPanX;
     this.cameraTarget.y = this.currentPanY;
@@ -671,6 +721,13 @@ export class SceneManager {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxRatio));
 
     this.renderer.setSize(width, height);
+
+    // If currently in full body mode and not custom panned, adapt to new aspect ratio immediately
+    if (!this.isCustomTargetY && this.targetCameraDist > 2.5) {
+      const fullConfig = this._getFullBodyConfig();
+      this.targetCameraDist = fullConfig.dist;
+      this.targetPanY = fullConfig.targetY;
+    }
   }
 
   _animate() {
