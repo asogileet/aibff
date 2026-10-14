@@ -51,6 +51,14 @@ export class Toolbar {
         <span class="text-lg">🕺</span>
         <span class="text-xs hidden md:inline">動捕</span>
       </button>
+      <button id="btnMirror" class="flex items-center space-x-1 text-slate-300 hover:text-pink-400 p-2 rounded-full hover:bg-white/5 transition" title="切換動作偵測鏡像模式：鏡像同步 (照鏡子) ⇋ 面對面互動 (合體比愛心)">
+        <span class="text-lg" id="iconToolbarMirror">🪞</span>
+        <span class="text-xs hidden md:inline" id="textToolbarMirror">鏡像</span>
+      </button>
+      <button id="btnBounce" class="flex items-center space-x-1 text-slate-300 hover:text-amber-400 p-2 rounded-full hover:bg-white/5 transition" title="開關人偶物理碰撞彈力面板 (調整反彈與甩射彈性)">
+        <span class="text-lg">🏀</span>
+        <span class="text-xs hidden md:inline">彈力</span>
+      </button>
       <button id="btnClone" class="flex items-center space-x-1 text-slate-300 hover:text-cyan-300 p-2 rounded-full hover:bg-white/5 transition" title="開關影分身控制列（多人偶同台）">
         <span class="text-lg">👥</span>
         <span class="text-xs hidden md:inline">分身</span>
@@ -89,6 +97,8 @@ export class Toolbar {
     this.element.querySelector('#btnAR').addEventListener('click', () => this.handlers.onAR?.());
     this.element.querySelector('#btnPuppet').addEventListener('click', () => this.handlers.onPuppet?.());
     this.element.querySelector('#btnMocap').addEventListener('click', () => this.handlers.onMocap?.());
+    this.element.querySelector('#btnMirror').addEventListener('click', () => this.handlers.onMirror?.());
+    this.element.querySelector('#btnBounce')?.addEventListener('click', () => this.handlers.onBounce?.());
     this.element.querySelector('#btnClone').addEventListener('click', () => this.handlers.onClone?.());
     this.element.querySelector('#btnView').addEventListener('click', () => this.handlers.onViewToggle?.());
     this.element.querySelector('#btnMosquito').addEventListener('click', () => this.handlers.onMosquito?.());
@@ -207,6 +217,24 @@ export class Toolbar {
     } else {
       btn.classList.remove('text-pink-300', 'bg-pink-500/30', 'ring-2', 'ring-pink-400/60');
       btn.title = '開關蚊子微距飛航模式（點擊人偶部位立即飛航滿版特寫，支援 5cm 微距）';
+    }
+  }
+
+  setMirrorState(isMirror) {
+    const btn = this.element.querySelector('#btnMirror');
+    const icon = this.element.querySelector('#iconToolbarMirror');
+    const text = this.element.querySelector('#textToolbarMirror');
+    if (!btn || !icon || !text) return;
+    if (isMirror) {
+      btn.classList.add('text-pink-400', 'bg-pink-500/25', 'ring-1', 'ring-pink-500/40');
+      btn.title = '目前為鏡像面對面模式 (左右分站不重疊、側身面對面互動、合體比心)。點擊切換為同向同步模式！';
+      icon.textContent = '❤️';
+      text.textContent = '面對面';
+    } else {
+      btn.classList.remove('text-pink-400', 'bg-pink-500/25', 'ring-1', 'ring-pink-500/40');
+      btn.title = '目前為同向同步模式 (居中 1:1 同向動作)。點擊切換為鏡像面對面模式！';
+      icon.textContent = '🪞';
+      text.textContent = '同步';
     }
   }
 }

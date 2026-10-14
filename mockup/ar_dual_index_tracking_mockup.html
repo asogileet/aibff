@@ -107,11 +107,17 @@
               <span>視訊：</span>
               <button id="btnToggleCamFeed" class="text-emerald-400 hover:underline font-medium">開啟真實鏡頭</button>
             </div>
-            <div class="flex items-center gap-1.5">
-              <button id="btnSimulateDualHands" class="glass-panel rounded-full px-2.5 py-1 text-[11px] text-cyan-300 hover:text-white border-cyan-500/40 hover:bg-cyan-500/20 transition">
-                🎮 雙指模擬展示
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <button id="btnToggleMirrorMode" class="glass-panel rounded-full px-2.5 py-1 text-[11px] text-purple-300 hover:text-white border-purple-500/40 hover:bg-purple-500/20 transition">
+                🪞 鏡像同步
               </button>
-              <button id="btnResetPose" class="glass-panel rounded-full px-2.5 py-1 text-[11px] text-pink-300 hover:text-white border-pink-500/40 hover:bg-pink-500/20 transition">
+              <button id="btnHeartPoseDemo" class="glass-panel rounded-full px-2.5 py-1 text-[11px] text-pink-300 hover:text-white border-pink-500/40 hover:bg-pink-500/20 transition">
+                ❤️ 面對面比心
+              </button>
+              <button id="btnSimulateDualHands" class="glass-panel rounded-full px-2.5 py-1 text-[11px] text-cyan-300 hover:text-white border-cyan-500/40 hover:bg-cyan-500/20 transition">
+                🎮 雙指展示
+              </button>
+              <button id="btnResetPose" class="glass-panel rounded-full px-2.5 py-1 text-[11px] text-slate-300 hover:text-white border-slate-700 hover:bg-slate-800 transition">
                 🔄 復位
               </button>
             </div>
@@ -579,6 +585,40 @@
         puppetStateText.textContent = '已停止展示';
         resetFingers();
       }
+    });
+
+    let isMirrorMode = true;
+    const btnToggleMirrorMode = document.getElementById('btnToggleMirrorMode');
+    const btnHeartPoseDemo = document.getElementById('btnHeartPoseDemo');
+
+    btnToggleMirrorMode?.addEventListener('click', () => {
+      isMirrorMode = !isMirrorMode;
+      if (isMirrorMode) {
+        btnToggleMirrorMode.innerHTML = '🪞 鏡像同步';
+        btnToggleMirrorMode.className = 'glass-panel rounded-full px-2.5 py-1 text-[11px] text-purple-300 hover:text-white border-purple-500/40 hover:bg-purple-500/20 transition';
+        stageWebcam.classList.add('video-mirror');
+        stageDialogue.textContent = '🪞 已切換為鏡像同步模式！像照鏡子同向舉手～✨';
+        stageEmotion.textContent = '鏡像';
+      } else {
+        btnToggleMirrorMode.innerHTML = '❤️ 面對面比心';
+        btnToggleMirrorMode.className = 'glass-panel rounded-full px-2.5 py-1 text-[11px] text-pink-300 hover:text-white border-pink-500/50 bg-pink-500/20 ring-1 ring-pink-500/30 transition';
+        stageWebcam.classList.remove('video-mirror');
+        stageDialogue.textContent = '❤️ 已切換為面對面比心模式！你舉右手、我舉右手，剛好在中間拼出大愛心～🥰';
+        stageEmotion.textContent = '心動';
+      }
+    });
+
+    btnHeartPoseDemo?.addEventListener('click', () => {
+      isSimulationActive = false;
+      btnSimulateDualHands.classList.remove('bg-cyan-500/30', 'text-cyan-200');
+      // Position arms towards center in a heart shape
+      currentJoints.leftElbow = { x: 175, y: 310 };
+      currentJoints.leftHand = { x: 205, y: 260 };
+      currentJoints.rightElbow = { x: 265, y: 310 };
+      currentJoints.rightHand = { x: 235, y: 260 };
+      currentJoints.head = { x: 220, y: 155 };
+      stageEmotion.textContent = '害羞';
+      stageDialogue.textContent = '哇～主人跟我面對面比出了一顆大愛心！最喜歡主人了～💕🥰';
     });
 
     btnResetPose.addEventListener('click', () => {

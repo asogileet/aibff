@@ -13,6 +13,7 @@ export class HandTracker {
 
     this.isActive = true;
     this.isCameraTracking = false;
+    this.isMirror = options.isMirror !== false; // Default true (selfie mirror)
     this.isPinching = false;
     this.fingerPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     this.isHandDetected = true;
@@ -25,6 +26,11 @@ export class HandTracker {
     this._lastProcessTime = 0;
 
     this._bindMouseFallback();
+  }
+
+  setMirror(mirror = null) {
+    this.isMirror = mirror !== null ? mirror : !this.isMirror;
+    return this.isMirror;
   }
 
   setVideoElement(videoEl) {
@@ -244,8 +250,10 @@ export class HandTracker {
         const indexTip = landmarks[8]; // Index finger tip
         const thumbTip = landmarks[4]; // Thumb tip for pinch detection
 
-        // Mirror coordinates horizontally: x = (1 - landmark.x)
-        const screenX = (1 - indexTip.x) * window.innerWidth;
+        // Mirror coordinates horizontally if mirror mode enabled: x = (1 - landmark.x), else direct x
+        const screenX = this.isMirror
+          ? (1 - indexTip.x) * window.innerWidth
+          : indexTip.x * window.innerWidth;
         const screenY = indexTip.y * window.innerHeight;
 
         // Euclidean distance between thumb and index tip

@@ -538,8 +538,16 @@ export class AvatarManager {
       }
     }
 
-    // Subtle gentle pulse animation for selection ring
+    // Subtle gentle pulse animation and position sync for selection ring
     if (this.selectionRing && this.selectionRing.visible) {
+      const activeSlot = this.getActiveSlot();
+      if (activeSlot && activeSlot.vrm?.scene) {
+        this.selectionRing.position.set(
+          activeSlot.vrm.scene.position.x,
+          0.005,
+          activeSlot.vrm.scene.position.z
+        );
+      }
       const t = performance.now() * 0.0025;
       const scale = 1.0 + Math.sin(t) * 0.04;
       this.selectionRing.scale.set(scale, 1, scale);

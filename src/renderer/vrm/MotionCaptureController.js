@@ -55,10 +55,22 @@ export class MotionCaptureController {
     this.avatarController = avatarController;
     this.animationController = animationController;
     this.lipSyncController = options.lipSyncController || null;
+    this.onHeartDetected = options.onHeartDetected || null;
+    this.onMirrorInteraction = options.onMirrorInteraction || null;
 
     this.isEnabled = false;
-    this.isMirror = true;      // Selfie-mirror: your right hand moves the hand on the same screen side
+    this.isMirror = options.isMirror !== false; // Selfie-mirror: your right hand moves the hand on the same screen side
     this.isBodyTracked = false;
+    this._lastHeartTime = 0;
+    this._lastInteractionTime = 0;
+
+    this.targetScenePos = new THREE.Vector3(0, 0, 0);
+    this.isKissing = false;
+    this.isHeadTouching = false;
+    this.isTouchingScreen = false;
+    this._activeComplementHeartSide = null;
+    this._activeTouchScreenSides = {};
+    this._lastHeadOffset = 0;
 
     this._targets = {};        // boneName -> target local THREE.Quaternion
     this._faceTargets = null;  // { blinkLeft, blinkRight, aa, ih, ou, ee, oh }
@@ -80,11 +92,11 @@ export class MotionCaptureController {
 
     if (enabled) {
       // Pause breathing / idle so they don't fight over the spine
-      this.animationController?.setCustomPoseOverride(true);
+      this.animationController?.setCustomPoseOverride?.(true);
     } else {
-      this._clearFace(this.avatarController.getCurrentVRM());
-      this.animationController?.setCustomPoseOverride(false);
-      this.animationController?.resetToIdle();
+      this._clearFace(this.avatarController?.getCurrentVRM?.());
+      this.animationController?.setCustomPoseOverride?.(false);
+      this.animationController?.resetToIdle?.();
     }
   }
 
@@ -107,7 +119,7 @@ export class MotionCaptureController {
     const targets = {};
     const world = result.pose?.world;
     if (world && world.length > LM.rightAnkle) {
-      this._solveBody(vrm, rig, world, targets);
+      this._solveBody(vrm, rig, world, targets, result.pose);
       this._solveHands(vrm, rig, result, targets);
       this._lastBodyTime = performance.now();
     }
@@ -119,6 +131,10 @@ export class MotionCaptureController {
       this._solveHeadFromPose(vrm, rig, world, targets);
     }
     Object.assign(this._targets, targets);
+
+    if (result.pose?.image) {
+      this._checkHeartGesture(result.pose.image);
+    }
   }
 
   update(delta) {
@@ -133,16 +149,104 @@ export class MotionCaptureController {
     if (!this.isBodyTracked && (wasTracked || Object.keys(this._targets).length === 0)) {
       // Nobody in frame: ease back to a relaxed standing pose
       this._targets = this._restTargets(vrm, rig);
+      this.targetScenePos.set(0, 0, 0);
+      this.isKissing = false;
+      this.isHeadTouching = false;
+      this.isTouchingScreen = false;
+      this._activeComplementHeartSide = null;
+      this._activeTouchScreenSides = {};
+      this._lastHeadOffset = 0;
     }
 
-    const t = 1 - Math.exp(-FOLLOW_SPEED * delta);
-    for (const name of DRIVEN_BONES) {
-      const target = this._targets[name];
-      const node = vrm.humanoid.getNormalizedBoneNode(name);
-      if (target && node) node.quaternion.slerp(target, t);
+    const activeSlot = this.avatarController?.getActiveSlot?.();
+    const isPhysicsDriven = activeSlot && (activeSlot.physicsState === 'grabbed' || activeSlot.physicsState === 'falling' || activeSlot.physicsState === 'impact');
+
+    // Smoothly lean or move avatar towards targetScenePos for interactive magic mirror (左右分站 / 親螢幕 / 比肩碰頭)
+    if (!isPhysicsDriven && vrm.scene) {
+      const posLerp = 1 - Math.exp(-6.0 * delta);
+      vrm.scene.position.x = THREE.MathUtils.lerp(vrm.scene.position.x, this.targetScenePos.x, posLerp);
+      vrm.scene.position.z = THREE.MathUtils.lerp(vrm.scene.position.z, this.targetScenePos.z, posLerp);
+
+      // In face-to-face mirror mode: rotate avatar body to naturally face the user inward (相向面對面角度)
+      const baseFront = this.avatarController?.getFrontRotation?.(this.avatarController?.currentCostume) ?? Math.PI;
+      let targetRotY = baseFront;
+      if (this.isMirror) {
+        // When avatar is on the left (targetScenePos.x < -0.1), user is on the right (+X).
+        // In Three.js with VRM baseFront (Math.PI), baseFront - angle rotates forward vector towards +X (towards the user)!
+        // When avatar is on the right (targetScenePos.x > 0.1), user is on the left (-X).
+        // baseFront + angle rotates forward vector towards -X (towards the user)!
+        const inwardAngle = 0.85; // ~48.7° facing directly inward towards user
+        if (this.targetScenePos.x < -0.1) {
+          targetRotY = baseFront - inwardAngle;
+        } else if (this.targetScenePos.x > 0.1) {
+          targetRotY = baseFront + inwardAngle;
+        }
+      }
+      vrm.scene.rotation.y = THREE.MathUtils.lerp(vrm.scene.rotation.y, targetRotY, posLerp);
+    }
+
+    if (!isPhysicsDriven) {
+      const t = 1 - Math.exp(-FOLLOW_SPEED * delta);
+      for (const name of DRIVEN_BONES) {
+        const target = this._targets[name];
+        const node = vrm.humanoid.getNormalizedBoneNode(name);
+        if (target && node) node.quaternion.slerp(target, t);
+      }
     }
 
     this._updateFace(vrm, delta);
+  }
+
+  /**
+   * Detects heart hand/arm gesture in face-to-face or dual-hand interaction.
+   * Triggers onHeartDetected callback when user performs heart pose.
+   * @param {Array<Object>} poseImage
+   */
+  _checkHeartGesture(poseImage) {
+    if (!poseImage || poseImage.length <= LM.rightWrist) return;
+    const now = performance.now();
+    if (now - this._lastHeartTime < 4500) return; // Cooldown 4.5s
+
+    const rw = poseImage[LM.rightWrist];
+    const lw = poseImage[LM.leftWrist];
+    const rs = poseImage[LM.rightShoulder];
+    const ls = poseImage[LM.leftShoulder];
+    const nose = poseImage[LM.nose];
+
+    if (!rs || !ls || this._vis(rs) < VISIBLE || this._vis(ls) < VISIBLE) return;
+
+    // 1. Dual-hands Heart: both wrists raised above chest/chin and close to each other
+    const bothWristsVisible = this._vis(rw) > 0.4 && this._vis(lw) > 0.4;
+    if (bothWristsVisible) {
+      const wristDist = Math.hypot(rw.x - lw.x, rw.y - lw.y);
+      const isRaised = rw.y < rs.y + 0.20 && lw.y < ls.y + 0.20;
+      if (wristDist < 0.26 && isRaised) {
+        this._lastHeartTime = now;
+        if (typeof this.onHeartDetected === 'function') {
+          this.onHeartDetected({ type: 'dual', isFaceToFace: this.isMirror });
+        }
+        return;
+      }
+    }
+
+    // 2. Face-to-Face Single-hand Heart (面對面半心合體):
+    // In face-to-face mode: user raises either arm to form a heart together
+    if (this.isMirror && nose && this._vis(nose) > 0.35) {
+      for (const side of ['right', 'left']) {
+        const w = poseImage[LM[side + 'Wrist']];
+        const s = poseImage[LM[side + 'Shoulder']];
+        if (this._vis(w) > 0.35 && this._vis(s) > 0.35) {
+          const raised = w.y < s.y + 0.20;
+          if (raised) {
+            this._lastHeartTime = now;
+            if (typeof this.onHeartDetected === 'function') {
+              this.onHeartDetected({ type: 'single', side, isFaceToFace: true });
+            }
+            return;
+          }
+        }
+      }
+    }
   }
 
   // ---------------------------------------------------------------- rig setup
@@ -274,7 +378,7 @@ export class MotionCaptureController {
 
   // ---------------------------------------------------------------- body
 
-  _solveBody(vrm, rig, world, targets) {
+  _solveBody(vrm, rig, world, targets, pose = null) {
     const humanoid = vrm.humanoid;
     const P = (name, side) => this._lm(world, name, side);
     const R = (p) => this._toRig(rig, p, new THREE.Vector3());
@@ -283,8 +387,135 @@ export class MotionCaptureController {
     const hipL = P('Hip', 'left'), hipR = P('Hip', 'right');
     if (this._vis(shL) < VISIBLE || this._vis(shR) < VISIBLE) return;
 
+    // --- Interactive Proximity, Kissing & Head Touching Detection ---
+    let leanRatio = 0;
+    let headOffset = 0;
+    const poseImage = pose?.image;
+    let pshL = null, pshR = null, pNose = null;
+    if (poseImage && poseImage.length > LM.rightShoulder) {
+      pshL = poseImage[LM.leftShoulder];
+      pshR = poseImage[LM.rightShoulder];
+      pNose = poseImage[LM.nose];
+      if (this._vis(pshL) > VISIBLE && this._vis(pshR) > VISIBLE) {
+        const shoulderDist = Math.hypot(pshL.x - pshR.x, pshL.y - pshR.y);
+        // Normal shoulder dist on camera ~0.20-0.28. Leaning close >0.35. Very close >0.45
+        leanRatio = THREE.MathUtils.clamp((shoulderDist - 0.28) / 0.20, 0, 1);
+        if (pNose && this._vis(pNose) > VISIBLE) {
+          headOffset = pNose.x - (pshL.x + pshR.x) * 0.5;
+        }
+      }
+    }
+    this._lastHeadOffset = headOffset;
+
+    // Avatar moves forward in scene as user leans into screen
+    this.targetScenePos.z = leanRatio * 0.55;
+
+    // Kissing threshold: very close to camera
+    const wasKissing = this.isKissing;
+    this.isKissing = leanRatio >= 0.75;
+    if (this.isKissing && !wasKissing) {
+      const now = performance.now();
+      if (now - this._lastInteractionTime > 3000) {
+        this._lastInteractionTime = now;
+        this.onMirrorInteraction?.({ type: 'kiss' });
+      }
+    }
+
+    // --- Side-by-Side Non-overlapping Positioning (你在左她在右，你在右她在左) ---
+    // User screen position: 0 is screen-left, 1 is screen-right
+    const userRawX = (pNose && this._vis(pNose) > VISIBLE) ? pNose.x : (pshL && pshR ? (pshL.x + pshR.x) * 0.5 : 0.5);
+    const userScreenX = this.isMirror ? (1 - userRawX) : userRawX;
+
+    let targetX = 0;
+    if (this.isMirror) {
+      // User on the left (userScreenX < 0.46) -> Avatar stands on the right (+X)
+      // User on the right (userScreenX > 0.54) -> Avatar stands on the left (-X)
+      // Near center (0.46 <= userScreenX <= 0.54) -> Hysteresis: retain current side so avatar doesn't jitter
+      if (userScreenX < 0.46) {
+        targetX = THREE.MathUtils.clamp(0.48 + (0.46 - userScreenX) * 0.3, 0.42, 0.65);
+      } else if (userScreenX > 0.54) {
+        targetX = -THREE.MathUtils.clamp(0.48 + (userScreenX - 0.54) * 0.3, 0.42, 0.65);
+      } else {
+        targetX = this.targetScenePos.x >= 0 ? 0.48 : -0.48;
+      }
+    }
+
+    // Head-to-Head touching (比肩頭碰頭)
+    // Only triggers when user actively leans in close (leanRatio > 0.25) AND tilts head laterally towards avatar
+    const isHeadTouchEligible = leanRatio > 0.25 && Math.abs(headOffset) > 0.055;
+    const wasHeadTouching = this.isHeadTouching;
+    this.isHeadTouching = isHeadTouchEligible;
+    if (this.isHeadTouching) {
+      // Approach user's head position from current side
+      const approachDistance = 0.16;
+      targetX = targetX > 0 ? (targetX - approachDistance) : (targetX + approachDistance);
+
+      if (!wasHeadTouching) {
+        const now = performance.now();
+        if (now - this._lastInteractionTime > 3000) {
+          this._lastInteractionTime = now;
+          this.onMirrorInteraction?.({ type: 'head_touch' });
+        }
+      }
+    }
+
+    // Check for single-hand half heart gesture to complement (面對面/鏡像另一手合體拼成愛心)
+    let complementHeartSide = null;
+    if (this.isMirror && poseImage && poseImage.length > LM.rightWrist) {
+      const rw = poseImage[LM.rightWrist], rs = poseImage[LM.rightShoulder];
+      const lw = poseImage[LM.leftWrist], ls = poseImage[LM.leftShoulder];
+
+      const rRaised = rs && rw && this._vis(rw) > 0.35 && rw.y < rs.y + 0.22;
+      const lRaised = ls && lw && this._vis(lw) > 0.35 && lw.y < ls.y + 0.22;
+
+      // In face-to-face mirror mode:
+      // The inner arm is the arm on the side facing the meeting point between user and avatar!
+      // When avatar is on the left (targetX <= 0), inner arm is her 'left' arm.
+      // When avatar is on the right (targetX > 0), inner arm is her 'right' arm.
+      const innerArm = targetX <= 0 ? 'left' : 'right';
+
+      if (rRaised || lRaised) {
+        complementHeartSide = innerArm;
+        // Step gracefully inward so both hands meet to form the full heart
+        targetX = targetX > 0 ? 0.28 : -0.28;
+        const now = performance.now();
+        if (now - this._lastHeartTime > 3000) {
+          this._lastHeartTime = now;
+          this.onMirrorInteraction?.({ type: 'half_heart', side: complementHeartSide });
+        }
+      }
+    }
+    this._activeComplementHeartSide = complementHeartSide;
+
+    this.targetScenePos.x = targetX;
+
+    // Check if user is extending hand toward screen glass (shoulder.z - wrist.z > 0.24)
+    const touchScreenSides = {};
+    for (const side of ['left', 'right']) {
+      const shoulder = P('Shoulder', side);
+      const wrist = P('Wrist', side);
+      if (this._vis(shoulder) > VISIBLE && this._vis(wrist) > VISIBLE) {
+        if (shoulder.z - wrist.z > 0.24 && wrist.y < shoulder.y + 0.22) {
+          touchScreenSides[side] = true;
+          const now = performance.now();
+          if (now - this._lastInteractionTime > 3500) {
+            this._lastInteractionTime = now;
+            this.onMirrorInteraction?.({ type: 'touch_screen', side });
+          }
+        }
+      }
+    }
+    this._activeTouchScreenSides = touchScreenSides;
+    this.isTouchingScreen = Object.keys(touchScreenSides).length > 0;
+
     // --- torso ---
     const shoulderLine = R(shL).sub(R(shR));
+    if (this.isMirror) {
+      // In face-to-face mirror mode:
+      // Avatar's inward facing orientation is maintained by body scene rotation towards user.
+      // Torso yaw depth disparity is neutralized so turning sideways doesn't rotate avatar away from user into "一前一後".
+      shoulderLine.z = 0;
+    }
     const hipsVisible = this._vis(hipL) > VISIBLE && this._vis(hipR) > VISIBLE;
     const torsoUp = hipsVisible
       ? R(shL).add(R(shR)).sub(R(hipL)).sub(R(hipR)).normalize()
@@ -296,12 +527,15 @@ export class MotionCaptureController {
       && this._vis(P('Knee', side)) > LEG_VISIBLE && this._vis(P('Ankle', side)) > LEG_VISIBLE;
     const hipsQuat = new THREE.Quaternion();
     if (legTracked('left') || legTracked('right')) {
-      this._frameQuat(rig, R(hipL).sub(R(hipR)), torsoUp, hipsQuat);
+      const hipLine = R(hipL).sub(R(hipR));
+      if (this.isMirror) hipLine.z = 0;
+      this._frameQuat(rig, hipLine, torsoUp, hipsQuat, true);
     } else if (hipsVisible) {
-      // Legs can't follow, so only turn the pelvis; tilting it would swing the idle legs off balance
-      this._frameQuat(rig, R(hipL).sub(R(hipR)).projectOnPlane(rig.up), rig.up, hipsQuat);
+      const hipLine = R(hipL).sub(R(hipR)).projectOnPlane(rig.up);
+      if (this.isMirror) hipLine.z = 0;
+      this._frameQuat(rig, hipLine, rig.up, hipsQuat, true);
     }
-    const chestQuat = this._frameQuat(rig, shoulderLine, torsoUp, new THREE.Quaternion(), hipsVisible);
+    const chestQuat = this._frameQuat(rig, shoulderLine, torsoUp, new THREE.Quaternion(), true);
 
     targets.hips = hipsQuat;
     const rel = hipsQuat.clone().invert().multiply(chestQuat);
@@ -314,22 +548,34 @@ export class MotionCaptureController {
 
     // --- arms ---
     for (const side of ['left', 'right']) {
+      if (complementHeartSide === side) {
+        this._aimHalfHeart(vrm, rig, targets, side);
+        continue;
+      }
+      if (touchScreenSides[side]) {
+        this._aimTouchScreen(vrm, rig, targets, side);
+        continue;
+      }
+
       const shoulder = P('Shoulder', side), elbow = P('Elbow', side), wrist = P('Wrist', side);
       const sign = side === 'left' ? 1 : -1;
 
       if (this._vis(elbow) > VISIBLE) {
-        this._aim(vrm, rig, targets, side + 'UpperArm', R(elbow).sub(R(shoulder)));
+        const upperDir = R(elbow).sub(R(shoulder));
+        this._aim(vrm, rig, targets, side + 'UpperArm', upperDir);
       } else {
         // Arm out of frame: let it hang naturally
         this._aim(vrm, rig, targets, side + 'UpperArm', this._hangDir(rig, sign));
       }
 
       if (this._vis(elbow) > VISIBLE && this._vis(wrist) > VISIBLE) {
-        this._aim(vrm, rig, targets, side + 'LowerArm', R(wrist).sub(R(elbow)));
+        const lowerDir = R(wrist).sub(R(elbow));
+        this._aim(vrm, rig, targets, side + 'LowerArm', lowerDir);
         const index = P('Index', side), pinky = P('Pinky', side);
         if (this._vis(index) > VISIBLE && this._vis(pinky) > VISIBLE) {
           const knuckles = R(index).add(R(pinky)).multiplyScalar(0.5);
-          this._aim(vrm, rig, targets, side + 'Hand', knuckles.sub(R(wrist)));
+          const handDir = knuckles.sub(R(wrist));
+          this._aim(vrm, rig, targets, side + 'Hand', handDir);
         } else {
           targets[side + 'Hand'] = new THREE.Quaternion();
         }
@@ -343,8 +589,10 @@ export class MotionCaptureController {
     for (const side of ['left', 'right']) {
       const hip = P('Hip', side), knee = P('Knee', side), ankle = P('Ankle', side);
       if (legTracked(side)) {
-        this._aim(vrm, rig, targets, side + 'UpperLeg', R(knee).sub(R(hip)));
-        this._aim(vrm, rig, targets, side + 'LowerLeg', R(ankle).sub(R(knee)));
+        const upperLegDir = R(knee).sub(R(hip));
+        this._aim(vrm, rig, targets, side + 'UpperLeg', upperLegDir);
+        const lowerLegDir = R(ankle).sub(R(knee));
+        this._aim(vrm, rig, targets, side + 'LowerLeg', lowerLegDir);
       } else {
         targets[side + 'UpperLeg'] = new THREE.Quaternion();
         targets[side + 'LowerLeg'] = new THREE.Quaternion();
@@ -352,8 +600,88 @@ export class MotionCaptureController {
     }
   }
 
+  /**
+   * Poses the avatar's arm to complete the complementary half of the heart
+   * with the user's corresponding hand.
+   */
+  _aimHalfHeart(vrm, rig, targets, side) {
+    const sign = side === 'left' ? 1 : -1;
+    const dirUpper = new THREE.Vector3()
+      .addScaledVector(rig.up, 0.7)
+      .addScaledVector(rig.left, sign * 0.7)
+      .normalize();
+    const dirLower = new THREE.Vector3()
+      .addScaledVector(rig.up, 0.55)
+      .addScaledVector(rig.left, -sign * 0.85)
+      .addScaledVector(rig.forward, 0.15)
+      .normalize();
+    const dirHand = new THREE.Vector3()
+      .addScaledVector(rig.up, -0.7)
+      .addScaledVector(rig.left, -sign * 0.7)
+      .normalize();
+
+    this._aim(vrm, rig, targets, side + 'UpperArm', dirUpper);
+    this._aim(vrm, rig, targets, side + 'LowerArm', dirLower);
+    this._aim(vrm, rig, targets, side + 'Hand', dirHand);
+
+    // Gently curve finger segments inward
+    for (const suffix of Object.keys(FINGER_SEGMENTS)) {
+      targets[side + suffix] = new THREE.Quaternion().setFromAxisAngle(rig.forward, sign * 0.15);
+    }
+  }
+
+  /**
+   * Poses the avatar's arm and hand to press flat against the screen glass
+   * facing the user's outstretched palm.
+   */
+  _aimTouchScreen(vrm, rig, targets, side) {
+    const sign = side === 'left' ? 1 : -1;
+    const dirUpper = new THREE.Vector3()
+      .addScaledVector(rig.forward, 0.95)
+      .addScaledVector(rig.up, 0.15)
+      .addScaledVector(rig.left, sign * 0.1)
+      .normalize();
+    const dirLower = new THREE.Vector3()
+      .addScaledVector(rig.forward, 0.98)
+      .addScaledVector(rig.up, 0.05)
+      .normalize();
+
+    this._aim(vrm, rig, targets, side + 'UpperArm', dirUpper);
+    this._aim(vrm, rig, targets, side + 'LowerArm', dirLower);
+
+    const handNode = vrm.humanoid.getNormalizedBoneNode(side + 'Hand');
+    if (handNode) {
+      const along = rig.up.clone(); // fingers point up
+      const normal = rig.forward.clone(); // palm faces camera
+      const across = new THREE.Vector3().crossVectors(normal, along).normalize();
+      const targetQuat = new THREE.Quaternion().setFromRotationMatrix(_m.makeBasis(across, along, normal));
+
+      const restAlong = rig.left.clone().multiplyScalar(sign);
+      const restAcross = rig.forward.clone().negate();
+      const restNormal = new THREE.Vector3().crossVectors(restAlong, restAcross);
+      const restQuat = new THREE.Quaternion().setFromRotationMatrix(_m.makeBasis(restAlong, restAcross, restNormal));
+
+      const worldQuat = targetQuat.multiply(restQuat.invert());
+      const parentQuat = this._parentQuat(vrm, handNode, targets, new THREE.Quaternion());
+      targets[side + 'Hand'] = parentQuat.invert().multiply(worldQuat);
+    }
+
+    // Straighten open fingers against the glass
+    for (const suffix of Object.keys(FINGER_SEGMENTS)) {
+      targets[side + suffix] = new THREE.Quaternion();
+    }
+  }
+
   /** Avatar-local direction of a relaxed, hanging upper arm. */
   _hangDir(rig, sign) {
+    if (this.isMirror) {
+      // Natural companion rest pose: elbows slightly forward and inward
+      return new THREE.Vector3()
+        .addScaledVector(rig.left, sign * 0.22)
+        .addScaledVector(rig.up, -0.95)
+        .addScaledVector(rig.forward, 0.20)
+        .normalize();
+    }
     return new THREE.Vector3()
       .addScaledVector(rig.left, sign * 0.37)
       .addScaledVector(rig.up, -0.93)
@@ -413,6 +741,10 @@ export class MotionCaptureController {
     }
 
     for (const side of ['left', 'right']) {
+      if (this._activeComplementHeartSide === side || this._activeTouchScreenSides?.[side]) {
+        // Retain procedural interaction pose (fingers flat against glass or curved in heart)
+        continue;
+      }
       if (assigned[side]) {
         this._solveHand(vrm, rig, side, assigned[side].hand.world, targets);
       } else {
@@ -462,14 +794,21 @@ export class MotionCaptureController {
     if (!head) return;
     const neck = humanoid.getNormalizedBoneNode('neck');
 
+    let finalQuat = headQuat;
+    if (this.isHeadTouching && this._rig) {
+      // Tilt head roll towards the user: lateral sign depends on isMirror
+      const tiltAngle = (this._lastHeadOffset > 0 ? -0.28 : 0.28) * (this.isMirror ? 1 : -1);
+      finalQuat = headQuat.clone().multiply(new THREE.Quaternion().setFromAxisAngle(this._rig.forward, tiltAngle));
+    }
+
     if (neck) {
       const base = this._parentQuat(vrm, neck, targets, new THREE.Quaternion());
-      const rel = base.invert().multiply(headQuat);
+      const rel = base.invert().multiply(finalQuat);
       targets.neck = new THREE.Quaternion().slerp(rel, 0.4);
       targets.head = targets.neck.clone().invert().multiply(rel);
     } else {
       const base = this._parentQuat(vrm, head, targets, new THREE.Quaternion());
-      targets.head = base.invert().multiply(headQuat);
+      targets.head = base.invert().multiply(finalQuat);
     }
   }
 
@@ -478,13 +817,22 @@ export class MotionCaptureController {
     if (!face.matrix) return;
     _m.fromArray(face.matrix);
     const camQuat = new THREE.Quaternion().setFromRotationMatrix(_m.extractRotation(_m));
+    const euler = new THREE.Euler().setFromQuaternion(camQuat, 'YXZ');
+
     if (this.isMirror) {
-      // Reflect across the vertical plane: yaw and roll change sign, pitch stays
-      camQuat.y = -camQuat.y;
-      camQuat.z = -camQuat.z;
+      // In face-to-face mirror mode: avatar is already facing inward towards user.
+      // Soften horizontal yaw so avatar maintains natural eye contact with user instead of looking away.
+      euler.y = -euler.y * 0.45;
+      euler.z = -euler.z * 0.5;
     }
-    // Change of basis: camera axes -> avatar (left, up, forward)
-    const headQuat = rig.basisQuat.clone().multiply(camQuat).multiply(_q.copy(rig.basisQuat).invert());
+
+    // Clamp pitch up/down so neck doesn't stretch backward into ceiling
+    euler.x = THREE.MathUtils.clamp(euler.x, -0.32, 0.32);
+    euler.y = THREE.MathUtils.clamp(euler.y, -0.65, 0.65);
+    euler.z = THREE.MathUtils.clamp(euler.z, -0.25, 0.25);
+
+    const finalCamQuat = new THREE.Quaternion().setFromEuler(euler);
+    const headQuat = rig.basisQuat.clone().multiply(finalCamQuat).multiply(_q.copy(rig.basisQuat).invert());
     this._setHead(vrm, targets, headQuat);
   }
 
@@ -497,10 +845,12 @@ export class MotionCaptureController {
     const l = this._toRig(rig, earL, new THREE.Vector3());
     const r = this._toRig(rig, earR, new THREE.Vector3());
     const lateral = l.clone().sub(r);
+    if (this.isMirror) lateral.z = -lateral.z;
     const forward = this._toRig(rig, nose, new THREE.Vector3()).sub(l.add(r).multiplyScalar(0.5));
+    if (this.isMirror) forward.z = -forward.z;
     const up = new THREE.Vector3().crossVectors(forward, lateral);
     if (up.lengthSq() < 1e-10) return;
-    this._setHead(vrm, targets, this._frameQuat(rig, lateral, up.normalize(), new THREE.Quaternion()));
+    this._setHead(vrm, targets, this._frameQuat(rig, lateral, up.normalize(), new THREE.Quaternion(), true));
   }
 
   // ---------------------------------------------------------------- face
@@ -534,6 +884,22 @@ export class MotionCaptureController {
   _updateFace(vrm, delta) {
     const em = vrm.expressionManager;
     if (!em) return;
+
+    // Special interactive expressions for Kissing (親螢幕) and Head Touching (頭碰頭)
+    if (this.isKissing) {
+      em.setValue('blink', 0.9);
+      em.setValue('blinkLeft', 0.9);
+      em.setValue('blinkRight', 0.9);
+      em.setValue('ou', 0.85);
+      em.setValue('relaxed', 0.8);
+      try { em.setValue('shy', 0.95); } catch (_) {}
+      return;
+    } else if (this.isHeadTouching) {
+      em.setValue('happy', 0.85);
+      em.setValue('relaxed', 0.6);
+      try { em.setValue('shy', 0.5); } catch (_) {}
+    }
+
     const tracked = this._faceTargets && performance.now() - this._lastFaceTime < LOST_TIMEOUT * 1000;
     if (!tracked) {
       if (this._faceActive) this._clearFace(vrm);
@@ -564,7 +930,12 @@ export class MotionCaptureController {
     for (const key of Object.keys(this._faceValues)) this._faceValues[key] = 0;
     const em = vrm?.expressionManager;
     if (!em) return;
+    em.setValue('blink', 0);
     em.setValue('blinkLeft', 0);
     em.setValue('blinkRight', 0);
+    em.setValue('ou', 0);
+    em.setValue('relaxed', 0);
+    em.setValue('happy', 0);
+    try { em.setValue('shy', 0); } catch (_) {}
   }
 }

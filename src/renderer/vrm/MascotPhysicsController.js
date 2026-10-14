@@ -12,11 +12,36 @@ export class MascotPhysicsController {
     this.avatarManager = avatarManager;
 
     this.gravity = options.gravity !== undefined ? options.gravity : 9.8; // m/s^2
-    this.bounciness = options.bounciness !== undefined ? options.bounciness : 0.35;
+
+    let storedBounciness = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('aibff_physics_bounciness');
+        if (saved !== null) storedBounciness = parseFloat(saved);
+      }
+    } catch (_) {}
+    this.bounciness = (storedBounciness !== null && !isNaN(storedBounciness))
+      ? storedBounciness
+      : (options.bounciness !== undefined ? options.bounciness : 0.75);
+
     this.floorY = 0.0; // Floor level in 3D scene space
 
     this.onAvatarImpact = options.onAvatarImpact || null;
     this.onAvatarLanded = options.onAvatarLanded || null;
+    this.onWallBounce = options.onWallBounce || null;
+    this.onHandGrab = options.onHandGrab || null;
+    this.onHandFling = options.onHandFling || null;
+
+    // Hand tracking & interaction state (手部偵測、人偶黏手、甩飛)
+    this.isHandGrabbed = false;
+    this.grabbedHandId = null;
+    this.lastHand3DPos = new THREE.Vector3();
+    this.handGrabOffset = new THREE.Vector3();
+    this.handVelHistory = [];
+    this.lastHandTime = 0;
+    this.lastFlingTime = 0;
+    this._lastPinchingState = false;
+    this._lastWallBounceTime = 0;
 
     // Base bone node cache for restoring postures
     this.baseHipsPositions = new Map();
@@ -67,7 +92,166 @@ export class MascotPhysicsController {
   }
 
   setBounciness(val) {
-    this.bounciness = THREE.MathUtils.clamp(val, 0, 0.8);
+    this.bounciness = THREE.MathUtils.clamp(val, 0, 1.25);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('aibff_physics_bounciness', this.bounciness.toString());
+      }
+    } catch (_) {}
+    return this.bounciness;
+  }
+
+  getBounciness() {
+    return this.bounciness;
+  }
+
+  /**
+   * Projects 2D screen pixel coordinates (e.g. from HandTracker or mouse) onto the 3D scene plane (Z = 0).
+   */
+  unprojectTo3D(screenX, screenY, out = new THREE.Vector3()) {
+    const cam = this.sceneManager?.camera;
+    if (!cam) return out.set(0, 0, 0);
+
+    const ndcX = (screenX / window.innerWidth) * 2 - 1;
+    const ndcY = -(screenY / window.innerHeight) * 2 + 1;
+
+    if (!this._raycaster) this._raycaster = new THREE.Raycaster();
+    if (!this._planeZ0) this._planeZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+
+    this._raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), cam);
+    this._raycaster.ray.intersectPlane(this._planeZ0, out);
+    return out;
+  }
+
+  /**
+   * Processes hand tracking input (from HandTracker, MotionTracker, or cursor)
+   * to stick avatar to user's hand and allow flinging the avatar with physics collision.
+   */
+  handleHandUpdate(handData) {
+    if (!handData) return;
+    const activeSlot = this.avatarManager?.getActiveSlot?.();
+    if (!activeSlot || !activeSlot.vrm?.scene) return;
+
+    const hands = handData.hands || (handData.isHandDetected ? [{ x: handData.x, y: handData.y, isPinching: handData.isPinching }] : []);
+    const now = performance.now();
+
+    if (hands.length === 0 || !handData.isHandDetected) {
+      if (this.isHandGrabbed) {
+        this._flingAvatar(activeSlot, now);
+      }
+      return;
+    }
+
+    const primaryHand = hands[0];
+    const hand3D = this.unprojectTo3D(primaryHand.x, primaryHand.y);
+    const scale = activeSlot.scale || 1.0;
+
+    if (this.isHandGrabbed) {
+      const dt = Math.max(0.005, (now - this.lastHandTime) / 1000);
+      const instV = new THREE.Vector3().subVectors(hand3D, this.lastHand3DPos).divideScalar(dt);
+      instV.z = 0;
+
+      this.handVelHistory.push({ v: instV, time: now });
+      this.handVelHistory = this.handVelHistory.filter(h => now - h.time <= 140);
+
+      this.lastHand3DPos.copy(hand3D);
+      this.lastHandTime = now;
+
+      // Position avatar with hand
+      const targetPos = hand3D.clone().add(this.handGrabOffset);
+      targetPos.z = 0;
+      const minFloor = this.getFloorYAt(targetPos.x);
+      targetPos.y = Math.max(minFloor, targetPos.y);
+
+      activeSlot.vrm.scene.position.copy(targetPos);
+      activeSlot.position.copy(targetPos);
+      activeSlot.physicsState = 'grabbed';
+      this.avatarManager.updateSelectionRing();
+
+      // Compute weighted velocity for flinging
+      let avgVx = 0, avgVy = 0;
+      if (this.handVelHistory.length > 0) {
+        for (const item of this.handVelHistory) {
+          avgVx += item.v.x;
+          avgVy += item.v.y;
+        }
+        avgVx /= this.handVelHistory.length;
+        avgVy /= this.handVelHistory.length;
+      }
+      const handSpeed = Math.hypot(avgVx, avgVy);
+
+      // Check fling conditions:
+      const wasPinching = this._lastPinchingState;
+      this._lastPinchingState = !!primaryHand.isPinching;
+
+      // Fling when pinch released or rapid hand flick/fling
+      if ((wasPinching && !primaryHand.isPinching && handSpeed > 0.5) || (handSpeed > 2.0)) {
+        this._flingAvatar(activeSlot, now, avgVx, avgVy);
+      }
+    } else {
+      // Cooldown after flinging so avatar doesn't instantly re-grab
+      if (now - this.lastFlingTime < 450) return;
+
+      const avatarPos = activeSlot.vrm.scene.position;
+      const avatarCenterY = avatarPos.y + 0.65 * scale;
+      const dist = Math.hypot(hand3D.x - avatarPos.x, hand3D.y - avatarCenterY);
+      const stickRadius = 0.58 * scale; // Generous stick distance (~0.6m in VRM space)
+
+      if (dist <= stickRadius) {
+        // STICK TO HAND!
+        this.isHandGrabbed = true;
+        this.grabbedHandId = primaryHand.id || 'primary';
+        activeSlot.physicsState = 'grabbed';
+        activeSlot.velocity.set(0, 0, 0);
+
+        this.handGrabOffset.subVectors(avatarPos, hand3D);
+        this.lastHand3DPos.copy(hand3D);
+        this.lastHandTime = now;
+        this.handVelHistory = [];
+        this._lastPinchingState = !!primaryHand.isPinching;
+
+        if (typeof this.onHandGrab === 'function') {
+          this.onHandGrab(activeSlot);
+        }
+      }
+    }
+  }
+
+  _flingAvatar(slot, now, flingVx = null, flingVy = null) {
+    if (!this.isHandGrabbed) return;
+    this.isHandGrabbed = false;
+    this.lastFlingTime = now;
+
+    let vx = flingVx;
+    let vy = flingVy;
+
+    if (vx === null || vy === null) {
+      let sumX = 0, sumY = 0;
+      if (this.handVelHistory.length > 0) {
+        for (const item of this.handVelHistory) {
+          sumX += item.v.x;
+          sumY += item.v.y;
+        }
+        vx = sumX / this.handVelHistory.length;
+        vy = sumY / this.handVelHistory.length;
+      } else {
+        vx = 0;
+        vy = 0;
+      }
+    }
+
+    // Apply lively fling boost
+    const boost = 1.35;
+    const finalVx = THREE.MathUtils.clamp(vx * boost, -12, 12);
+    const finalVy = THREE.MathUtils.clamp(vy * boost, -12, 12);
+
+    slot.physicsState = 'falling';
+    slot.velocity.set(finalVx, finalVy, 0);
+
+    const speed = Math.hypot(finalVx, finalVy);
+    if (typeof this.onHandFling === 'function') {
+      this.onHandFling(slot, speed);
+    }
   }
 
   /**
@@ -160,26 +344,48 @@ export class MascotPhysicsController {
         scenePos.addScaledVector(slot.velocity, dt);
         scenePos.z = 0; // Strictly lock Z to 2.5D plane
 
-        // Horizontal screen boundary wall bounce using NDC projection
+        // 4-Border screen collision: Left wall, Right wall, Top ceiling bounce using NDC projection
         if (cam) {
           const testPos = scenePos.clone();
           testPos.y += 0.6 * (slot.scale || 1.0);
           const ndc = testPos.project(cam);
           const ndcLimit = 0.88;
+          const now = performance.now();
+          const canNotify = now - this._lastWallBounceTime > 250;
 
-          if (ndc.x <= -ndcLimit) {
-            scenePos.x += 0.05;
-            slot.velocity.x = Math.abs(slot.velocity.x) * 0.55; // Bounce right inward
-          } else if (ndc.x >= ndcLimit) {
-            scenePos.x -= 0.05;
-            slot.velocity.x = -Math.abs(slot.velocity.x) * 0.55; // Bounce left inward
+          // Left border bounce
+          if (ndc.x <= -ndcLimit && slot.velocity.x < 0) {
+            scenePos.x += 0.06;
+            slot.velocity.x = Math.abs(slot.velocity.x) * this.bounciness; // Bounce right inward
+            if (canNotify) {
+              this._lastWallBounceTime = now;
+              if (typeof this.onWallBounce === 'function') this.onWallBounce(slot, 'left', Math.abs(slot.velocity.x));
+            }
+          } else if (ndc.x >= ndcLimit && slot.velocity.x > 0) {
+            // Right border bounce
+            scenePos.x -= 0.06;
+            slot.velocity.x = -Math.abs(slot.velocity.x) * this.bounciness; // Bounce left inward
+            if (canNotify) {
+              this._lastWallBounceTime = now;
+              if (typeof this.onWallBounce === 'function') this.onWallBounce(slot, 'right', Math.abs(slot.velocity.x));
+            }
+          }
+
+          // Top ceiling bounce (when flung high into the air)
+          if (ndc.y >= 0.88 && slot.velocity.y > 0) {
+            scenePos.y -= 0.06;
+            slot.velocity.y = -Math.abs(slot.velocity.y) * this.bounciness; // Bounce downward
+            if (canNotify) {
+              this._lastWallBounceTime = now;
+              if (typeof this.onWallBounce === 'function') this.onWallBounce(slot, 'top', Math.abs(slot.velocity.y));
+            }
           }
         }
 
         slot.position.copy(scenePos);
 
-        // Air drag damping on horizontal speed
-        slot.velocity.x *= Math.pow(0.88, dt * 60);
+        // Gentle air drag damping on horizontal speed
+        slot.velocity.x *= Math.pow(0.92, dt * 60);
 
         // Animate limbs slightly while falling (arms outward for balance)
         this._updateFallingLimbAnimation(humanoid);
@@ -192,12 +398,19 @@ export class MascotPhysicsController {
 
           const impactSpeed = -slot.velocity.y;
 
-          if (impactSpeed > 1.2) {
+          if (impactSpeed > 0.6 && this.bounciness > 0.1) {
             // Rebound bounce
             slot.velocity.y = impactSpeed * this.bounciness;
+            slot.velocity.x *= 0.88; // gentle floor friction
 
-            // Severe fall impact (> 3.5 m/s drop speed): trigger dizzy butt-fall
-            if (impactSpeed > 3.5) {
+            const now = performance.now();
+            if (now - this._lastWallBounceTime > 250) {
+              this._lastWallBounceTime = now;
+              if (typeof this.onWallBounce === 'function') this.onWallBounce(slot, 'floor', impactSpeed);
+            }
+
+            // Severe fall impact (> 4.2 m/s drop speed AND low bounciness): trigger dizzy butt-fall
+            if (impactSpeed > 4.2 && this.bounciness < 0.45) {
               slot.physicsState = 'impact';
               slot.impactTimer = 1.35;
               slot.velocity.set(0, 0, 0);

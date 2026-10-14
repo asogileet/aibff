@@ -135,6 +135,11 @@ export class PuppetController {
         { emotion: 'happy', text: '哇～主人的兩隻手食指都在牽我，像在空中跳華爾滋一樣！💃' },
         { emotion: 'shy', text: '兩隻手一起拉著我...心跳都快停下來了啦～💕' },
         { emotion: 'happy', text: '雙手一起展開～來一個大大的溫暖擁抱吧！🥰' }
+      ],
+      heartInteraction: [
+        { emotion: 'shy', text: '哇～主人跟我面對面比愛心！好幸福喔～💕🥰' },
+        { emotion: 'happy', text: '跟主人牽起雙手合體比出大愛心！愛你喔～❤️✨' },
+        { emotion: 'shy', text: '面對面看著主人比愛心，臉都紅透了啦...///💕' }
       ]
     };
 
@@ -402,7 +407,14 @@ export class PuppetController {
           // Check if dual hands are now both grabbing!
           const activeGrabs = Array.from(this.pointers.values()).filter(p => p.grabbedJointKey);
           if (activeGrabs.length >= 2) {
-            this._triggerReaction('dualHands');
+            const hasLeft = activeGrabs.some(p => p.grabbedJointKey === 'leftHand' || p.grabbedJointKey === 'leftLowerArm');
+            const hasRight = activeGrabs.some(p => p.grabbedJointKey === 'rightHand' || p.grabbedJointKey === 'rightLowerArm');
+            if (hasLeft && hasRight) {
+              this._triggerReaction('heartInteraction');
+              this.sceneManager?.spawnHeartParticles?.(12);
+            } else {
+              this._triggerReaction('dualHands');
+            }
           } else {
             this._triggerReaction(pointer.grabbedJointKey);
           }

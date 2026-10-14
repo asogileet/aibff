@@ -4,7 +4,7 @@
  * directly saving them as custom poses, and resetting stand.
  */
 export class PuppetPoseBar {
-  constructor(container, puppetController, poseManager, poseModal, onShowBubble, sceneManager = null, motionEditor = null) {
+  constructor(container, puppetController, poseManager, poseModal, onShowBubble, sceneManager = null, motionEditor = null, options = {}) {
     this.container = container;
     this.puppetController = puppetController;
     this.poseManager = poseManager;
@@ -12,6 +12,8 @@ export class PuppetPoseBar {
     this.onShowBubble = onShowBubble;
     this.sceneManager = sceneManager;
     this.motionEditor = motionEditor;
+    this.options = options || {};
+    this.isMirror = options.isMirror !== false;
 
     this.element = null;
     this.isVisible = false;
@@ -36,6 +38,12 @@ export class PuppetPoseBar {
       <button id="btnToggleKeepPose" class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40 transition font-medium text-[11px]" title="切換放開後是否保持姿勢">
         <span id="iconKeepPose">🧲</span>
         <span id="textKeepPose">保持姿勢</span>
+      </button>
+
+      <!-- Mirror Mode Toggle Button: Mirror vs Face-to-Face (Heart) -->
+      <button id="btnToggleMirror" class="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 transition font-medium text-[11px]" title="切換動作偵測鏡像模式：鏡像同步 (照鏡子) ⇋ 面對面互動 (合體比愛心)">
+        <span id="iconPoseBarMirror">🪞</span>
+        <span id="textPoseBarMirror">鏡像同步</span>
       </button>
 
       <!-- Fullscreen Canvas Toggle Button -->
@@ -146,6 +154,13 @@ export class PuppetPoseBar {
         this.onShowBubble?.('🧲 已開啟「保持姿勢」：放開滑鼠時將固定拉扯肢體，方便捏人雕塑！', 'happy');
       } else {
         this.onShowBubble?.('➰ 已開啟「彈簧回彈」：放開滑鼠時人偶將自動復位～', 'happy');
+      }
+    });
+
+    const btnToggleMirror = this.element.querySelector('#btnToggleMirror');
+    btnToggleMirror?.addEventListener('click', () => {
+      if (typeof this.options.onToggleMirror === 'function') {
+        this.options.onToggleMirror();
       }
     });
 
@@ -275,6 +290,26 @@ export class PuppetPoseBar {
       btn.className = 'flex items-center space-x-1 px-2.5 py-1 rounded-full bg-cyan-600/25 text-cyan-300 hover:bg-cyan-600/40 border border-cyan-500/40 transition font-semibold text-[11px]';
       icon.textContent = '🖥️';
       text.textContent = '全螢幕';
+    }
+  }
+
+  setMirrorState(isMirror) {
+    this.isMirror = isMirror;
+    const btn = this.element.querySelector('#btnToggleMirror');
+    const icon = this.element.querySelector('#iconPoseBarMirror');
+    const text = this.element.querySelector('#textPoseBarMirror');
+    if (!btn || !icon || !text) return;
+
+    if (isMirror) {
+      btn.className = 'flex items-center space-x-1 px-2.5 py-1 rounded-full bg-pink-500/30 text-pink-200 hover:bg-pink-500/40 border border-pink-400/60 transition font-medium text-[11px] ring-1 ring-pink-500/40';
+      icon.textContent = '❤️';
+      text.textContent = '面對面比心';
+      btn.title = '目前為鏡像面對面模式 (左右分站不重疊、側身面對面互動、合體比心)。點擊切換為同向同步模式！';
+    } else {
+      btn.className = 'flex items-center space-x-1 px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 transition font-medium text-[11px]';
+      icon.textContent = '🪞';
+      text.textContent = '同向同步';
+      btn.title = '目前為同向同步模式 (居中 1:1 同向動作)。點擊切換為鏡像面對面模式！';
     }
   }
 

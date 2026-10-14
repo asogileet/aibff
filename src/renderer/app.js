@@ -30,6 +30,7 @@ import { PuppetPoseBar } from './ui/PuppetPoseBar.js';
 import { MultiAvatarBar } from './ui/MultiAvatarBar.js';
 import { MocapPreview } from './ui/MocapPreview.js';
 import { LoginModal } from './ui/LoginModal.js';
+import { BouncinessModal } from './ui/BouncinessModal.js';
 
 import { ConversationManager } from './services/ConversationManager.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
@@ -216,6 +217,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     },
     onAvatarLanded: (slot) => {
       // Gentle landing settled
+    },
+    onHandGrab: (slot) => {
+      showBubble(`${slot.title}：抓住我了～黏到主人的手心了💖`, 'happy');
+    },
+    onHandFling: (slot, speed) => {
+      showBubble(`${slot.title}：呀啊啊～被甩飛出去了！🚀`, 'surprised');
+    },
+    onWallBounce: (slot, side, speed) => {
+      showBubble(`${slot.title}：碰！反彈～🏀`, 'happy');
     }
   });
 
@@ -359,8 +369,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   const handTracker = new HandTracker({
-    onHandUpdate: ({ x, y, isPinching, hands }) => {
+    onHandUpdate: ({ x, y, isPinching, hands, isHandDetected, source }) => {
       puppetController.updateFinger(x, y, isPinching, hands);
+      mascotPhysicsController.handleHandUpdate({ x, y, isPinching, hands, isHandDetected, source });
     }
   });
 
@@ -408,13 +419,108 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Webcam motion capture: the avatar mirrors the body and face of the person on camera
   let isMocapMode = false;
+
+  const toggleMirrorMode = (forceState = null) => {
+    const current = motionCaptureController.isMirror;
+    const next = forceState !== null ? forceState : !current;
+
+    motionCaptureController.setMirror(next);
+    handTracker.setMirror(next);
+    arManager.setMirror(next);
+    mocapPreview.setMirror(next);
+    if (puppetPoseBar) puppetPoseBar.setMirrorState(next);
+    if (toolbar) toolbar.setMirrorState(next);
+
+    if (next) {
+      showBubble('❤️ 鏡像面對面模式已開啟！我們左右分站、面對面互動～快跟我比半個愛心或靠過來吧！💕', 'shy');
+      chatBox.addAssistantMessage('❤️ 鏡像面對面模式：\n• 左右分站：你在左側我就站右側，完全不重疊擋住你！\n• 面對面側身：你轉身看我，我也轉身看著你，彼此四目相對～\n• 合體比心：比出半個愛心，我會伸出另一隻手拼出大愛心！\n• 親螢幕/碰頭：靠近螢幕我會貼近啾一個，側頭會比肩頭碰頭喔！');
+      sceneManager.spawnHeartParticles(16);
+    } else {
+      showBubble('🪞 已切換為同向同步模式（居中 1:1 同向動作）', 'happy');
+      chatBox.addAssistantMessage('🪞 同向同步模式：人偶居中，動作與你完全同向 1:1 同步，適合跳舞或虛擬實況。');
+    }
+    return next;
+  };
+
   const motionCaptureController = new MotionCaptureController(avatarController, animationController, {
-    lipSyncController
+    lipSyncController,
+    onHeartDetected: ({ type, side, isFaceToFace }) => {
+      sceneManager.spawnHeartParticles(16);
+      if (isFaceToFace) {
+        showBubble('哇～主人跟我面對面比愛心！好幸福喔～💕🥰', 'shy');
+        chatBox.addAssistantMessage('💖 偵測到與主人面對面比愛心！兩人的手在空中合體拼出完美愛心～✨');
+      } else {
+        showBubble('給主人滿滿的愛心～今天也要開開心心喔！💕✨', 'happy');
+        chatBox.addAssistantMessage('💖 偵測到愛心手勢！滿滿的愛心送給主人～✨');
+      }
+      emotionController.setEmotion('shy');
+    },
+    onMirrorInteraction: ({ type, side }) => {
+      if (type === 'kiss') {
+        sceneManager.spawnHeartParticles(25);
+        showBubble('/// 啾！碰到了呢～臉紅心跳！/// 💕💋', 'shy');
+        chatBox.addAssistantMessage('💋 隔著螢幕親吻：人偶靠上前來，閉上雙眼微微嘟嘴臉紅～💕✨');
+        emotionController.setEmotion('shy');
+      } else if (type === 'head_touch') {
+        sceneManager.spawnHeartParticles(15);
+        showBubble('頭碰頭貼在一起～好溫暖喔💕🥰', 'happy');
+        chatBox.addAssistantMessage('🥰 比肩頭碰頭：人偶靠向身邊歪頭相依，親密靠在一起～✨');
+        emotionController.setEmotion('happy');
+      } else if (type === 'touch_screen') {
+        sceneManager.spawnHeartParticles(10);
+        showBubble('隔著螢幕擊掌！我們的手掌貼在一起了呢～✋✨', 'happy');
+        chatBox.addAssistantMessage('✋ 掌心觸碰螢幕：人偶將手掌平貼在螢幕鏡面，與你的手掌掌心相對！✨');
+      } else if (type === 'half_heart') {
+        sceneManager.spawnHeartParticles(20);
+        showBubble('哇～我們合體比出完整大愛心了！好有默契喔～💕💖', 'shy');
+        chatBox.addAssistantMessage('💖 合體比愛心：偵測到你比出半邊愛心，人偶主動用另一手補上另一半，在空中合體拼出完整大愛心！✨');
+        emotionController.setEmotion('shy');
+      }
+    }
   });
-  const mocapPreview = new MocapPreview(uiContainer);
+
+  const mocapPreview = new MocapPreview(uiContainer, {
+    onToggleMirror: () => toggleMirrorMode()
+  });
+
   const motionTracker = new MotionTracker({
     onResults: (result) => {
       motionCaptureController.applyResults(result);
+
+      // Feed hand detection into physics engine for hand sticking & flinging (人偶黏手與甩出)
+      if (result.hands && result.hands.length > 0) {
+        const h = result.hands[0];
+        const palm = h.image[9] || h.image[0];
+        const isMirror = motionCaptureController.isMirror;
+        const screenX = isMirror ? (1 - palm.x) * window.innerWidth : palm.x * window.innerWidth;
+        const screenY = palm.y * window.innerHeight;
+        const isPinching = Math.hypot(h.image[8].x - h.image[4].x, h.image[8].y - h.image[4].y) < 0.085;
+        mascotPhysicsController.handleHandUpdate({
+          x: screenX,
+          y: screenY,
+          isPinching,
+          isHandDetected: true,
+          hands: [{ x: screenX, y: screenY, isPinching }],
+          source: 'mocap_hand'
+        });
+      } else if (result.pose?.image) {
+        const rw = result.pose.image[16], lw = result.pose.image[15];
+        const activeWrist = (rw && (rw.visibility ?? 1) > 0.45) ? rw : ((lw && (lw.visibility ?? 1) > 0.45) ? lw : null);
+        if (activeWrist) {
+          const isMirror = motionCaptureController.isMirror;
+          const screenX = isMirror ? (1 - activeWrist.x) * window.innerWidth : activeWrist.x * window.innerWidth;
+          const screenY = activeWrist.y * window.innerHeight;
+          mascotPhysicsController.handleHandUpdate({
+            x: screenX,
+            y: screenY,
+            isPinching: false,
+            isHandDetected: true,
+            hands: [{ x: screenX, y: screenY, isPinching: false }],
+            source: 'pose_wrist'
+          });
+        }
+      }
+
       if (result.pose) {
         const parts = ['身體'];
         if (result.face) parts.push('臉部');
@@ -436,7 +542,10 @@ window.addEventListener('DOMContentLoaded', async () => {
       motionManager.stop();
       mocapPreview.show(null, motionCaptureController.isMirror);
       try {
-        await motionTracker.start({ deviceId: arManager.selectedDeviceId });
+        await motionTracker.start({
+          videoElement: (arManager.isActive && arManager.getVideoElement()) ? arManager.getVideoElement() : null,
+          deviceId: arManager.selectedDeviceId
+        });
       } catch (err) {
         mocapPreview.hide();
         showBubble('無法啟動動作捕捉，請檢查鏡頭權限與網路連線', 'surprised');
@@ -445,10 +554,10 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
       isMocapMode = true;
       motionCaptureController.setEnabled(true);
-      mocapPreview.show(motionTracker.mediaStream, motionCaptureController.isMirror);
+      mocapPreview.show(motionTracker.mediaStream || (arManager.isActive ? arManager.mediaStream : null), motionCaptureController.isMirror);
       if (!silent) {
         showBubble('🕺 動作捕捉已開啟！我會跟著主人一起動～', 'happy');
-        chatBox.addAssistantMessage('🕺 動作捕捉已開啟！請讓上半身出現在鏡頭中，退後到全身入鏡時腿部也會跟著動。輸入 /mocap mirror 可切換鏡像。');
+        chatBox.addAssistantMessage('🕺 動作捕捉已開啟！請讓上半身出現在鏡頭中，退後到全身入鏡時腿部也會跟著動。點擊工具列「🪞 鏡像」或輸入 /mirror 可隨時切換面對面比心。');
       }
     } else {
       isMocapMode = false;
@@ -462,6 +571,32 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     if (toolbar) toolbar.setMocapActive(isMocapMode);
     return isMocapMode;
+  };
+
+  const toggleARMode = async (forceState = null) => {
+    try {
+      const active = forceState !== null
+        ? (forceState ? await arManager.start() : (arManager.stop(), false))
+        : await arManager.toggle();
+      if (active) {
+        if (isPuppetMode) await togglePuppetMode(false);
+        // Start motion capture with AR camera stream so avatar immediately comes alive!
+        await toggleMocapMode(true, true);
+        showBubble('📷 視訊 AR 面對面鏡像互動已啟動！我就在你的房間裡～快跟我比半個愛心、親螢幕或碰頭試試看！✨', 'happy');
+        chatBox.addAssistantMessage('📷 視訊 AR 與鏡像互動已同步啟動！\n• 比半邊心：你單手比半心，人偶用另一手補齊拼出大愛心 ❤️\n• 親螢幕：靠近鏡頭人偶會靠過來害羞閉眼嘟嘴 💋\n• 掌心碰螢幕：伸手向前，人偶會把手掌平貼螢幕與你掌心相對 ✋\n• 比肩頭碰頭：靠近並歪頭，人偶會靠過來頭碰頭相依 🥰\n（如需手部拉扯玩偶，可點擊「🤏 捏人」進入手指玩偶模式）');
+      } else {
+        if (isMocapMode) {
+          await toggleMocapMode(false, true);
+        }
+        showBubble('已回到透明桌面模式～', 'happy');
+        chatBox.addAssistantMessage('已關閉視訊 AR，回到透明桌面模式囉～');
+      }
+      return active;
+    } catch (err) {
+      showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
+      chatBox.addAssistantMessage('⚠️ 無法存取視訊攝影機，請確認鏡頭權限是否已開啟。');
+      return false;
+    }
   };
 
   const snapshotService = new SnapshotService(sceneManager, arManager);
@@ -489,7 +624,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     poseModal,
     (text, emotion) => showBubble(text, emotion),
     sceneManager,
-    motionEditor
+    motionEditor,
+    {
+      isMirror: motionCaptureController.isMirror,
+      onToggleMirror: () => toggleMirrorMode()
+    }
   );
 
   const multiAvatarBar = new MultiAvatarBar(
@@ -528,11 +667,16 @@ window.addEventListener('DOMContentLoaded', async () => {
       await toggleMocapMode(false);
       return true;
     }
-    if (trimmed === '/mocap mirror') {
-      const isMirror = motionCaptureController.setMirror();
-      mocapPreview.setMirror(isMirror);
-      showBubble(isMirror ? '🪞 動作捕捉：鏡像模式' : '🔄 動作捕捉：左右對應模式', 'happy');
-      chatBox.addAssistantMessage(isMirror ? '🪞 鏡像模式：你舉右手，畫面同一側的手會舉起（像照鏡子）。' : '🔄 左右對應模式：你舉右手，角色也舉她自己的右手。');
+    if (trimmed === '/mocap mirror' || trimmed === '/mirror' || trimmed === '/mirror toggle') {
+      toggleMirrorMode();
+      return true;
+    }
+    if (trimmed === '/heart' || trimmed === '/love') {
+      sceneManager.spawnHeartParticles(20);
+      animationController.playHeartPose();
+      emotionController.setEmotion('shy');
+      showBubble('給主人一個大大的愛心！今天也要超級開心哦～💕✨', 'shy');
+      chatBox.addAssistantMessage('💖 播放比愛心動作！空中漂浮滿滿的愛心粒子～✨');
       return true;
     }
     if (trimmed === '/fullscreen' || trimmed === '/fs') {
@@ -540,46 +684,19 @@ window.addEventListener('DOMContentLoaded', async () => {
       return true;
     }
     if (trimmed === '/ar' || trimmed === '/ar toggle') {
-      try {
-        const active = await arManager.toggle();
-        if (active) {
-          await togglePuppetMode(true);
-          showBubble('📷 視訊 AR 與手指拉扯模式已啟動！我就在你的房間裡，伸手捏捏看我吧～✨', 'happy');
-          chatBox.addAssistantMessage('📷 筆電鏡頭與手指玩偶模式已同步開啟！伸出手指靠近手腕、腰部捏合即可拉扯移動～');
-        } else {
-          await togglePuppetMode(false);
-          showBubble('已回到透明桌面模式～', 'happy');
-          chatBox.addAssistantMessage('已關閉筆電鏡頭，回到透明桌面模式囉～');
-        }
-      } catch (err) {
-        showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
-        chatBox.addAssistantMessage('⚠️ 無法存取視訊攝影機，請確認筆電鏡頭權限是否已開啟。');
-      }
+      await toggleARMode();
       return true;
     }
     if (trimmed === '/ar on') {
-      try {
-        await arManager.start();
-        await togglePuppetMode(true);
-        showBubble('📷 視訊 AR 與手指拉扯模式已啟動！伸手捏捏看我吧～✨', 'happy');
-        chatBox.addAssistantMessage('📷 筆電鏡頭與手指玩偶模式已開啟～');
-      } catch (err) {
-        showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
-        chatBox.addAssistantMessage('⚠️ 無法存取視訊攝影機，請確認筆電鏡頭權限是否已開啟。');
-      }
+      await toggleARMode(true);
       return true;
     }
     if (trimmed === '/ar off') {
-      arManager.stop();
-      await togglePuppetMode(false);
-      showBubble('已回到透明桌面模式～', 'happy');
-      chatBox.addAssistantMessage('已關閉筆電鏡頭，回到透明桌面模式囉～');
+      await toggleARMode(false);
       return true;
     }
     if (trimmed === '/ar mirror') {
-      const isMirror = arManager.setMirror();
-      showBubble(isMirror ? '🪞 已開啟自拍鏡像！' : '🔄 已切換為正常視角！', 'happy');
-      chatBox.addAssistantMessage(isMirror ? '🪞 已開啟視訊鏡像（自拍鏡感）' : '🔄 已切換為正常視角方向');
+      toggleMirrorMode();
       return true;
     }
     if (trimmed === '/pose list') {
@@ -818,6 +935,20 @@ window.addEventListener('DOMContentLoaded', async () => {
       chatBox.addAssistantMessage(`已將「${slot?.title}」從螢幕頂部高空拋落，觸發重力下墜與地面彈跳物理。`);
       return true;
     }
+    if (trimmed.startsWith('/bounce')) {
+      const parts = trimmed.split(/\s+/);
+      if (parts.length > 1) {
+        let val = parseFloat(parts[1]);
+        if (!isNaN(val)) {
+          if (val > 1.5) val = val / 100;
+          bouncinessModal.setBounciness(val, true);
+          chatBox.addAssistantMessage(`🏀 已將人偶碰撞反彈彈性設定為 ${Math.round(val * 100)}%！`);
+        }
+      } else {
+        bouncinessModal.toggle();
+      }
+      return true;
+    }
     if (trimmed.startsWith('/scale ')) {
       const val = parseFloat(trimmed.replace('/scale ', '').trim());
       if (!isNaN(val) && val >= 0.1 && val <= 8.0) {
@@ -939,6 +1070,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }, sceneManager);
 
+  const bouncinessModal = new BouncinessModal(uiContainer, mascotPhysicsController, showBubble);
+
   const toolbar = new Toolbar(uiContainer, {
     onMic: async () => {
       lipSyncController?.unlock();
@@ -968,24 +1101,19 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     },
     onAR: async () => {
-      try {
-        const active = await arManager.toggle();
-        if (active) {
-          await togglePuppetMode(true);
-          showBubble('📷 視訊 AR 與手指拉扯模式已啟動！我就在你的房間裡，伸手捏捏看我吧～✨', 'happy');
-        } else {
-          await togglePuppetMode(false);
-          showBubble('已回到透明桌面模式～', 'happy');
-        }
-      } catch (err) {
-        showBubble('無法存取視訊鏡頭，請檢查權限設定', 'surprised');
-      }
+      await toggleARMode();
     },
     onPuppet: () => {
       togglePuppetMode();
     },
     onMocap: () => {
       toggleMocapMode();
+    },
+    onMirror: () => {
+      toggleMirrorMode();
+    },
+    onBounce: () => {
+      bouncinessModal.toggle();
     },
     onClone: () => {
       const isVis = multiAvatarBar.toggle();
@@ -1143,6 +1271,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Registered last so captured motion overrides idle / eye-tracking / action bone writes
   sceneManager.addUpdatable(motionCaptureController);
   toolbar.setPuppetActive(false);
+  toolbar.setMirrorState(motionCaptureController.isMirror);
+  if (puppetPoseBar) puppetPoseBar.setMirrorState(motionCaptureController.isMirror);
 
   // Expose controllers for testing and inspection
   window.appControllers = {
@@ -1164,6 +1294,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     motionTracker,
     motionCaptureController,
     toggleMocapMode,
+    toggleARMode,
+    toggleMirrorMode,
     multiAvatarBar,
     toolbar,
     chatBox,
